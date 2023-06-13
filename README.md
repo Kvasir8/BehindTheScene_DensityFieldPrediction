@@ -1,4 +1,4 @@
-# Behind the Scenes: Density Fields for Single View Reconstruction
+ Behind the Scenes: Density Fields for Single View Reconstruction
 
 [**Paper**](https://arxiv.org/abs/2301.07668) |  [**Video**](https://youtu.be/0VGKPmomrR8) | [**Project Page**](https://fwmb.github.io/bts)
 

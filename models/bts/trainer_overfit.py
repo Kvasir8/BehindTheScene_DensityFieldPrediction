@@ -20,21 +20,44 @@ from utils.array_operations import map_fn, unsqueezer, to
 from utils.base_trainer import base_training
 from utils.plotting import color_tensor
 
+# from utils.hparam_tuning import random_search, grid_search
+from models.bts.model.models_bts import MVBTSNet
 
-class EncoderDummy(nn.Module):
+"""
+Approach: The transformer is also trained using the reconstruction loss from the BTS paper. The forward function of BTSNet and 
+correspondingly our MultiViewBTSNet output (rbg, invalid, density) is then used in the renderer instance (NeRFRenderer) 
+to synthesize a target Image. This target image is then compared to the "ground truth" image to calculate the reconstruction loss.
+
+Replace the encoder: You currently have an EncoderDummy which always returns the same feature map. 
+You would replace this with your Transformer model. The Transformer would take the sequence of views as input and return
+a sequence of encoded views as output. The size of the output should match the expected size of the feature map in the 
+next stage of your pipeline.
+"""
+## dummy encoder and a DataLoader that always returns the same batch of data
+## to ensure that the feature representation is not a variable in your experiment.
+# Since EncoderDummy always returns the same feature map, any learning or lack thereof
+# can be attributed to the parts of the model after the encoder.
+
+class EncoderDummy(nn.Module):  ## it returns a pre-defined feature tensor every time it is called.
     def __init__(self, size, feat_dim, num_views=1) -> None:
-        super().__init__()
-
-        self.feats = nn.Parameter(torch.randn(num_views, feat_dim, *size))
+        super().__init__() ## initializes this feature map as a random tensor of a specified size
+        self.feats = nn.Parameter(torch.randn(num_views, feat_dim, *size)) ## size:=determines the size of the feature map it produces
         self.latent_size = feat_dim
 
-    def forward(self, x):
-        n = x.shape[0]
-        return [self.feats.expand(n, -1, -1, -1)]
-
-
-class DataloaderDummy(DataLoader):
-
+    def forward(self, x):   ## dim(x):= (B,C,H,W) == (1,64,192,640)     ### on thursday meeting to discuss  ## batch size should be 1
+        n = x.shape[0]      ### torch.Size([4, 3, 192, 640])    4:= nv_, 3:=RGB
+        # for b_in_img in self.feats:     ## dim(feats): (10,64,192,640)  ?? Note: batch, B, isn't the same as num of multiviews
+        #     return [b_in_img.expand(n, -1, -1, -1)]
+        return [self.feats.expand(n, -1, -1, -1)]   ## ? ## origin: repeat the fixed feature map n batch times along the first dimension,
+        """
+        Note: -1 for the other dimensions mean those dimensions are not expanded and will retain their original sizes.
+        effectively creating a batch of identical feature maps. This makes it compatible with the rest of the model
+        that might be expecting a batch of feature maps
+        The forward method then takes an input x, ignores it, and returns the feature map repeated n times,
+        where n is the first dimension of x (usually the batch size). This allows the EncoderDummy to be used
+        in place of a real encoder in a model that expects to process batches of input data. ## all views will produce the same feature map
+        """
+class DataloaderDummy(DataLoader):  ## always returns the same element every time it's iterated over
     def __init__(self, dataset: Dataset[T_co], batch_size: Optional[int] = 1, shuffle: Optional[bool] = None,
                  sampler: Union[Sampler, Iterable, None] = None,
                  batch_sampler: Union[Sampler[Sequence], Iterable[Sequence], None] = None, num_workers: int = 0,
@@ -63,12 +86,14 @@ class BTSWrapperOverfit(BTSWrapper):
     def __init__(self, renderer, config, eval_nvs=False, size=None) -> None:
         super().__init__(renderer, config, eval_nvs)
 
-        self.encoder_dummy = EncoderDummy(size, config["encoder"]["d_out"], num_views=3)
+        # self.encoder_dummy = EncoderDummy(size, config["encoder"]["d_out"], num_views=3)  ## origin
+        self.encoder_dummy = EncoderDummy(size, config["encoder"]["d_out"], num_views=config["num_multiviews"])
 
         self.renderer.net.encoder = self.encoder_dummy
         self.renderer.net.flip_augmentation = False
 
-
+## doesn't do any training itself, but it "sets" up the training process with a specified dataflow function(get_dataflow),
+# initializer function (initialize), metrics function (get_metrics), and visualization function (visualize).
 def training(local_rank, config):
     return base_training(local_rank, config, get_dataflow, initialize, get_metrics, visualize)
 
@@ -87,13 +112,16 @@ def get_dataflow(config, logger=None):
 
     vis_dataset = copy(train_dataset)
     test_dataset = copy(train_dataset)
-
-    vis_dataset.return_depth = True
+    ## it's not always needed when using the model to make predictions. Once the model has been trained, it can predict a 3D feature volume from a set of input images. These 3D features can then be used to synthesize new views of the scene, without needing any depth information.
+    vis_dataset.return_depth = True        ## ! don't need for training but need it for evaluation (test) to quantify the loss metrics
     test_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
         # Ensure that only local rank 0 download the dataset
-        idist.barrier()
+        idist.barrier()     ## Once the dataset has been downloaded, the barrier is invoked, and only then are the other processes allowed to proceed.
+        ## By using this method, you can control the order of execution in a distributed setting and ensure that certain
+        ## steps are not performed multiple times by different processes. This can be very useful when working with shared
+        ## resources or when coordination is required between different processes.
 
     # Setup data loader also adapted to distributed config: nccl, gloo, xla-tpu
     train_loader = DataloaderDummy(train_dataset)
@@ -104,10 +132,10 @@ def get_dataflow(config, logger=None):
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "BTSNet")
+    arch = config["model_conf"].get("arch", "MVBTSNet")         ## Model creation  ## origin: get("arch", "BTSNet")
     net = globals()[arch](config["model_conf"])
-    renderer = NeRFRenderer.from_conf(config["renderer"])
-    renderer = renderer.bind_parallel(net, gpus=None).eval()
+    renderer = NeRFRenderer.from_conf(config["renderer"], eval_batch_size=100000)       ## ! instance of a Neural Radiance Fields (NeRF) renderer using settings from the configuration
+    renderer = renderer.bind_parallel(net, gpus=None).eval()    ## renderer is then bound to the model
 
     mode = config.get("mode", "depth")
 
@@ -118,7 +146,7 @@ def initialize(config: dict, logger=None):
         size=config["data"].get("image_size", (192, 640))
     )
 
-    model = idist.auto_model(model)
+    model = idist.auto_model(model) ## Distributed setup: The model is prepared for distributed training, tools for easy setup of distributed training
 
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
     optimizer = idist.auto_optim(optimizer)

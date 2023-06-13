@@ -32,7 +32,7 @@ from utils.projection_operations import distance_to_z
 class BTSWrapper(nn.Module):
     def __init__(self, renderer, config, eval_nvs=False) -> None:
         super().__init__()
-
+        self.nv_ = config["num_multiviews"]
         self.renderer = renderer
 
         self.z_near = config["z_near"]
@@ -116,8 +116,8 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        ids_encoder = [0]
-        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values
+        ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## origin: ids_encoder = [0,1,2,3]
+        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?
 
         combine_ids = None
 
@@ -144,7 +144,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
-            elif self.frame_sample_mode == "kitti360-mono":
+            elif self.frame_sample_mode == "kitti360-mono": ## observed in debug setting
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
 
@@ -396,9 +396,9 @@ def get_metrics(config, device):
     names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
     if config.get("mode", "depth") == "nvs":
         names += ["ssim", "psnr", "lpips"]
-
-    metrics = {name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device) for name in names}
-    return metrics
+    ### x['output'].keys()==dict_keys(['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far'])
+    metrics = {name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device) for name in names}  ## ? which currently stuck at
+    return metrics  ## x['output']['imgs'][0~(nv_-1)].size(), torch.Size([1, 3, 192, 640]) ## n == 'abs_rel'
 
 
 def initialize(config: dict, logger=None):

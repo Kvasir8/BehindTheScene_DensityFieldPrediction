@@ -12,11 +12,11 @@ from dotmap import DotMap
 class _RenderWrapper(torch.nn.Module):
     def __init__(self, net, renderer, simple_output):
         super().__init__()
-        self.net = net
+        self.net = net                  ## net == {MVBTSNet}
         self.renderer = renderer
         self.simple_output = simple_output
 
-    def forward(self, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None):
+    def forward(self, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None):    ## !
         if rays.shape[0] == 0:
             return (
                 torch.zeros(0, 3, device=rays.device),
@@ -207,7 +207,7 @@ class NeRFRenderer(torch.nn.Module):
 
         return z_samp
 
-    def composite(self, model, rays, z_samp, coarse=True, sb=0):
+    def composite(self, model, rays, z_samp, coarse=True, sb=0):        ## ! model argument is params of func
         """
         Render RGB and depth for each ray using NeRF alpha-compositing formula,
         given sampled positions along each ray (see sample_*)
@@ -256,7 +256,7 @@ class NeRFRenderer(torch.nn.Module):
                     viewdirs, eval_batch_size, dim=eval_batch_dim
                 )
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)       ### !! MVSBTS model (transformer)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)

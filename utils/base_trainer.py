@@ -20,9 +20,8 @@ from torch.cuda.amp import autocast, GradScaler
 from utils.array_operations import to
 from utils.metrics import MeanMetric
 
-
 def base_training(local_rank, config, get_dataflow, initialize, get_metrics, visualize):
-    rank = idist.get_rank()
+    rank = idist.get_rank()     ## rank of the current process within a group of processes: each process could handle a unique subset of the data, based on its rank
     manual_seed(config["seed"] + rank)
     device = idist.device()
 
@@ -31,7 +30,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     log_basic_info(logger, config)
 
     output_path = config["output_path"]
-    if rank == 0:
+    if rank == 0:   ## could use rank to coordinate the exchange of information between processes: for instance, we might have all processes send their computed gradients to the process with rank 0, which would then compute the average gradient and send this back to the other processes.
         if config["stop_iteration"] is None:
             now = datetime.now().strftime("%Y%m%d-%H%M%S")
         else:
@@ -210,7 +209,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
             logger.info(f"Stop training on {trainer.state.iteration} iteration")
             trainer.terminate()
 
-    try:
+    try:    ## train_loader == models.bts.trainer_overfit.DataloaderDummy object
         trainer.run(train_loader, max_epochs=config["num_epochs"])
     except Exception as e:
         logger.exception("")
@@ -251,7 +250,7 @@ def log_basic_info(logger, config):
         logger.info("\n")
 
 
-def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, config, logger, metrics={}):
+def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, config, logger,  metrics={}):
 
     device = idist.device()
 
@@ -284,7 +283,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)
+            data = model(data)          ## model == BTSWrapperOverfit(BTSWrapper)
 
         timing["t_forward"] = time.time() - _start_time
 
@@ -353,12 +352,12 @@ def create_evaluator(model, metrics, criterion, config, tag="val"):
         data = to(data, device)
 
         with autocast(enabled=with_amp):
-            data = model(data)
+            data = model(data)                ### BTSWrapperOverfit object == model
 
         for name in metrics.keys():
-            data[name] = data[name].mean()
-
-        if criterion is not None:
+            data[name] = data[name].mean()    ## origin # if 'abs_rel' in data:   data[name] = data[name].mean()    ## key error handler as overfitting
+            ## data.keys() == dict_keys(['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far'])
+        if criterion is not None:   ## !
             loss, loss_metrics = criterion(data)
         else:
             loss_metrics = {}

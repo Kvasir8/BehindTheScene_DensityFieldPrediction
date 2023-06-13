@@ -291,3 +291,32 @@ class ReconstructionLoss:
         loss_dict["loss"] = loss.item()
 
         return loss, loss_dict
+
+"""
+The BTSNet class is the primary class in the script, and it extends the torch.nn.Module class, making it a custom 
+PyTorch module. Here is a high-level overview of its components:
+
+Initialization: The class has several hyperparameters that can be configured during initialization. 
+These include parameters that control the minimum and maximum depth (d_min and d_max), whether to learn an 
+'empty' feature (learn_empty), and the mode for positional encoding (code_mode). It also determines whether 
+to apply flip augmentation (flip_augmentation) and sample color (sample_color). The configuration of the network 
+is provided as a dictionary (conf).
+
+Encoder: The encoder is an instance of a make_backbone function that takes the encoder configuration from conf as 
+input. The encoder is likely a deep learning model that extracts features from the input data.
+
+MLP (Multilayer Perceptron): There are two MLPs in the model: mlp_coarse and mlp_fine, which are created by the 
+make_mlp function. These MLPs are used for generating the outputs of the model.
+
+Positional Encoding: The code_xyz is a positional encoding that is used for encoding the spatial location of 
+the points in the scene.
+
+Empty Feature: If learn_empty is True, an empty_feature is initialized as a learnable parameter. This feature might 
+be used to represent areas in the scene where there are no objects.
+
+As for the specific implementation details and how these parts interact with each other, the authors of the model use a 
+ResNet-50 as an encoder pretrained on ImageNet and the architecture of MonoDepth 2 for the decoder, 
+with some modifications. The decoder uses two fully connected layers with hidden dimensions. The model samples a color 
+and expected ray termination depth for a given ray and uses coarse and fine sampling as in NeRF papers. It also uses
+ a positional encoding scheme, and normalizes the depth to a real-world scale of scenes
+"""

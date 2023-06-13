@@ -1,10 +1,11 @@
-type: "KITTI_360"
+type: "KITTI_360_DFT"
 data_path: "data/KITTI-360"
 pose_path: "data/KITTI-360/data_poses"
-split_path: "datasets/kitti_360/splits/seg"
+split_path: "datasets/kitti_360/splits/seg_origin"
 image_size: [ 192, 640 ]
 data_stereo: true
-data_fc: 2
+data_fc: 5
 fisheye_rotation: -15
 fisheye_offset: 10
 is_preprocessed: false
+data_fisheye: true

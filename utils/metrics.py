@@ -36,7 +36,7 @@ class MeanMetric(Metric):
 
     @torch.no_grad()
     def iteration_completed(self, engine: Engine) -> None:
-        output = self._output_transform(engine.state.output)
+        output = self._output_transform(engine.state.output)    ## engine.state.output.keys() == dict_keys(['output', 'loss_dict', 'timings_dict', 'metrics_dict'])
         self.update(output)
 
 
