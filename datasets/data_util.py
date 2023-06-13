@@ -160,6 +160,49 @@ def make_datasets(config):
         )
         return train_dataset, test_dataset
 
+    elif type == "KITTI_360_DFT":
+        if config.get("split_path", None) is None:
+            train_split_path = None
+            test_split_path = None
+        else:
+            train_split_path = os.path.join(config["split_path"], "train_files.txt")
+            test_split_path = os.path.join(config["split_path"], "val_files.txt")
+
+        train_dataset = Kitti360Dataset(
+            data_path=config["data_path"],
+            pose_path=config["pose_path"],
+            split_path=train_split_path,
+            target_image_size=tuple(config.get("image_size", (192, 640))),
+            frame_count=config.get("data_fc", 3),       ## ? frame_count
+            return_stereo=config.get("data_stereo", True),
+            return_fisheye=config.get("data_fisheye", True),
+            return_3d_bboxes=config.get("data_3d_bboxes", False),
+            return_segmentation=config.get("data_segmentation", False),
+            keyframe_offset=config.get("keyframe_offset", 0),
+            dilation=config.get("dilation", 1),
+            fisheye_rotation=config.get("fisheye_rotation", 0),
+            fisheye_offset=config.get("fisheye_offset", 1),
+            color_aug=config.get("color_aug", False),
+            is_preprocessed=config.get("is_preprocessed", False)
+        )
+        test_dataset = Kitti360Dataset(
+            data_path=config["data_path"],
+            pose_path=config["pose_path"],
+            split_path=test_split_path,
+            target_image_size=tuple(config.get("image_size", (192, 640))),
+            frame_count=config.get("data_fc", 3),
+            return_stereo=config.get("data_stereo", True),
+            return_fisheye=config.get("data_fisheye", True),
+            return_3d_bboxes=config.get("data_3d_bboxes", False),
+            return_segmentation=config.get("data_segmentation", False),
+            keyframe_offset=config.get("keyframe_offset", 0),
+            fisheye_rotation=config.get("fisheye_rotation", 0),
+            fisheye_offset=config.get("fisheye_offset", 1),
+            dilation=config.get("dilation", 1),
+            is_preprocessed=config.get("is_preprocessed", False)
+        )
+        return train_dataset, test_dataset
+
     else:
         raise NotImplementedError(f"Unsupported dataset type: {type}")
 

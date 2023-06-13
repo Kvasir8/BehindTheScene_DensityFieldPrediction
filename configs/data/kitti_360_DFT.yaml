@@ -1,0 +1,13 @@
+type: "KITTI_360_DFT"
+# data_path: "/usr/stud/hank/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360"           # storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360
+data_path: "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360"           # storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360
+pose_path: "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses"
+# pose_path: "/usr/stud/hank/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses"
+split_path: "datasets/kitti_360/splits/seg"
+image_size: [ 192, 640 ]
+data_stereo: true
+data_fc: 2
+fisheye_rotation: -15
+fisheye_offset: 10
+is_preprocessed: false
+data_fisheye: true
