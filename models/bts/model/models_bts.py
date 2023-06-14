@@ -195,9 +195,12 @@ class MVBTSNet(torch.nn.Module):
         #     invalid = torch.cat(invalid_groups, dim=1)
         #     sampled_features = torch.cat(sampled_features_groups, dim=1)
 
+        if use_single_featuremap:   ## ! compute the mean of the sampled features across the view dimension and check if any of the features are invalid.
+            sampled_features = sampled_features.mean(dim=1) ### torch.Size([1, 100000, 103]) : mean(dim=1)==squeeze
+            invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap
         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
-    def sample_colors(self, xyz):
+    def sample_colors(self, xyz):   ## ? where does z come from? we're working on image domain with predicted depth from density field computed?
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
         n, nv, c, h, w = self.grid_c_imgs.shape     ## nv := #_views
         xyz = xyz.unsqueeze(1)                      # (n, 1, pts, 3)
@@ -270,7 +273,6 @@ class MVBTSNet(torch.nn.Module):
             combine_index = None
             dim_size = None
 
-
             # Run main NeRF network
             if self.DFT_flag:   ## !! TODO: transformer network (Transformer_DF.py)
                 mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
@@ -307,7 +309,9 @@ class MVBTSNet(torch.nn.Module):
                 nv = 1
 
             if self.empty_empty:    ## method sets the sigma values of the invalid features to 0 for invalidity.
+                # sigma[invalid_features[..., 0]] = 0
                 sigma[torch.all(invalid_features, dim=-1)] = 0
+
             # TODO: Think about this!
             # Since we don't train the colors directly, lets use softplus instead of relu
             '''Combine RGB colors and invalid colors'''
@@ -323,8 +327,6 @@ class MVBTSNet(torch.nn.Module):
                 invalid = invalid_features.to(sigma.dtype)
         return rgb, invalid, sigma
         # return rgb, torch.prod(invalid, dim=-1), sigma
-
-
 
 class BTSNet(torch.nn.Module):
     def __init__(self, conf):
