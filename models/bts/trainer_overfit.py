@@ -42,6 +42,7 @@ class EncoderDummy(nn.Module):  ## it returns a pre-defined feature tensor every
     def __init__(self, size, feat_dim, num_views=1) -> None:
         super().__init__() ## initializes this feature map as a random tensor of a specified size
         self.feats = nn.Parameter(torch.randn(num_views, feat_dim, *size)) ## size:=determines the size of the feature map it produces
+        # self.feats = nn.Parameter(torch.stack([torch.linspace(i, feat_dim - 1 + i, feat_dim)[:, None, None].repeat(1, *size) for i in range(num_views)], dim=0)) ## size:=determines the size of the feature map it produces
         self.latent_size = feat_dim
 
     def forward(self, x):   ## dim(x):= (B,C,H,W) == (1,64,192,640)     ### on thursday meeting to discuss  ## batch size should be 1
