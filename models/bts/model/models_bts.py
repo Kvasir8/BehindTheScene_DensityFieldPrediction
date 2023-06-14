@@ -19,7 +19,7 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
-        self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"))  ### should only be used as it gives extra memory. c.f. DFT_flag == True
+        self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), d_model=conf.get("d_model"))  ### should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
@@ -132,7 +132,7 @@ class MVBTSNet(torch.nn.Module):
         ones = torch.ones_like(xyz[..., :1])        ## Create a tensor of ones to add a fourth dimension to the point cloud for homogeneous coordinates
         xyz = torch.cat((xyz, ones), dim=-1)        ## Concatenate the tensor of ones with the point cloud to create homogeneous coordinates
         xyz_projected = ((self.grid_f_poses_w2c[:, :nv_, :3, :]) @ xyz.permute(0, 1, 3, 2))  ## Apply the camera poses to the point cloud to get the projected points and calculate the distance
-        distance = torch.norm(xyz_projected, dim=-2).unsqueeze(-1)
+        distance = torch.norm(xyz_projected, dim=-2).unsqueeze(-1)  ### [1, 2, 100000, 1]
         xyz_projected = (self.grid_f_Ks[:, :nv_] @ xyz_projected).permute(0, 1, 3, 2)    ## Apply the intrinsic camera parameters to the projected points to get pixel coordinates
         xy = xyz_projected[:, :, :, [0, 1]]         ## Extract the x,y coordinates and depth value from the projected points
         z = xyz_projected[:, :, :, 2:3]
@@ -197,7 +197,7 @@ class MVBTSNet(torch.nn.Module):
 
         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
-    def sample_colors(self, xyz):   ## ? where does z come from? we're working on image domain with predicted depth from density field computed?
+    def sample_colors(self, xyz):
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
         n, nv_, c, h, w = self.grid_c_imgs.shape     ## nv_ := #_views
         xyz = xyz.unsqueeze(1)                      # (n, 1, pts, 3)
