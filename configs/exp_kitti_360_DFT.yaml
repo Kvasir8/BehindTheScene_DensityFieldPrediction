@@ -7,8 +7,9 @@ name: "kitti_360_DFT"
 model: "bts_overfit"            # model: "bts"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 2000
+num_epochs: 25000
 batch_size: 16
+visualize_every: 500
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -25,7 +26,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 3          # arbitrary setting. Default: 2
+    num_multiviews: 2          # arbitrary setting. Default: 2
     DFT_flag: true
     feature_pad: true
     num_layers: 3

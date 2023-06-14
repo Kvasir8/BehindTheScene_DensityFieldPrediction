@@ -21,6 +21,7 @@ class MVBTSNet(torch.nn.Module):
         super().__init__()  ### inherits the initialization behavior from its parent class
         self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"))  ### should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True)
+        # self.DFT_flag = False
         self.nv = conf.get("nv", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
@@ -155,7 +156,7 @@ class MVBTSNet(torch.nn.Module):
                 distance = (distance - self.d_min) / (self.d_max - self.d_min)
             distance = 2 * distance - 1
             xyz_projected = torch.cat((xy, distance), dim=-1)   ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
-        xyz_code = self.code_xyz(xyz_projected.view(n * nv * n_pts, -1)).view(n, nv, n_pts, -1)   ## ! positional encoding dimension to check (concatenate)
+        xyz_code = self.code_xyz(xyz_projected.view(n * nv * n_pts, -1)).view(n, nv, n_pts, -1).permute(0, 2, 1, 3)   ## ! positional encoding dimension to check (concatenate)
 
         feature_map = self.grid_f_features[self._scale][:, :nv] ## Extract the feature map corresponding to the current scale and view. i.e. extracting the features for the first nv views c.f. encoder in pipeline
         # These samples are from different scales
@@ -163,72 +164,39 @@ class MVBTSNet(torch.nn.Module):
             empty_feature_expanded = self.empty_feature.view(1, 1, 1, c).expand(n, nv, n_pts, c)    ## trainable parameter, initialized with random features
         ## feature_map (2, 4, 64, 128, 128): n = 2, nv = 4 views, c = 64 channels in the feature map, and the height and width of the feature map are h = 128 and w = 128
         ## !TODO: for multiviews for F.grid_sample : xy.view(n * nv, 1, -1, 2) To debug how xy looks like in order to integrate for multiview (by looking over doc in Pytorch regarding how to sample all frames)
-        sampled_features = F.grid_sample(feature_map.view(n * nv, c, h, w), xy.view(n * nv, 1, -1, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n, nv, c, n_pts).permute(0, 1, 3, 2)   ## Sample features using grid sampling and interpolate them using bilinear interpolation
+        sampled_features = F.grid_sample(feature_map.view(n * nv, c, h, w), xy.view(n * nv, 1, -1, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n, nv, c, n_pts).permute(0, 3, 1, 2)   ## Sample features using grid sampling and interpolate them using bilinear interpolation
         ## dim(sampled_features): (n, nv, n_pts, c)
         if self.learn_empty:    ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
             sampled_features[invalid.expand(-1, -1, -1, c)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c)] ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
-        if self.test_sample:
-            # For testing: Initialize the features e.g. 4 views, 100000 points per view, and 103 features per point
-            sampled_features = torch.rand((4, 100000, 103))  # [num_views, num_points, num_features]
-            # Reshape the features to match the input shape that the transformer expects: [num_points, num_views, num_features]
-            sampled_features = sampled_features.permute(1, 0, 2)
-        else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
+        sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n, nv, M, C1+C_pos_emb)
-        sampled_features = sampled_features.squeeze(0)    ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
-        # If there are multiple frames with predictions, reduce them.
-        # TODO: Technically, this implementations should be improved if we use multiple frames.
-        # The reduction should only happen after we perform the unprojection.
-
-        ## Run Density Field Transformer Network to accumulate multi-views
-        if False: ## self.DFT_flag ## TODO: integrate the code from DFT
-            ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-            # input_featureMap_spatial_flattened_dim = len(sampled_features)
-            # self.DFT = DensityFieldTransformer(input_featureMap_spatial_flattened_dim, )
-            ## Accumulate multiviews
-            # transformed_features = self.DFT.transformer_encoder(sampled_features)  # (B,1,M,C2)
-
-            density_predictions = self.DFT(sampled_features, invalid)  ### dim(density): (B,1,M,C2)
-
-            # for idx, DF_img in enumerate(sampled_features): # (n, nv, n_pts, c + xyz_code[...,-1])
-            #     features = self.encoder(DF_img)
-            #     # Extract features for DensityFieldTransformer
-            #     if idx == 0:
-            #         x_multiview = features.unsqueeze(1)
-            #     else:
-            #         x_multiview = torch.cat((x_multiview, features.unsqueeze(1)), dim=1)
-            #
-            # # Pass the accumulated multiviews to DensityFieldTransformer
-            # sampled_features = self.DFT(x_multiview)
+        sampled_features = sampled_features   ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
 
         '''allows the algorithm to select the best features among different views or groups of views, based on the invalid flags. It provides an additional level of flexibility for combining features from different views in a more controlled manner.'''
-        if self.grid_f_combine is not None: ## => there are specific groups of frames/views that need to be combined.
-            invalid_groups = []             ## features that are out of camera's frustum or are out of range of positional encoding, [-1,1]
-            sampled_features_groups = []
+        # if self.grid_f_combine is not None: ## => there are specific groups of frames/views that need to be combined.
+        #     invalid_groups = []             ## features that are out of camera's frustum or are out of range of positional encoding, [-1,1]
+        #     sampled_features_groups = []
 
-            for group in self.grid_f_combine:
-                if len(group) == 1:
-                    invalid_groups.append(invalid[:, group])
-                    sampled_features_groups.append(sampled_features[:, group])
+        #     for group in self.grid_f_combine:
+        #         if len(group) == 1:
+        #             invalid_groups.append(invalid[:, group])
+        #             sampled_features_groups.append(sampled_features[:, group])
 
-                invalid_to_combine = invalid[:, group]
-                features_to_combine = sampled_features[:, group]    ## the code tries to combine the features from different views within the group
+        #         invalid_to_combine = invalid[:, group]
+        #         features_to_combine = sampled_features[:, group]    ## the code tries to combine the features from different views within the group
 
-                indices = torch.min(invalid_to_combine, dim=1, keepdim=True)[1] ## These indices indicate the best features among the different views, as they have the lowest(torch.min) invalid flags.
-                invalid_picked = torch.gather(invalid_to_combine, dim=1, index=indices)     ## best invalid flags are also extracted
-                features_picked = torch.gather(features_to_combine, dim=1, index=indices.expand(-1, -1, -1, features_to_combine.shape[-1])) ## similarly, best features are then extracted
-                ## Once all groups have been processed:
-                invalid_groups.append(invalid_picked)
-                sampled_features_groups.append(features_picked)
+        #         indices = torch.min(invalid_to_combine, dim=1, keepdim=True)[1] ## These indices indicate the best features among the different views, as they have the lowest(torch.min) invalid flags.
+        #         invalid_picked = torch.gather(invalid_to_combine, dim=1, index=indices)     ## best invalid flags are also extracted
+        #         features_picked = torch.gather(features_to_combine, dim=1, index=indices.expand(-1, -1, -1, features_to_combine.shape[-1])) ## similarly, best features are then extracted
+        #         ## Once all groups have been processed:
+        #         invalid_groups.append(invalid_picked)
+        #         sampled_features_groups.append(features_picked)
 
-            invalid = torch.cat(invalid_groups, dim=1)
-            sampled_features = torch.cat(sampled_features_groups, dim=1)
+        #     invalid = torch.cat(invalid_groups, dim=1)
+        #     sampled_features = torch.cat(sampled_features_groups, dim=1)
 
-        if use_single_featuremap:   ## ! compute the mean of the sampled features across the view dimension and check if any of the features are invalid.
-            sampled_features = sampled_features.mean(dim=1) ### torch.Size([1, 100000, 103]) : mean(dim=1)==squeeze
-            invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap
-
-        return sampled_features, invalid    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
+        return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
     def sample_colors(self, xyz):   ## ? where does z come from? we're working on image domain with predicted depth from density field computed?
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
@@ -296,15 +264,13 @@ class MVBTSNet(torch.nn.Module):
                 nv = len(self.grid_c_combine)
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
-            sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # default: not only_density # invalid features (n, n_pts, 1) if only_density is False, then use_single_featuremap is true
-            # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
-            ### sampled_features == torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
-            mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
-            # print("__dim(mlp_intput): ", mlp_input.shape)  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
+            sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (B, n_pts, n_v, 103), (B, n_pts, n_v)
+            mlp_input = sampled_features  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
 
             # Camera frustum culling stuff, currently disabled
             combine_index = None
             dim_size = None
+
 
             # Run main NeRF network
             if self.DFT_flag:   ## !! TODO: transformer network (Transformer_DF.py)
@@ -342,7 +308,7 @@ class MVBTSNet(torch.nn.Module):
                 nv = 1
 
             if self.empty_empty:    ## method sets the sigma values of the invalid features to 0 for invalidity.
-                sigma[invalid_features[..., 0]] = 0
+                sigma[torch.all(invalid_features, dim=-1)] = 0
             # TODO: Think about this!
             # Since we don't train the colors directly, lets use softplus instead of relu
             '''Combine RGB colors and invalid colors'''
@@ -351,12 +317,13 @@ class MVBTSNet(torch.nn.Module):
                 rgb = rgb.permute(0, 2, 1, 3).reshape(n, n_pts, nv * c)         # (n, pts, nv * 3)
                 invalid_colors = invalid_colors.permute(0, 2, 1, 3).reshape(n, n_pts, nv)
 
-                invalid = invalid_colors | invalid_features                 # Invalid features gets broadcasted to (n, n_pts, nv)
+                invalid = invalid_colors | torch.all(invalid_features, dim=-1)[..., None]  # Invalid features gets broadcasted to (n, n_pts, nv)
                 invalid = invalid.to(rgb.dtype)
             else:   ## If only_density is True, the method only returns the volume density (sigma) without computing the RGB colors.
                 rgb = torch.zeros((n, n_pts, nv * 3), device=sigma.device)
                 invalid = invalid_features.to(sigma.dtype)
-        return rgb, torch.prod(invalid, dim=1), sigma
+        return rgb, invalid, sigma
+        # return rgb, torch.prod(invalid, dim=-1), sigma
 
 
 

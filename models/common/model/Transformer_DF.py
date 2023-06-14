@@ -43,7 +43,9 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## TODO: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=32, nhead=1, num_layers=6, feature_pad = False, dim_feedforward = num_features):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(
+        self, in_features=103, attention_features=32, nhead=1, num_layers=6, feature_pad=True
+    ):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param nhead: number of heads in the multi-head attention models (Note: embed_dim must be divisible by num_heads)
@@ -55,54 +57,65 @@ class DensityFieldTransformer(nn.Module):
         # self.n_ = mlp_input.shape[0]
         # self.d_model = mlp_input.shape[-1]
 
-        # Embedding layer: flattened and embedded in the forward method using the in_embedding layer, which converts the density field values into a suitable format for the Transformer
-        self.in_embedding = nn.Linear(dim_feedforward, d_model, bias=False)  ## TODO: embedding weights can be properly formulated
+        self.encoder = nn.Sequential(nn.Linear(in_features, 2*attention_features, bias=True), nn.ReLU(), nn.Linear(2*attention_features, attention_features, bias=True))
 
         ## Transformer encoder layers
-        self.transformer_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward=64, batch_first=True)  ### (n, nv_==seq, features)
+        self.transformer_layer = TransformerEncoderLayer(
+            attention_features, nhead, dim_feedforward=attention_features, batch_first=True
+        )  ### (n, nv_==seq, features)
         self.transformer_encoder = TransformerEncoder(self.transformer_layer, num_layers)
-        self.query  = torch.rand(1, 1, d_model).to("cuda")
-        self.helper = torch.rand(1, 1, d_model).to("cuda") ## ?
-        self.attention = nn.MultiheadAttention(d_model, nhead, batch_first=True)
+        self.readout_token = nn.Parameter(torch.rand(1, 1, attention_features).to("cuda"), requires_grad=True)  ## ?
+        # self.readout_token = torch.rand(1, 1, attention_features).to("cuda")  ## ?
 
-        # self.transformer = nn.Transformer(d_model, nhead, num_encoder_layers=num_layers)
+        self.density_field_prediction = nn.Sequential(
+            nn.Linear(attention_features, 1)
+        )  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
-        # Output density field prediction layer ## TODO: dim: (batch_size, num_pixels, 1)
-        self.density_field_prediction = nn.Sequential( nn.Linear(d_model, 1))   ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
-
-
-    def forward(self, sampled_features, invalid_features): ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+    def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
 
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
-        invalid_features = invalid_features > 0.5   ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
+        invalid_features = (
+            invalid_features > 0.5
+        )  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
         # embedded_features = self.in_embedding(sampled_features)  # Embedding to Transformer arch.
-        embedded_features = sampled_features
+        encoded_features = self.encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))
 
         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
         if self.padding_flag:
-            padded_features = torch.concat([self.helper.expand(embedded_features.shape[0], -1, -1), embedded_features], dim=1) ### (B*n_pts, nv_+1, 103) == ([100000, 3, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[1], 1, device="cuda"), invalid_features[..., 0].permute(1, 0)], dim=1) ### [100000, 3]
-            transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid) ### masking dim(features) ([100000, nv_+1, 103]) with invalid padding [100000, 3])
+            padded_features = torch.concat(
+                [self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1
+            )  ### (B*n_pts, nv_+1, 103) == ([100000, 3, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            padded_invalid = torch.concat(
+                [torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],
+                dim=1,
+            )  ### [100000, 3]
+            transformed_features = self.transformer_encoder(
+                padded_features, src_key_padding_mask=padded_invalid
+            )  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             invalid_features = padded_invalid
         else:
-            invalid_features = invalid_features.squeeze(-1).permute(1,0)
-            transformed_features = self.transformer_encoder(embedded_features, src_key_padding_mask=invalid_features) ### [100000, nv_==2, 103]
+            invalid_features = invalid_features.squeeze(-1).permute(1, 0)
+            transformed_features = self.transformer_encoder(
+                encoded_features, src_key_padding_mask=invalid_features
+            )  ### [100000, nv_==2, 103]
 
-        aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]      ## ? key and values are roughly defined, which needs to be specified?
+        aggregated_features = transformed_features[
+            :, 0, :
+        ]  # 100000*B,103  ## ? key and values are roughly defined, which needs to be specified?
         ### MultiheadAtten( dim(Q)=(1,1,103), dim(K)=(n*n_pts,nv_,103), dim(V)=(n*n_pts,nv_,103) ) ### torch.Size([100000, 1, 103])
 
         # transformed_features = self.transformer_encoder(embedded_features, src_key_padding_mask=invalid_features[..., 0].permute(1, 0))
         # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features[..., 0].permute(1, 0))[0]
 
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
-        density_field = self.density_field_prediction(aggregated_features).view(-1) ### torch.Size([100000])
+        density_field = self.density_field_prediction(aggregated_features)  ### torch.Size([100000])
         # density_field = torch.nan_to_num(density_field, 0.0)
         # !!! BAD example below, see (https://pytorch.org/docs/stable/notes/autograd.html#in-place-correctness-checks) for more details
         # density_field[torch.all(invalid_features, dim=0)[:, 0], 0, 0] = 0
-        
+
         # ! This might be an alternative to the padding.
         if False:
             final_output = torch.zeros_like(density_field)
