@@ -65,12 +65,7 @@ model_conf:
 
     sample_mode: patch
     patch_size: 8
-<<<<<<< HEAD
-    ray_batch_size: 128                # default: 4096
-=======
-    ray_batch_size: 4096                # #_sampled points in an array from one single view
->>>>>>> 93d11ad (change feature padding issue and the model works)
-
+    ray_batch_size: 128                # default: 4096 #_sampled points in an array from one single view
     flip_augmentation: true
 
     learn_empty: false
