@@ -196,6 +196,7 @@ class MVBTSNet(torch.nn.Module):
         #     sampled_features = torch.cat(sampled_features_groups, dim=1)
 
         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
+        # return sampled_features, invalid    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
     def sample_colors(self, xyz):
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.

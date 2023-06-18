@@ -91,6 +91,7 @@ class DensityFieldTransformer(nn.Module):
             )  ### [100000, nv_==2, 103]
 
         aggregated_features = transformed_features[:,0,:]  # 100000*B,103  ## ? key and values are roughly defined, which needs to be specified?    # # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+
         ### MultiheadAtten( dim(Q)=(1,1,103), dim(K)=(n*n_pts,nv_,103), dim(V)=(n*n_pts,nv_,103) ) ### torch.Size([100000, 1, 103])
 
         # transformed_features = self.transformer_encoder(embedded_features, src_key_padding_mask=invalid_features[..., 0].permute(1, 0))
