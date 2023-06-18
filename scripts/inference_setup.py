@@ -97,7 +97,7 @@ def get_pts(x_range, y_range, z_range, x_res, y_res, z_res, cam_incl_adjust=None
     return xyz
 
 
-def setup_kitti360(out_folder, split="test", split_name="seg_origin"):
+def setup_kitti360(out_folder, split="test", split_name="seg"):
     resolution = (192, 640)
 
     dataset = Kitti360Dataset(

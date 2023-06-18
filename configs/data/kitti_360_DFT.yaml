@@ -3,7 +3,7 @@ type: "KITTI_360_DFT"
 data_path: "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360"           # storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360
 pose_path: "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses"
 # pose_path: "/usr/stud/hank/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses"
-split_path: "datasets/kitti_360/splits/seg"
+split_path: "datasets/kitti_360/splits/seg_overfitting"
 image_size: [ 192, 640 ]
 data_stereo: true
 data_fc: 2
