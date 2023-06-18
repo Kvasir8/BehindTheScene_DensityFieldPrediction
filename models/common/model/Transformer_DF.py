@@ -44,7 +44,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 ## TODO: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
     def __init__(
-        self, in_features=103, attention_features=32, nhead=1, num_layers=6, feature_pad=True
+        self, in_features=103, attention_features=32, nhead=4, num_layers=6, feature_pad=True
     ):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
@@ -54,10 +54,7 @@ class DensityFieldTransformer(nn.Module):
         """
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag = feature_pad
-        # self.n_ = mlp_input.shape[0]
-        # self.d_model = mlp_input.shape[-1]
-
-        self.encoder = nn.Sequential(nn.Linear(in_features, 2*attention_features, bias=True), nn.ReLU(), nn.Linear(2*attention_features, attention_features, bias=True))
+        self.emb_encoder = nn.Sequential(nn.Linear(in_features, 2*attention_features, bias=True), nn.ReLU(), nn.Linear(2*attention_features, attention_features, bias=True))
 
         ## Transformer encoder layers
         self.transformer_layer = TransformerEncoderLayer(
@@ -81,7 +78,7 @@ class DensityFieldTransformer(nn.Module):
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
         # embedded_features = self.in_embedding(sampled_features)  # Embedding to Transformer arch.
-        encoded_features = self.encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))
+        encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))   ### [M*n==100000, nv_, 32]
 
         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
         if self.padding_flag:

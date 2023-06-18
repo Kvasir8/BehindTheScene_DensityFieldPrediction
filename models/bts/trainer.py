@@ -21,7 +21,7 @@ from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import BTSNet
+from models.bts.model.models_bts import BTSNet, MVBTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from utils.base_trainer import base_training
 from utils.metrics import MeanMetric
@@ -377,7 +377,7 @@ def get_dataflow(config, logger=None):
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50
+    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 100  ## ? default: 50 but why is it 50??
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
@@ -402,7 +402,7 @@ def get_metrics(config, device):
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "BTSNet")
+    arch = config["model_conf"].get("arch", "MVBTSNet")     ## origin: get("arch", "BTSNet")
     net = globals()[arch](config["model_conf"])
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
