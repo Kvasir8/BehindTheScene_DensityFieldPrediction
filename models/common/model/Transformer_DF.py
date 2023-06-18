@@ -119,7 +119,7 @@ class DensityFieldTransformer(nn.Module):
         # density_field = torch.nan_to_num(density_field, 0.0)
         # !!! BAD example below, see (https://pytorch.org/docs/stable/notes/autograd.html#in-place-correctness-checks) for more details
         # density_field[torch.all(invalid_features, dim=0)[:, 0], 0, 0] = 0
-        
+
         # ! This might be an alternative to the padding.
         if False:
             final_output = torch.zeros_like(density_field)
