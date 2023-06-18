@@ -43,7 +43,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## TODO: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, in_features=103, attention_features=32, nhead=4, num_layers=6, feature_pad=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, attention_features=32, nhead=4, num_layers=6, feature_pad=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param nhead: number of heads in the multi-head attention models (Note: embed_dim must be divisible by num_heads)
@@ -52,7 +52,7 @@ class DensityFieldTransformer(nn.Module):
         """
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag = feature_pad
-        self.emb_encoder = nn.Sequential(nn.Linear(in_features, 2*attention_features, bias=True), nn.ReLU(), nn.Linear(2*attention_features, attention_features, bias=True))
+        self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2*attention_features, bias=True), nn.ReLU(), nn.Linear(2*attention_features, attention_features, bias=True))
 
         ## Transformer encoder layers
         self.transformer_layer = TransformerEncoderLayer(
