@@ -21,7 +21,6 @@ class MVBTSNet(torch.nn.Module):
         super().__init__()  ### inherits the initialization behavior from its parent class
         self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"))  ### should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True)
-        # self.DFT_flag = False
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
@@ -96,10 +95,10 @@ class MVBTSNet(torch.nn.Module):
             comb_encoder = None
             comb_render = None
 
-        n, nv_, c, h, w = images_encoder.shape  ### torch.Size([1, 4, 3, 192, 640])
+        n, nv_, c, h, w = images_encoder.shape  ### torch.Size([n, nv_, 3, 192, 640]) 3:=RGB
         c_l = self.encoder.latent_size
 
-        if self.flip_augmentation and self.training:
+        if self.flip_augmentation and self.training:        ## data augmentation
             do_flip = (torch.rand(1) > .5).item()
         else:
             do_flip = False
@@ -107,13 +106,13 @@ class MVBTSNet(torch.nn.Module):
         if do_flip:
             images_encoder = torch.flip(images_encoder, dims=(-1, ))
 
-        image_latents_ms = self.encoder(images_encoder.view(n * nv_, c, h, w))      ## ? nv_?
+        image_latents_ms = self.encoder(images_encoder.view(n * nv_, c, h, w))
 
         if do_flip:
             image_latents_ms = [torch.flip(il, dims=(-1, )) for il in image_latents_ms]
 
         _, _, h_, w_ = image_latents_ms[0].shape
-        image_latents_ms = [F.upsample(image_latents, (h_, w_)).view(n, nv_, c_l, h_, w_) for image_latents in image_latents_ms]
+        image_latents_ms = [F.interpolate(image_latents, (h_, w_)).view(n, nv_, c_l, h_, w_) for image_latents in image_latents_ms]    ### UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead
 
         self.grid_f_features = image_latents_ms
         self.grid_f_Ks = Ks_encoder
@@ -274,7 +273,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT_flag:   ## !! TODO: transformer network (Transformer_DF.py)
-                mlp_output = self.DFT(mlp_input.squeeze(0), invalid_features.squeeze(0)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
                 if torch.any(torch.isnan(mlp_output)):
                     print(torch.any(torch.isnan(mlp_output)))
 

@@ -103,7 +103,7 @@ def get_dataflow(config, logger=None):
     # - Get train/test datasets
     if idist.get_local_rank() > 0:
         # Ensure that only local rank 0 download the dataset
-        # Thus each node will download a copy of the dataset
+        # Thus each node will download a copy of the datasetMVBTSNet
         idist.barrier()
 
     train_dataset, _ = make_datasets(config["data"])
