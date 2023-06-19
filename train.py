@@ -14,7 +14,6 @@ def main(config: DictConfig):
     OmegaConf.set_struct(config, False)
 
     os.environ["NCCL_DEBUG"] = "INFO"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     # torch.autograd.set_detect_anomaly(True)
 
     backend = config.get("backend", None)
