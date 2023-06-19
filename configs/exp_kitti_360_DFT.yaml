@@ -7,9 +7,9 @@ name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 10000
-batch_size: 16
-visualize_everyn: 10
+num_epochs: 5000
+batch_size: 3
+visualize_everyn: 1000
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.

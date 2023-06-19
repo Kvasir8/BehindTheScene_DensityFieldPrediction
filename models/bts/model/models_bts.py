@@ -175,7 +175,7 @@ class MVBTSNet(torch.nn.Module):
             sampled_features = sampled_features.permute(1, 0, 2)
         else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n, nv, M, C1+C_pos_emb)
-        sampled_features = sampled_features.squeeze(0)    ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
+        sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
         # If there are multiple frames with predictions, reduce them.
         # TODO: Technically, this implementations should be improved if we use multiple frames.
         # The reduction should only happen after we perform the unprojection.
@@ -202,33 +202,33 @@ class MVBTSNet(torch.nn.Module):
             # sampled_features = self.DFT(x_multiview)
 
         '''allows the algorithm to select the best features among different views or groups of views, based on the invalid flags. It provides an additional level of flexibility for combining features from different views in a more controlled manner.'''
-        if self.grid_f_combine is not None: ## => there are specific groups of frames/views that need to be combined.
-            invalid_groups = []             ## features that are out of camera's frustum or are out of range of positional encoding, [-1,1]
-            sampled_features_groups = []
+        # if self.grid_f_combine is not None: ## => there are specific groups of frames/views that need to be combined.
+        #     invalid_groups = []             ## features that are out of camera's frustum or are out of range of positional encoding, [-1,1]
+        #     sampled_features_groups = []
+        #
+        #     for group in self.grid_f_combine:
+        #         if len(group) == 1:
+        #             invalid_groups.append(invalid[:, group])
+        #             sampled_features_groups.append(sampled_features[:, group])
+        #
+        #         invalid_to_combine = invalid[:, group]
+        #         features_to_combine = sampled_features[:, group]    ## the code tries to combine the features from different views within the group
+        #
+        #         indices = torch.min(invalid_to_combine, dim=1, keepdim=True)[1] ## These indices indicate the best features among the different views, as they have the lowest(torch.min) invalid flags.
+        #         invalid_picked = torch.gather(invalid_to_combine, dim=1, index=indices)     ## best invalid flags are also extracted
+        #         features_picked = torch.gather(features_to_combine, dim=1, index=indices.expand(-1, -1, -1, features_to_combine.shape[-1])) ## similarly, best features are then extracted
+        #         ## Once all groups have been processed:
+        #         invalid_groups.append(invalid_picked)
+        #         sampled_features_groups.append(features_picked)
+        #
+        #     invalid = torch.cat(invalid_groups, dim=1)
+        #     sampled_features = torch.cat(sampled_features_groups, dim=1)
 
-            for group in self.grid_f_combine:
-                if len(group) == 1:
-                    invalid_groups.append(invalid[:, group])
-                    sampled_features_groups.append(sampled_features[:, group])
+        # if use_single_featuremap:   ## ! compute the mean of the sampled features across the view dimension and check if any of the features are invalid.
+        #     sampled_features = sampled_features.mean(dim=1) ### torch.Size([1, 100000, 103]) : mean(dim=1)==squeeze
+        #     invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap   ##         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
-                invalid_to_combine = invalid[:, group]
-                features_to_combine = sampled_features[:, group]    ## the code tries to combine the features from different views within the group
-
-                indices = torch.min(invalid_to_combine, dim=1, keepdim=True)[1] ## These indices indicate the best features among the different views, as they have the lowest(torch.min) invalid flags.
-                invalid_picked = torch.gather(invalid_to_combine, dim=1, index=indices)     ## best invalid flags are also extracted
-                features_picked = torch.gather(features_to_combine, dim=1, index=indices.expand(-1, -1, -1, features_to_combine.shape[-1])) ## similarly, best features are then extracted
-                ## Once all groups have been processed:
-                invalid_groups.append(invalid_picked)
-                sampled_features_groups.append(features_picked)
-
-            invalid = torch.cat(invalid_groups, dim=1)
-            sampled_features = torch.cat(sampled_features_groups, dim=1)
-
-        if use_single_featuremap:   ## ! compute the mean of the sampled features across the view dimension and check if any of the features are invalid.
-            sampled_features = sampled_features.mean(dim=1) ### torch.Size([1, 100000, 103]) : mean(dim=1)==squeeze
-            invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap   ##         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
-
-        return sampled_features, invalid    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
+        return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
     def sample_colors(self, xyz):
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
@@ -299,7 +299,8 @@ class MVBTSNet(torch.nn.Module):
             sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (B, n_pts, n_v, 103), (B, n_pts, n_v)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
             ### sampled_features == torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
-            mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
+            # mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
+            mlp_input = sampled_features  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
             # print("__dim(mlp_intput): ", mlp_input.shape)  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
 
             # Camera frustum culling stuff, currently disabled
@@ -309,7 +310,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT_flag:   ## !! TODO: transformer network (Transformer_DF.py)
-                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.permute(0,2,1,3).flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
                 if torch.any(torch.isnan(mlp_output)):
                     print("nan_existed: ", torch.any(torch.isnan(mlp_output)))
 
@@ -343,7 +344,7 @@ class MVBTSNet(torch.nn.Module):
                 nv_ = 1
 
             if self.empty_empty:    ## method sets the sigma values of the invalid features to 0 for invalidity.
-                sigma[invalid_features[..., 0]] = 0 # sigma[torch.all(invalid_features, dim=-1)] = 0
+                sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
             # TODO: Think about this!
             # Since we don't train the colors directly, lets use softplus instead of relu
             '''Combine RGB colors and invalid colors'''
@@ -352,7 +353,7 @@ class MVBTSNet(torch.nn.Module):
                 rgb = rgb.permute(0, 2, 1, 3).reshape(n, n_pts, nv_ * c)         # (n, pts, nv * 3)
                 invalid_colors = invalid_colors.permute(0, 2, 1, 3).reshape(n, n_pts, nv_)
 
-                invalid = invalid_colors | torch.all(invalid_features, dim=1).expand(-1,-1,invalid_colors.shape[-1])       # invalid = invalid_colors | torch.all(invalid_features, dim=-1)[..., None]  # invalid = invalid_colors | invalid_features  # Invalid features gets broadcasted to (n, n_pts, nv)
+                invalid = invalid_colors | torch.all(invalid_features, dim=-1)[..., None]  # invalid = invalid_colors | torch.all(invalid_features, dim=1).expand(-1,-1,invalid_colors.shape[-1])       # # invalid = invalid_colors | invalid_features  # Invalid features gets broadcasted to (n, n_pts, nv)
                 invalid = invalid.to(rgb.dtype)
             else:   ## If only_density is True, the method only returns the volume density (sigma) without computing the RGB colors.
                 rgb = torch.zeros((n, n_pts, nv_ * 3), device=sigma.device)
