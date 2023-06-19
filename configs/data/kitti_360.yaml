@@ -1,7 +1,7 @@
 type: "KITTI_360"
 data_path: "data/KITTI-360"
 pose_path: "data/KITTI-360/data_poses"
-split_path: "datasets/kitti_360/splits/seg_overfitting"
+split_path: "datasets/kitti_360/splits/seg"
 image_size: [ 192, 640 ]
 data_stereo: true
 data_fc: 2

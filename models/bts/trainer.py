@@ -373,11 +373,11 @@ def get_dataflow(config, logger=None):
     test_dataset._left_offset = 0
     test_dataset.return_stereo = mode == "nvs"
     test_dataset.return_depth = True
-    test_dataset.length = min(32, test_dataset.length)      ## ? default: 256
+    test_dataset.length = min(256, test_dataset.length)      ## ? default: 256
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 0  ## ? default: 50 but why is it 50??
+    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 100  ## ? default: 50 but why is it 50??
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:

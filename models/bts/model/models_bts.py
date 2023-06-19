@@ -19,7 +19,7 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
-        self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), d_model=conf.get("d_model"))  ### should only be used as it gives extra memory. c.f. DFT_flag == True
+        self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers")) # d_model=conf.get("d_model") ### should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
@@ -173,7 +173,7 @@ class MVBTSNet(torch.nn.Module):
             sampled_features = torch.rand((4, 100000, 103))  # [num_views, num_points, num_features]
             # Reshape the features to match the input shape that the transformer expects: [num_points, num_views, num_features]
             sampled_features = sampled_features.permute(1, 0, 2)
-        else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
+        # else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n, nv, M, C1+C_pos_emb)
         sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
         # If there are multiple frames with predictions, reduce them.
