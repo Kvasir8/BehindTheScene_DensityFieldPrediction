@@ -4,11 +4,12 @@ defaults:
     - _self_
 
 name: "kitti_360_DFT"
-model: "bts_overfit"            # model: "bts"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
+model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 2000
+num_epochs: 10000
 batch_size: 16
+visualize_every: 10
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -25,7 +26,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 2          # arbitrary setting: default: 2
+    num_multiviews: 6          # arbitrary setting. Default: 2
     DFT_flag: true
     feature_pad: true
     num_layers: 2               # std_Transformer: default: 6
@@ -42,7 +43,7 @@ model_conf:
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
-        d_out: 64               # c.f. paper D.1. output channel dimension 64 as hyperparam for the best result
+        d_out: 64               # c.f. paper D.1. output channel dimension 64 as hparam for the best result
 
     mlp_coarse:
         type : "resnet"
@@ -65,7 +66,6 @@ model_conf:
     sample_mode: patch
     patch_size: 8
     ray_batch_size: 128                # default: 4096 #_sampled points in an array from one single view
-
     flip_augmentation: true
 
     learn_empty: false

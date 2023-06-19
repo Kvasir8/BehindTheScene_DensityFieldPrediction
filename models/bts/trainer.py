@@ -87,7 +87,7 @@ class BTSWrapper(nn.Module):
 
     def forward(self, data):
         data = dict(data)
-        images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
+        images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w     ## ? v:= patch_size??
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
 
@@ -207,6 +207,7 @@ class BTSWrapper(nn.Module):
 
         with profiler.record_function("trainer_encode-grid"):
             self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
+            self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_render, images_alt=images_ip, combine_ids=combine_ids)
 
         sampler = self.train_sampler if self.training else self.val_sampler
 

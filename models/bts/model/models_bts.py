@@ -200,7 +200,7 @@ class MVBTSNet(torch.nn.Module):
             invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap
         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
-    def sample_colors(self, xyz):   ## ? where does z come from? we're working on image domain with predicted depth from density field computed?
+    def sample_colors(self, xyz):
         n, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
         n, nv, c, h, w = self.grid_c_imgs.shape     ## nv := #_views
         xyz = xyz.unsqueeze(1)                      # (n, 1, pts, 3)
