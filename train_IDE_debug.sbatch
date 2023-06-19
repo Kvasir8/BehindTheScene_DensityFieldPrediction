@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_overfitting_sg_fmap"
+#SBATCH --job-name="BTS_training"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
