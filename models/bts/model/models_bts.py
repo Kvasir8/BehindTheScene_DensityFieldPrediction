@@ -98,7 +98,7 @@ class MVBTSNet(torch.nn.Module):
         n, nv, c, h, w = images_encoder.shape  ### torch.Size([n, nv, 3, 192, 640]) 3:=RGB
         c_l = self.encoder.latent_size
 
-        if self.flip_augmentation and self.training:        ## data augmentation
+        if self.flip_augmentation and self.training:        ## data augmentation for color
             do_flip = (torch.rand(1) > .5).item()
         else:
             do_flip = False
