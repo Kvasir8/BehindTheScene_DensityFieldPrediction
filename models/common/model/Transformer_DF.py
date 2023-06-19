@@ -45,7 +45,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 class DensityFieldTransformer(nn.Module):
     def __init__(self, d_model=103, attention_features=32, nhead=4, num_layers=6, feature_pad=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
-        :param d_model: Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
+        :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param nhead: number of heads in the multi-head attention models (Note: embed_dim must be divisible by num_heads)
         :param num_layers: The number of sub-encoder-layers in the encoder. For standard Transformer arch, defualt: 6
         :param dim_feedforward: Dimension of the feedforward network model
@@ -81,7 +81,7 @@ class DensityFieldTransformer(nn.Module):
         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
         if self.padding_flag:
             padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features[...,0]],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
+            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
             transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             invalid_features = padded_invalid
         else:
@@ -96,7 +96,7 @@ class DensityFieldTransformer(nn.Module):
         # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features[..., 0].permute(1, 0))[0]
 
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
-        density_field = self.density_field_prediction(aggregated_features).view(-1)  ### torch.Size([100000])
+        density_field = self.density_field_prediction(aggregated_features)  # .view(-1)  ### torch.Size([100000])
         # density_field = torch.nan_to_num(density_field, 0.0)
         # !!! BAD example below, see (https://pytorch.org/docs/stable/notes/autograd.html#in-place-correctness-checks) for more details
         # density_field[torch.all(invalid_features, dim=0)[:, 0], 0, 0] = 0
