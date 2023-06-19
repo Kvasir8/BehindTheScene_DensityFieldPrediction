@@ -274,7 +274,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT_flag:   ## !! TODO: transformer network (Transformer_DF.py)
-                mlp_output = self.DFT(mlp_input.squeeze(0), invalid_features.squeeze(0)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+                mlp_output = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
                 if torch.any(torch.isnan(mlp_output)):
                     print(torch.any(torch.isnan(mlp_output)))
 
