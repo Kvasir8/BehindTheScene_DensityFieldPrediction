@@ -173,7 +173,7 @@ class MVBTSNet(torch.nn.Module):
             sampled_features = torch.rand((4, 100000, 103))  # [num_views, num_points, num_features]
             # Reshape the features to match the input shape that the transformer expects: [num_points, num_views, num_features]
             sampled_features = sampled_features.permute(1, 0, 2)
-        # else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
+        else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n, nv, M, C1+C_pos_emb)
         sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
         # If there are multiple frames with predictions, reduce them.
