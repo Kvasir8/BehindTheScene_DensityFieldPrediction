@@ -8,6 +8,7 @@ model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ 
 output_path: "out/kitti_360"
 
 num_epochs: 10000
+#validate_every: 5000
 batch_size: 16
 visualize_everyn: 10
 
