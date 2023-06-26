@@ -9,7 +9,7 @@ num_workers: 4
 eval_use_iters: true
 vis_use_iters: true
 validate_every: 2000
-visualize_every: 10000
+visualize_every: 100
 
 log_every_iters: 1
 log_tb_train_every_iters: -1
