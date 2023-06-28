@@ -4,21 +4,31 @@ import torch
 import torch.nn.functional as F
 from torch import profiler
 
-from models.common.model.layers import ssim
+from models.common.model.layers import ssim, geo
 
 
-def compute_errors_l1ssim(img0, img1, mask=None):
+def compute_errors_geocls(img0, img1, mask=None):   ## L_{geo} + L_{cls}
     n, pc, h, w, nv, c = img0.shape
     img1 = img1.expand(img0.shape)
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    errors = .85 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
+    errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
     if mask is not None: return errors, mask
     else: return errors
 
+def compute_errors_l1ssim(img0, img1, mask=None):
+    n, pc, h, w, nv, c = img0.shape ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
+    img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
+    img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
+    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
+    errors = .85 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
+    errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
+    if mask is not None: return errors, mask    ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
+    else: return errors
 
-def edge_aware_smoothness(gt_img, depth, mask=None):
+
+def edge_aware_smoothness(gt_img, depth, mask=None):    ## L_{eas}
     n, pc, h, w = depth.shape
     gt_img = gt_img.permute(0, 1, 4, 5, 2, 3).reshape(-1, 3, h, w)
     depth = 1 / depth.reshape(-1, 1, h, w).clamp(1e-3, 80)
@@ -40,7 +50,7 @@ def edge_aware_smoothness(gt_img, depth, mask=None):
     return errors
 
 
-class ReconstructionLoss:
+class ReconstructionLoss:   ## L_{ph}
     def __init__(self, config, use_automasking=False) -> None:
         super().__init__()
         self.criterion_str = config.get("criterion", "l2")
@@ -53,6 +63,9 @@ class ReconstructionLoss:
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
+        elif self.criterion_str == "l1+ssim+geo+cls":
+            self.rgb_coarse_crit = compute_errors_geocls
+            self.rgb_fine_crit = compute_errors_geocls
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
         self.ignore_invalid = self.invalid_policy is not None and self.invalid_policy != "none"
