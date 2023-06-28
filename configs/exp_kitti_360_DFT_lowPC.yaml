@@ -66,7 +66,7 @@ model_conf:
 
     sample_mode: patch
     patch_size: 8
-    ray_batch_size: 128                # default: 4096 #_sampled points in an array from one single view. This can be reduced for issue of out of memory of CUDA
+    ray_batch_size: 32                # default: 4096 #_sampled points in an array from one single view. This can be reduced for issue of out of memory of CUDA
     flip_augmentation: true
 
     learn_empty: false
@@ -84,7 +84,7 @@ scheduler:
     gamma: 0.1
 
 renderer:
-    n_coarse : 64                       # default: 64, batch size == patch => possible number of points along a ray in total: 4096 * 64 = 262144
+    n_coarse : 8                       # default: 64, batch size == patch => possible number of points along a ray in total: 4096 * 64 = 262144
     n_fine : 0
     n_fine_depth : 0
     depth_std : 1.0
