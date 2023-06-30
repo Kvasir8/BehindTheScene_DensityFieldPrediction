@@ -158,11 +158,19 @@ class ScaledDotProductAttention(nn.Module):
 
     def forward(self, q, k, v, mask=None):
 
-        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))    ### ?? [32768, 4, 7, 7]
 
-        if mask is not None:
+        if mask is not None:    ### [32768, 1, 7]
+            mask = mask.unsqueeze(-1)   ##
+            mask = mask.expand(-1, attn.shape[1], -1, attn.shape[-1])   ##  TODO: matrix should be investiated to validate the operator
             attn = attn.masked_fill(mask == 0, -1e9)
             # attn = attn * mask
+            '''
+            def masked_fill(self, mask, value):
+                result = self.clone()  # Start with a copy of the original data
+                result[mask] = value   # Replace values where the mask is true
+                return result
+            '''
 
         attn = F.softmax(attn, dim=-1)
         # attn = self.dropout(F.softmax(attn, dim=-1))
@@ -257,7 +265,7 @@ class EncoderLayer(nn.Module):
 
     def forward(self, enc_input, slf_attn_mask=None):
         enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)
+            enc_input, enc_input, enc_input, mask=slf_attn_mask)        ## ! TODO: RuntimeError occurs where the matrix operator error arises
         enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 
