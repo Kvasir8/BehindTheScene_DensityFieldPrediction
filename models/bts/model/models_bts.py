@@ -253,7 +253,7 @@ class MVBTSNet(torch.nn.Module):
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!
-        :param xyz (B, 3)
+        :param xyz (B, 3) / [nv_==4, M==8192, 3]
         B is batch of points (in rays)
         :return (B, 4) r g b sigma
         """

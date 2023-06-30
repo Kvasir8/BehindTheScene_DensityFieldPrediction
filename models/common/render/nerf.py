@@ -332,7 +332,7 @@ class NeRFRenderer(torch.nn.Module):
 
             assert len(rays.shape) == 3
             superbatch_size = rays.shape[0]
-            rays = rays.reshape(-1, 8)  # (SB * B, 8)
+            rays = rays.reshape(-1, 8)  # (SB * B, 8)   == (4 * 128, 8)
 
             if sample_from_dist is None:
                 z_coarse = self.sample_coarse(rays)  # (B, Kc)

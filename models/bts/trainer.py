@@ -243,7 +243,7 @@ class BTSWrapper(nn.Module):
         else:
             with profiler.record_function("trainer_render"):
                 render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
-
+                ### [cam_views:=4, M:=128, patch_size:=8]
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
 
