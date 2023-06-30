@@ -377,7 +377,7 @@ def get_dataflow(config, logger=None):
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 100  ## ? default: 50 but why is it 50??
+    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50  ## visualization for image. ? default: 50 but why is it 50??
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
