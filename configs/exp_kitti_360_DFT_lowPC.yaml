@@ -1,4 +1,4 @@
-defaults:
+defaults:                       ### This Code is to run for debugging purpose, so the model parameters are very much shortened. For normal training, please follow "exp_kitti_360_DFT.yaml"
     - default
     - data: kitti_360_DFT
     - _self_
@@ -7,9 +7,9 @@ name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 10000
+num_epochs: 100
 #validate_every: 5000
-batch_size: 16                  # default: 16
+batch_size: 4                  # default: 16
 visualize_every: 10
 
 save_best:

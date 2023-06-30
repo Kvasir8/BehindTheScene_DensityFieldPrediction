@@ -10,9 +10,10 @@ from models.bts.trainer_overfit import training as bts_overfit
 
 ## connection to the cluster server and debugging
 import pydevd_pycharm   ## for external debugging
-sv = 51    ## atcremers(sv) server allocation for debug server in Pycharm IDE
+sv = 85    ## atcremers(sv) server allocation for debug server in Pycharm IDE
 if   sv == 51:    debug_sv = '131.159.18.70'
 elif sv == 59:    debug_sv = '131.159.18.113'
+elif sv == 85:    debug_sv = '131.159.18.198'
 
 import pydevd_pycharm
 pydevd_pycharm.settrace(debug_sv, port=58023, stdoutToServer=True, stderrToServer=True)  ## IDE host name of the machine where the IDE is running
