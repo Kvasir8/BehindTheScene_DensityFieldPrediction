@@ -9,8 +9,8 @@ output_path: "out/kitti_360"
 
 num_epochs: 10000
 #validate_every: 5000
-batch_size: 16                  # default: 16
-visualize_everyn: 10
+batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
+visualize_every: 1000           # default: 10
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -22,6 +22,8 @@ data:
     color_aug: true
     is_preprocessed: true
     fisheye_rotation: [0, -15]
+
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 
 model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
@@ -66,15 +68,15 @@ model_conf:
 
     sample_mode: patch
     patch_size: 8
-    ray_batch_size: 128                # default: 4096 #_sampled points in an array from one single view. This can be reduced for issue of out of memory of CUDA
+    ray_batch_size: 4096                # default: 4096 #_sampled points in an array from one single view. This can be reduced for issue of out of memory of CUDA
     flip_augmentation: true
 
     learn_empty: false
     code_mode: z
 
 loss:
-#    criterion: "l1+ssim"
-    criterion: "l1+ssim+geo+cls"
+    criterion: "l1+ssim"
+#    criterion: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001
 

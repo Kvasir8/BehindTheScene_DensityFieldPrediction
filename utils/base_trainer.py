@@ -283,7 +283,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)          ## model == BTSWrapper(BTSWrapper) or BTSWrapperOverfit(BTSWrapper)
+            data = model(data)          ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)
 
         timing["t_forward"] = time.time() - _start_time
 
@@ -311,7 +311,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     for name, metric in metrics.items():
         metric.attach(trainer, name)
 
-    to_save = {"trainer": trainer, "model": model, "optimizer": optimizer, "lr_scheduler": lr_scheduler}
+    to_save = {"trainer": trainer, "model": model, "lr_scheduler": lr_scheduler}    ## , "optimizer": optimizer ## !optimizer to be removed? (to match our changed DFT netowrk) -> math gradient + model parameters
 
     common.setup_common_training_handlers(
         trainer=trainer,
@@ -332,7 +332,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         assert checkpoint_fp.exists(), f"Checkpoint '{checkpoint_fp.as_posix()}' is not found"
         logger.info(f"Resume from a checkpoint: {checkpoint_fp.as_posix()}")
         checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
-        Checkpoint.load_objects(to_load=to_save, checkpoint=checkpoint)
+        Checkpoint.load_objects(to_load=to_save, checkpoint=checkpoint, strict = False) ## !strickt := matching parameters only done mis match ML != DFT
 
     return trainer
 
