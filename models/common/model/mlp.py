@@ -1,5 +1,9 @@
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
+torch._C._jit_set_profiling_executor(False)
+torch._C._jit_set_profiling_mode(False)
+
 import numpy as np
 from models.common import util
 
