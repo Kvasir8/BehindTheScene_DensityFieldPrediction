@@ -19,7 +19,9 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
-        self.DFT = DensityFieldTransformer(feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers")) # d_model=conf.get("d_model") ### visualizing which input_image_idx be used. Preferably, it should only be used as it gives extra memory. c.f. DFT_flag == True
+        self.DFT = DensityFieldTransformer(
+            feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), IBR=conf.get("IBRNet")
+        ) # d_model=conf.get("d_model") ### visualizing which input_image_idx be used. Preferably, it should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True) # default: True
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)

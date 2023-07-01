@@ -34,6 +34,7 @@ model_conf:
     feature_pad: true
     num_layers: 3               # std_Transformer: default: 6
     d_model: 103                # could be adjustable unless it's prime number
+    IBRNet: true                # IBRNet Transformer    (ablation)
 
     code:
         num_freqs: 6
