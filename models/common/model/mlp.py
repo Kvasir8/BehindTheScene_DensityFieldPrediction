@@ -10,6 +10,10 @@ from models.common import util
 from typing import Optional, Any, Union, Callable
 from torch import Tensor
 
+import copy
+# from torch.nn.modules.transformer import *
+import torch.nn.modules.transformer as TTF
+
 
 class ImplicitNet(nn.Module):
     """
@@ -272,57 +276,179 @@ class EncoderLayer(nn.Module):
 
 '''(modified) Transformer arch from Pytorch library
 to be compatible with nn.TransformerEncoder() as input arg'''
-class TrEnLayer(torch.nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
-                 activation="relu", batch_first=True, norm_first=False,
-                 activation_relu_or_gelu=True):
-        super(TransformerEncoderLayer, self).__init__()
-        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        # Implementation of Feedforward model
-        self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
-        self.dropout = torch.nn.Dropout(dropout)
-        self.linear2 = torch.nn.Linear(dim_feedforward, d_model)
+class TrEnLayer(nn.Module):
+    r"""
+    Args:
+    encoder_layer: an instance of the TransformerEncoderLayer() class (required).
+    num_layers: the number of sub-encoder-layers in the encoder (required).
+    norm: the layer normalization component (optional).
+    enable_nested_tensor: if True, input will automatically convert to nested tensor
+        (and convert back on output). This will improve the overall performance of
+        TransformerEncoder when padding rate is high. Default: ``True`` (enabled).
+    """
+    def __init__(self, encoder_layer, num_layers, norm=None, enable_nested_tensor=True, mask_check=True):
+        super(TrEnLayer, self).__init__()
+        # self.layers = nn.ModuleList([deepcopy(encoder_layer) for _ in range(num_layers)])
+        self.layers = TTF._get_clones(encoder_layer, num_layers)    ## deep copy
+        self.num_layers = num_layers
+        self.norm = norm
+        self.enable_nested_tensor = enable_nested_tensor
+        self.mask_check = mask_check
 
-        self.norm1 = torch.nn.LayerNorm(d_model)
-        self.norm2 = torch.nn.LayerNorm(d_model)
-        self.dropout1 = torch.nn.Dropout(dropout)
-        self.dropout2 = torch.nn.Dropout(dropout)
+    def forward(self, src: Tensor, mask: Optional[Tensor]=None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        r"""Pass the input through the encoder layers in turn.
 
-        # Legacy string support for activation function.
-        if isinstance(activation, str):
-            self.activation = _get_activation_fn(activation)
-        else:
-            self.activation = activation
+        Args:
+            src: the sequence to the encoder (required).
+            mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
 
-        self.pos_ffn = PositionwiseFeedForward(d_model, dim_feedforward, dropout)
+        Shape:
+            see the docs in Transformer class.
+        """
+        if src_key_padding_mask is not None:
+            _skpm_dtype = src_key_padding_mask.dtype
+            if _skpm_dtype != torch.bool and not torch.is_floating_point(src_key_padding_mask):
+                raise AssertionError(
+                    "only bool and floating types of key_padding_mask are supported")
+        output = src
+        convert_to_nested = False
+        first_layer = self.layers[0]
+        src_key_padding_mask_for_layers = src_key_padding_mask
+        why_not_sparsity_fast_path = ''
+        str_first_layer = "self.layers[0]"
 
-        self.self_attn.batch_first = batch_first
-        self.self_attn._qkv_same_embed_dim = True  # assuming d_model is the same for query, key, value
-        self.norm_first = norm_first
-        self.activation_relu_or_gelu = activation_relu_or_gelu
+        # if not isinstance(first_layer, EncoderLayer):
+        #     why_not_sparsity_fast_path = f"{str_first_layer} was not IBR EncoderLayer"
+        # elif first_layer.norm_first :
+        #     why_not_sparsity_fast_path = f"{str_first_layer}.norm_first was True"
+        # elif first_layer.training:
+        #     why_not_sparsity_fast_path = f"{str_first_layer} was in training mode"
+        # elif not first_layer.self_attn.batch_first:
+        #     why_not_sparsity_fast_path = f" {str_first_layer}.self_attn.batch_first was not True"
+        # elif not first_layer.self_attn._qkv_same_embed_dim:
+        #     why_not_sparsity_fast_path = f"{str_first_layer}.self_attn._qkv_same_embed_dim was not True"
+        # elif not first_layer.activation_relu_or_gelu:
+        #     why_not_sparsity_fast_path = f" {str_first_layer}.activation_relu_or_gelu was not True"
+        # elif not (first_layer.norm1.eps == first_layer.norm2.eps) :
+        #     why_not_sparsity_fast_path = f"{str_first_layer}.norm1.eps was not equal to {str_first_layer}.norm2.eps"
+        # elif not src.dim() == 3:
+        #     why_not_sparsity_fast_path = f"input not batched; expected src.dim() of 3 but got {src.dim()}"
+        # elif not self.enable_nested_tensor:
+        #     why_not_sparsity_fast_path = "enable_nested_tensor was not True"
+        # elif src_key_padding_mask is None:
+        #     why_not_sparsity_fast_path = "src_key_padding_mask was None"
+        # elif (((not hasattr(self, "mask_check")) or self.mask_check)
+        #         and not torch._nested_tensor_from_mask_left_aligned(src, src_key_padding_mask.logical_not())):
+        #     why_not_sparsity_fast_path = "mask_check enabled, and src and src_key_padding_mask was not left aligned"
+        # elif output.is_nested:
+        #     why_not_sparsity_fast_path = "NestedTensor input is not supported"
+        # elif mask is not None:
+        #     why_not_sparsity_fast_path = "src_key_padding_mask and mask were both supplied"
+        # elif first_layer.self_attn.num_heads % 2 == 1:
+        #     why_not_sparsity_fast_path = "num_head is odd"
+        # elif torch.is_autocast_enabled():
+        #     why_not_sparsity_fast_path = "autocast is enabled"
+        #
+        # if not why_not_sparsity_fast_path:
+        #     tensor_args = (
+        #         src,
+        #         first_layer.self_attn.in_proj_weight,
+        #         first_layer.self_attn.in_proj_bias,
+        #         first_layer.self_attn.out_proj.weight,
+        #         first_layer.self_attn.out_proj.bias,
+        #         first_layer.norm1.weight,
+        #         first_layer.norm1.bias,
+        #         first_layer.norm2.weight,
+        #         first_layer.norm2.bias,
+        #         first_layer.linear1.weight,
+        #         first_layer.linear1.bias,
+        #         first_layer.linear2.weight,
+        #         first_layer.linear2.bias,
+        #     )
+        #
+        #     if torch.overrides.has_torch_function(tensor_args):
+        #         why_not_sparsity_fast_path = "some Tensor argument has_torch_function"
+        #     elif not (src.is_cuda or 'cpu' in str(src.device)):
+        #         why_not_sparsity_fast_path = "src is neither CUDA nor CPU"
+        #     elif torch.is_grad_enabled() and any(x.requires_grad for x in tensor_args):
+        #         why_not_sparsity_fast_path = ("grad is enabled and at least one of query or the "
+        #                                       "input/output projection weights or biases requires_grad")
+        #
+        #     if (not why_not_sparsity_fast_path) and (src_key_padding_mask is not None):
+        #         convert_to_nested = True
+        #         output = torch._nested_tensor_from_mask(output, src_key_padding_mask.logical_not(), mask_check=False)
+        #         src_key_padding_mask_for_layers = None
 
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)[0]
-        if self.norm_first:
-            src = src + self.dropout1(src2)
-            src = self.norm1(src)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-            src = src + self.dropout2(src2)
-            src = self.norm2(src)
-        else:
-            src = self.norm1(src)
-            src = src + self.dropout1(src2)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-            src = self.norm2(src)
-            src = src + self.dropout2(src2)
-        return src
+        for mod in self.layers:
+            # output = mod(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask_for_layers)
+            output = mod(output, slf_attn_mask=src_key_padding_mask_for_layers)[0]
+
+        if convert_to_nested:
+            output = output.to_padded_tensor(0.)
+
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output
 
 
-def _get_activation_fn(activation: str) -> Callable[[Tensor], Tensor]:
-    if activation == "relu":
-        return F.relu
-    elif activation == "gelu":
-        return F.gelu
+# class TrEnLayer(torch.nn.Module):
+#     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+#                  activation="relu", batch_first=True, norm_first=False,
+#                  activation_relu_or_gelu=True):
+#         super(TransformerEncoderLayer, self).__init__()
+#         self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+#         # Implementation of Feedforward model
+#         self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
+#         self.dropout = torch.nn.Dropout(dropout)
+#         self.linear2 = torch.nn.Linear(dim_feedforward, d_model)
+#
+#         self.norm1 = torch.nn.LayerNorm(d_model)
+#         self.norm2 = torch.nn.LayerNorm(d_model)
+#         self.dropout1 = torch.nn.Dropout(dropout)
+#         self.dropout2 = torch.nn.Dropout(dropout)
+#
+#         # Legacy string support for activation function.
+#         if isinstance(activation, str):
+#             self.activation = _get_activation_fn(activation)
+#         else:
+#             self.activation = activation
+#
+#         self.pos_ffn = PositionwiseFeedForward(d_model, dim_feedforward, dropout)
+#
+#         self.self_attn.batch_first = batch_first
+#         self.self_attn._qkv_same_embed_dim = True  # assuming d_model is the same for query, key, value
+#         self.norm_first = norm_first
+#         self.activation_relu_or_gelu = activation_relu_or_gelu
+#
+#     def forward(self, src, src_mask=None, src_key_padding_mask=None):
+#         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
+#                               key_padding_mask=src_key_padding_mask)[0]
+#         if self.norm_first:
+#             src = src + self.dropout1(src2)
+#             src = self.norm1(src)
+#             src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+#             src = src + self.dropout2(src2)
+#             src = self.norm2(src)
+#         else:
+#             src = self.norm1(src)
+#             src = src + self.dropout1(src2)
+#             src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+#             src = self.norm2(src)
+#             src = src + self.dropout2(src2)
+#         return src
 
-    raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
+# '''
+# c.f. nn.transformer.py
+# '''
+# def _get_activation_fn(activation: str) -> Callable[[Tensor], Tensor]:
+#     if activation == "relu":
+#         return F.relu
+#     elif activation == "gelu":
+#         return F.gelu
+#
+#     raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
+#
+# def _get_clones(module, N):
+#     return ModuleList([copy.deepcopy(module) for i in range(N)])

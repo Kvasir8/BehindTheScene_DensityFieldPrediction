@@ -44,7 +44,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=103, att_feat=103, nhead=4, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
@@ -61,7 +61,7 @@ class DensityFieldTransformer(nn.Module):
         ## DFTransformer encoder layers
         if self.IBRNet:
             self.transformer_enlayer = IBR.EncoderLayer(d_model, att_feat, nhead, att_feat, att_feat)
-            # self.transformer_encoder = IBR.TrEnLayer(d_model, nhead, att_feat)    ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
+            self.transformer_encoder = IBR.TrEnLayer(self.transformer_enlayer, num_layers)    ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
         else:
             self.transformer_enlayer = TransformerEncoderLayer(att_feat, nhead, dim_feedforward=att_feat, batch_first=True)
             self.transformer_encoder = TransformerEncoder(self.transformer_enlayer, num_layers)
@@ -86,7 +86,8 @@ class DensityFieldTransformer(nn.Module):
         if self.padding_flag:
             padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
-            if self.IBRNet: transformed_features = self.transformer_enlayer(padded_features, slf_attn_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+            # if self.IBRNet: transformed_features = self.transformer_enlayer(padded_features, slf_attn_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+            if self.IBRNet: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             else: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             invalid_features = padded_invalid
@@ -94,8 +95,8 @@ class DensityFieldTransformer(nn.Module):
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
-        # org: # aggregated_features = transformed_features[:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
-        aggregated_features = transformed_features[0][:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        aggregated_features = transformed_features[:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        # aggregated_features = transformed_features[0][:,0,:]  ## TODO: investigate matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,3]
 
         ### MultiheadAtten( dim(Q)=(1,1,103), dim(K)=(n*n_pts,nv_,103), dim(V)=(n*n_pts,nv_,103) ) ### torch.Size([100000, 1, 103])
 
