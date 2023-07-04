@@ -7,10 +7,10 @@ name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 100
+num_epochs: 10000
 #validate_every: 5000
-batch_size: 6                  # default: 16
-visualize_every: 10
+batch_size: 3                  # default: 16
+visualize_every: 1000
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -34,6 +34,7 @@ model_conf:
     feature_pad: true
     num_layers: 2               # std_Transformer: default: 6
     d_model: 103                # could be adjustable unless it's prime number
+    IBRNet: true                # IBRNet Transformer    (ablation)
 
     code:
         num_freqs: 6

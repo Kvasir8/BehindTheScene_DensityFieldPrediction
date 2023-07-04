@@ -29,7 +29,7 @@ from utils.plotting import color_tensor
 
 os.system("nvidia-smi")
 
-gpu_id = 0
+gpu_id = 0  ## default: 0
 
 device = f'cuda:0'
 if gpu_id is not None:

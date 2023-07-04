@@ -11,12 +11,15 @@ from models.bts.trainer_overfit import training as bts_overfit
 ## connection to the cluster server and debugging
 import pydevd_pycharm   ## for external debugging
 sv = 85    ## atcremers(sv) server allocation for debug server in Pycharm IDE
+port_ = 58023
 if   sv == 51:    debug_sv = '131.159.18.70'
 elif sv == 59:    debug_sv = '131.159.18.113'
-elif sv == 85:    debug_sv = '131.159.18.198'
+elif sv == 85:
+    debug_sv = '131.159.18.198'
+    port_ = 58024
 
 import pydevd_pycharm
-pydevd_pycharm.settrace(debug_sv, port=58023, stdoutToServer=True, stderrToServer=True)  ## IDE host name of the machine where the IDE is running
+pydevd_pycharm.settrace(debug_sv, port=port_, stdoutToServer=True, stderrToServer=True)  ## IDE host name of the machine where the IDE is running
 
 @hydra.main(version_base=None, config_path="configs", config_name="exp_kitti_360_DFT")
 def main(config: DictConfig):
