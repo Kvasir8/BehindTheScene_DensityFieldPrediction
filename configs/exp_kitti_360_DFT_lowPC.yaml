@@ -7,7 +7,7 @@ name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 10000
+num_epochs: 1000000
 #validate_every: 5000
 batch_size: 3                  # default: 16
 visualize_every: 1000
