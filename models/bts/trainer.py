@@ -117,7 +117,7 @@ class BTSWrapper(nn.Module):
             frame_perm = torch.arange(v)
 
         ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## origin: ids_encoder = [0,1,2,3]
-        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?
+        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
 
         combine_ids = None
 
@@ -373,11 +373,11 @@ def get_dataflow(config, logger=None):
     test_dataset._left_offset = 0
     test_dataset.return_stereo = mode == "nvs"
     test_dataset.return_depth = True
-    test_dataset.length = min(256, test_dataset.length)
+    test_dataset.length = min(32, test_dataset.length)      ## ? default: 256
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50  ## ? default: 50 but why is it 50??
+    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 0  ## ? default: 50 but why is it 50??
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
