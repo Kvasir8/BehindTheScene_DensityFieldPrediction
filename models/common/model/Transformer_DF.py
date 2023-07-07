@@ -44,14 +44,14 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, att_feat=32, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
         :param nhead: number of heads in the multi-head attention models (Note: att_feat(embed_dim) must be divisible by num_heads)
         :param num_layers: The number of sub-encoder-layers in the encoder. For standard Transformer arch, defualt: 6
         :param feature_pad: flag for feature to pad
-        :param IBR: flag for enabling IBRNet Transformer
+        :param IBRNet: flag for replaceing encoder layer with the IBRNet's encoder
         """
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag = feature_pad

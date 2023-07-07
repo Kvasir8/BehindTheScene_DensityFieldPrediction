@@ -167,7 +167,8 @@ class ScaledDotProductAttention(nn.Module):
         if mask is not None:    ### [32768, 1, 7]
             mask = mask.unsqueeze(-1)   ##
             mask = mask.expand(-1, attn.shape[1], -1, attn.shape[-1])   ##  TODO: matrix should be investiated to validate the operator
-            attn = attn.masked_fill(mask == 0, -1e9)
+            mask = 1.0 - ((1.0 - mask) * (1.0 - mask.transpose(-2, -1)))    ### As being symmetric of the mask matrix => the info of masked info won't give result: 2 problems: 1) computation bottleneck demand, eval_batch_size=25000 decreasing (setup pipeline using smaller pipeline nerf.py)
+            attn = attn.masked_fill(mask == 1, -1e9)    ## masking should be done when the value of invalidity as boolean is 1 by making the value of element zero (numerical stability)
             # attn = attn * mask
             '''
             def masked_fill(self, mask, value):
