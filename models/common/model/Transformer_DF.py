@@ -1,13 +1,13 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam
-from torchvision.models import resnet50
-
-from torch import optim
-from torch.autograd import Variable
-
-from models.common.backbones.image_encoder import ImageEncoder as bts
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+# from torch.optim import Adam
+# from torchvision.models import resnet50
+#
+# from torch import optim
+# from torch.autograd import Variable
+#
+# from models.common.backbones.image_encoder import ImageEncoder as bts
 
 
 ## d_model=num_features
@@ -44,7 +44,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=103, att_feat=32, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
@@ -123,135 +123,6 @@ class DensityFieldTransformer(nn.Module):
         # return density_field.reshape(self.n_, self.d_model)   ## reshaping of the accumulated_density_field tensor : (batch_size, num_density for number of points).
 
 
-# class DensityFieldTransformer1(nn.Module):
-#     def __init__(self, input_img, backbone, bts_model, d_model, nhead = 16, num_layers):
-#         """
-#         :param input_img:
-#         :param bts_model:
-#         :param backbone Backbone network. Assumes it is resnet* e.g. resnet34 | resnet50
-#         :param bts_model:
-#         :param d_model: to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
-#         :param nhead: number of heads in the multi-head attention mechanisms
-#         :param num_layers: the number of Transformer encoder layers in the neural network
-#         """
-#         super(DensityFieldTransformer1, self).__init__()
-#
-#         self.d_model = d_model
-#
-#         # Feature extraction (using a pre-trained CNN or other method)
-#         resnet = models.resnet50(pretrained=True)
-#         self.feature_extractor = nn.Sequential(*list(resnet.children())[:-1])  # remove last fully connected layer
-#
-#
-#         C_, H_, W_ = input_img.shape
-#         self.bts_model = bts_model
-#
-#         ## Embedding layer to convert image features to a suitable format for the Transformer: The extracted features are then flattened and embedded into a suitable format for the Transformer encoder.
-#         self.embedding = nn.Linear(C_ * H_ * W_, d_model)   ##TODO: This is wrong => we need one pixel from feature map and concatenate multiview into matrix form then embed
-#
-#         self.transformer_layer = TransformerEncoderLayer(d_model, nhead)
-#         self.transformer_encoder = TransformerEncoder(self.transformer_layer, num_layers)
-#
-#         self.density_field_prediction = nn.Sequential(
-#             nn.Linear(d_model, 1),
-#             nn.ReLU()
-#         )
-#
-#     def forward(self, x_multiview):
-#         """
-#         :param x_multiview: (batch_size, num_views, 3, 224, 224)
-#         :return:
-#         """
-#         # Extract features from the input image
-#         features = self.feature_extractor(x)            # apply the remaining layers to the input image x to extract the features
-#         features = features.view(features.size(0), -1)  # to flatten the 2D feature map into a 1D feature vector that can be input to the embedding layer.
-#
-#         # Extract features for each view using BTS model
-#         density_fields = []
-#         for view_idx in range(x_multiview.shape[1]):
-#             x_single_view = x_multiview[:, view_idx]
-#             density_field_single_view = self.bts_model(x_single_view)
-#             density_fields.append(density_field_single_view)
-#
-#         density_fields = torch.stack(density_fields, dim=1)  # (batch_size, num_views, H, W)
-#
-#         # Flatten and embed the features
-#         batch_size, num_views, height, width = density_fields.shape
-#         features = density_fields.view(batch_size, num_views, -1)
-#         embedded_features = self.embedding(features)
-#
-#         # Process the embedded features with the Transformer
-#         transformed_features = self.transformer_encoder(embedded_features)
-#
-#         # Predict the accumulated density field for each pixel
-#         accumulated_density_field = self.density_field_prediction(transformed_features)
-#         accumulated_density_field = accumulated_density_field.view(batch_size, height, width)
-#
-#         return accumulated_density_field ## TODO: predict multiview_signma in this line from (self.sample_color, models_bts.py)
-#
-#
-# class DensityFieldTransformer2(nn.Module):
-#     def __init__(self, backbone="resnet34", d_model=num_features, nhead=16, num_layers=6)
-#         """
-#         :param backbone Backbone network. Assumes it is resnet* e.g. resnet34 | resnet50
-#         :param d_model: to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
-#         :param nhead: number of heads in the multi-head attention mechanisms, default=8~16 c.f. Pytorch page
-#         :param num_layers: the number of Transformer encoder layers in the neural network. For vanilla-Transformer, the number of layers is 6.
-#         """
-#         super(DensityFieldTransformer2, self).__init__()
-#         self.d_model = d_model  ## This can be experimental value
-#
-#         ## Feature extraction
-#         self.model = getattr(torchvision.models, backbone)(pretrained=pretrained)
-#         # resnet = resnet50(pretrained=True)
-#
-#         ## Remove the last fully connected layer to get features from the penultimate layer
-#         self.feature_extractor = nn.Sequential(*list(resnet.children())[:-1])   # last layer [-1] := slice that selects all elements of the list except for the last one
-#
-#         ## Embedding layer to convert image features to a suitable format for the Transformer
-#         self.in_embedding = nn.Linear(num_features, d_model)    ## TODO: pixel from feature map from multi-views are concatenated
-#
-#         ## Transformer encoder layers
-#         self.transformer_layer = TransformerEncoderLayer(d_model, nhead, batch_first=True)  # in- and output tensors: (B, num_views == seq, feature)
-#         self.transformer_encoder = TransformerEncoder(self.transformer_layer, num_layers)
-#
-#         ## Output density field prediction layer    ## TODO: dim: (batch_size, num_pixels, 1)
-#         self.density_field_prediction = nn.Sequential( nn.Linear(d_model, 1), nn.ReLU() )   ## predicts a single value for the density field per pixel (density value per pixel in the image)
-#
-#     # def encoder(self, images, poses):
-#     #     self.poses = poses # (B,N,3,4), B:=Batch size, N:=#_views
-#     #     self.feature_maps = self.feature_extractor(images) # (B,N,H,W,C1)
-#
-#     def forward(self, xyz=None, features, geo_info): ### TODO: if necessary, replace code with the sample_features @ models_bts.py
-#         ## Extract features from the input image e.g. features = self.feature_extractor(x)
-#         # uv, depth = projection(to_camera_coordinates(xyz, self.poses))  ## camera projection from pt.   # dim(xyz): (B,M), M:=#_pts.
-#
-#         # image_features = F.grid_sample(self.feature_maps, uv)  # (B,N,M,C1) ## TODO: bilinear interpolate the feature map to correspond to color pixel?
-#
-#         ## Concatenate image features and positional encoding
-#         # features = torch.cat(image_features, positional_encoding(uv, depth)) # (B,N,M,C1+C3) ## == pos_enc == self.code_xyz
-#         # single_view_bts(features[:, 0, :, :])   ## number of view in default is 1   ## orign BTS
-#         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-#         transformed_features = self.transformer_encoder(features) # (B,1,M,C2)
-#
-#         ## Predict the density field for each pixel
-#         density = self.density_field_prediction((transformed_features, geo_info)) # (B,M) # geometrical_information maybe optional
-#         return density  ## TODO: predict multiview_signma in this line from (self.sample_color, models_bts.py)
-#
-#         """etc"""
-#         # # Flatten and embed the features (for whole image pixels which are not correct way for transformer arch to pass)
-#         # batch_size, num_pixels = features.shape[:2]
-#         # features = features.view(batch_size, num_pixels, -1)    ## uninterested feature maps taken into account
-#         # embedded_features = self.embedding(features)
-#         #
-#         # # Process the embedded features with the Transformer
-#         # transformed_features = self.transformer_encoder(embedded_features)
-#         #
-#         # # Predict the density field for each pixel
-#         # density_field = self.density_field_prediction(transformed_features)
-#         # return density_field
-#
-#
 # class VAE(nn.Module):
 #     """
 #     encodes the input images into a compact latent representation.
