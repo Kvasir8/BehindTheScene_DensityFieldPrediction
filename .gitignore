@@ -195,3 +195,7 @@ fabric.properties
 *.jpeg
 *.jpg
 *.ply
+
+# respective config
+configs/data/kitti_360_DFT_SL10.yaml
+configs/exp_kitti_360_DFT_lowPC_SL10.yaml
