@@ -77,7 +77,7 @@ class Kitti360Dataset(Dataset):
                  target_image_size=(192, 640),
                  return_stereo=False,
                  return_depth=False,
-                 return_fisheye=True,          ## default: True
+                 return_fisheye=False,          ## default: True
                  return_3d_bboxes=False,
                  return_segmentation=False,
                  frame_count=2,

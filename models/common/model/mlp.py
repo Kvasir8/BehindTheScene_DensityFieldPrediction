@@ -383,7 +383,7 @@ class TrEnLayer(nn.Module):
 
         for mod in self.layers:
             # output = mod(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask_for_layers)
-            output = mod(output, slf_attn_mask=src_key_padding_mask_for_layers)[0]
+            output = mod(output, slf_attn_mask=src_key_padding_mask_for_layers)[0]  ## recursively call encoder layer to feed information to following stacked encoder layer
 
         if convert_to_nested:
             output = output.to_padded_tensor(0.)

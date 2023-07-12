@@ -47,7 +47,7 @@ class DensityFieldTransformer(nn.Module):
     def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
-        :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
+        :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=103)
         :param nhead: number of heads in the multi-head attention models (Note: att_feat(embed_dim) must be divisible by num_heads)
         :param num_layers: The number of sub-encoder-layers in the encoder. For standard Transformer arch, defualt: 6
         :param feature_pad: flag for feature to pad
@@ -80,7 +80,7 @@ class DensityFieldTransformer(nn.Module):
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
         # embedded_features = self.in_embedding(sampled_features)  # Embedding to Transformer arch.
-        encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))   ### [M*n==100000, nv_==6, 32]
+        encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))   ### [M*n==100000, nv_==6, 32]   TODO: investigate dim of tensor
 
         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
         if self.padding_flag:
@@ -95,7 +95,7 @@ class DensityFieldTransformer(nn.Module):
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
-        aggregated_features = transformed_features[:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        aggregated_features = transformed_features[:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers (global context geometry)   # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
         # aggregated_features = transformed_features[0][:,0,:]  ## TODO: investigate matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,3]
 
         ### MultiheadAtten( dim(Q)=(1,1,103), dim(K)=(n*n_pts,nv_,103), dim(V)=(n*n_pts,nv_,103) ) ### torch.Size([100000, 1, 103])

@@ -1,4 +1,8 @@
- Behind the Scenes: Density Fields for Single View Reconstruction
+# Accumulation of density field predictions by aggregating multiple single views 
+
+## Note: When running multiple GPU's nodes in a local machine, set environment variable by typing "export CUDA_VISIBLE_DEVICES=0", assigning only 0th node for training, so that it wouldn't cause lack of GPU computation. (cause of error is unknown)
+
+Behind the Scenes: Density Fields for Single View Reconstruction
 
 [**Paper**](https://arxiv.org/abs/2301.07668) |  [**Video**](https://youtu.be/0VGKPmomrR8) | [**Project Page**](https://fwmb.github.io/bts)
 
