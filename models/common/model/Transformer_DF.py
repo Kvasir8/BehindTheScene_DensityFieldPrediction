@@ -60,7 +60,8 @@ class DensityFieldTransformer(nn.Module):
 
         ## DFTransformer encoder layers
         if self.IBRNet:
-            self.transformer_enlayer = IBR.EncoderLayer(d_model, att_feat, nhead, att_feat, att_feat)
+            # self.transformer_enlayer = IBR.EncoderLayer(d_model, att_feat, nhead, att_feat, att_feat) ## problem: mat1 and mat2 shapes cannot be multiplied (24576x32 and 103x32)
+            self.transformer_enlayer = IBR.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
             self.transformer_encoder = IBR.TrEnLayer(self.transformer_enlayer, num_layers)    ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
         else:
             self.transformer_enlayer = TransformerEncoderLayer(att_feat, nhead, dim_feedforward=att_feat, batch_first=True)
