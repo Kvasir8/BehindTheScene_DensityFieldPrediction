@@ -146,9 +146,78 @@ class ImplicitNet(nn.Module):
             combine_type=conf.get_string("combine_type", "average"),  # average | max
             **kwargs
         )
+'''
+GeoNeRF
+https://github.com/idiap/GeoNeRF/blob/e6249fdae5672853c6bbbd4ba380c4c166d02c95/model/self_attn_renderer.py#L60
+'''
+
+## Auto-encoder network
+class ConvAutoEncoder(nn.Module):
+    def __init__(self, num_ch, S):
+        super(ConvAutoEncoder, self).__init__()
+
+        # Encoder
+        self.conv1 = nn.Sequential(
+            nn.Conv1d(num_ch, num_ch * 2, 3, stride=1, padding=1),
+            nn.LayerNorm(S, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+            nn.MaxPool1d(2),
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv1d(num_ch * 2, num_ch * 4, 3, stride=1, padding=1),
+            nn.LayerNorm(S // 2, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+            nn.MaxPool1d(2),
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv1d(num_ch * 4, num_ch * 4, 3, stride=1, padding=1),
+            nn.LayerNorm(S // 4, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+            nn.MaxPool1d(2),
+        )
+
+        # Decoder
+        self.t_conv1 = nn.Sequential(
+            nn.ConvTranspose1d(num_ch * 4, num_ch * 4, 4, stride=2, padding=1),
+            nn.LayerNorm(S // 4, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+        )
+        self.t_conv2 = nn.Sequential(
+            nn.ConvTranspose1d(num_ch * 8, num_ch * 2, 4, stride=2, padding=1),
+            nn.LayerNorm(S // 2, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+        )
+        self.t_conv3 = nn.Sequential(
+            nn.ConvTranspose1d(num_ch * 4, num_ch, 4, stride=2, padding=1),
+            nn.LayerNorm(S, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+        )
+        # Output
+        self.conv_out = nn.Sequential(
+            nn.Conv1d(num_ch * 2, num_ch, 3, stride=1, padding=1),
+            nn.LayerNorm(S, elementwise_affine=False),
+            nn.ELU(alpha=1.0, inplace=True),
+        )
+
+    def forward(self, x):
+        input = x
+        x = self.conv1(x)
+        conv1_out = x
+        x = self.conv2(x)
+        conv2_out = x
+        x = self.conv3(x)
+
+        x = self.t_conv1(x)
+        x = self.t_conv2(torch.cat([x, conv2_out], dim=1))
+        x = self.t_conv3(torch.cat([x, conv1_out], dim=1))
+
+        x = self.conv_out(torch.cat([x, input], dim=1))
+
+        return x
+
 
 '''
-IBRNet network
+Transformer encoder part from IBRNet network
 https://github.com/googleinterns/IBRNet/blob/master/ibrnet/mlp_network.py
 '''
 

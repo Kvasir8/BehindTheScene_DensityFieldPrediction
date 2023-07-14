@@ -17,7 +17,7 @@ num_features = 2048  ## for resnet50 / for dim of feddforward netowrk model for 
 import torch
 import torch.nn as nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-import models.common.model.mlp as IBR   ## IBRNet
+import models.common.model.mlp as mlp
 
 """
 # BTS model: The BTS model is used to predict the density field for each view of the input images. 
@@ -44,35 +44,33 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=6, feature_pad=True, IBRNet=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=4, feat_pad=True, DFEnlayer=True, AE=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
         :param nhead: number of heads in the multi-head attention models (Note: att_feat(embed_dim) must be divisible by num_heads)
         :param num_layers: The number of sub-encoder-layers in the encoder. For standard Transformer arch, defualt: 6
-        :param feature_pad: flag for feature to pad
-        :param IBRNet: flag for replaceing encoder layer with the IBRNet's encoder
+        :param feat_pad: flag for feature to pad
+        :param DFEnlayer: flag for replaceing encoder layer with the IBRNet's encoder
         """
         super(DensityFieldTransformer, self).__init__()
-        self.padding_flag = feature_pad
+        self.padding_flag = feat_pad
         self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2*att_feat, bias=True), nn.ReLU(), nn.Linear(2*att_feat, att_feat, bias=True))
-        self.IBRNet = IBRNet
+        self.DFEnlayer = DFEnlayer
 
         ## DFTransformer encoder layers
-        if self.IBRNet:
+        if self.DFEnlayer:
             # self.transformer_enlayer = IBR.EncoderLayer(d_model, att_feat, nhead, att_feat, att_feat) ## problem: mat1 and mat2 shapes cannot be multiplied (24576x32 and 103x32)
-            self.transformer_enlayer = IBR.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
-            self.transformer_encoder = IBR.TrEnLayer(self.transformer_enlayer, num_layers)    ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
+            self.transformer_enlayer = mlp.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
+            self.transformer_encoder = mlp.TrEnLayer(self.transformer_enlayer, num_layers)    ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
         else:
             self.transformer_enlayer = TransformerEncoderLayer(att_feat, nhead, dim_feedforward=att_feat, batch_first=True)
             self.transformer_encoder = TransformerEncoder(self.transformer_enlayer, num_layers)
 
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
         # self.readout_token = torch.rand(1, 1, att_feat).to("cuda")  ## ? # self.attention = nn.MultiheadAttention(d_model, nhead, batch_first=True)
-
-        self.density_field_prediction = nn.Sequential(
-            nn.Linear(att_feat, 1)
-        )  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
+        if AE: self.density_field_prediction = mlp.ConvAutoEncoder(att_feat, None)
+        else:  self.density_field_prediction = nn.Sequential(nn.Linear(att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
@@ -88,7 +86,7 @@ class DensityFieldTransformer(nn.Module):
             padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
             # if self.IBRNet: transformed_features = self.transformer_enlayer(padded_features, slf_attn_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
-            if self.IBRNet: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+            if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             else: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             invalid_features = padded_invalid

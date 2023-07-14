@@ -20,7 +20,7 @@ class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
         self.DFT = DensityFieldTransformer( d_model=conf.get("d_model"), att_feat=conf.get("att_feat"),
-            feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), IBRNet=conf.get("IBRNet")
+            feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), DFEnlayer=conf.get("DFEnlayer")
         ) # d_model=conf.get("d_model") ### visualizing which input_image_idx be used. Preferably, it should only be used as it gives extra memory. c.f. DFT_flag == True
         self.DFT_flag = conf.get("DFT_flag", True) # default: True
         self.nv_ = conf.get("nv_", "num_multiviews")
@@ -127,7 +127,7 @@ class MVBTSNet(torch.nn.Module):
         self.grid_c_combine = comb_render
 
     def sample_features(self, xyz, use_single_featuremap=True): ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
-        n_, n_pts, _ = xyz.shape ## Get the shape of the input point cloud and the feature grid (n, pts, 3)
+        n_, n_pts, _ = xyz.shape ## Get the shape of the input point cloud and the feature grid (n, pts, spatial_coordinate == 3)
         n_, nv_, c_, h_, w_ = self.grid_f_features[self._scale].shape       ### torch.Size([1, 4, 64, 192, 640])
         # if not use_single_featuremap:   nv_ = self.nv_
         xyz = xyz.unsqueeze(1)  # (n, 1, pts, 3)    ## Add a singleton dimension to the input point cloud to match grid_f_poses_w2c shape
