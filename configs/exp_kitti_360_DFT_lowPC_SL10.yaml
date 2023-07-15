@@ -32,10 +32,12 @@ model_conf:
     num_multiviews: 3          # arbitrary setting. Default: 2
     DFT_flag: true
     feature_pad: true
-    num_layers: 2               # num of encoder layers, std_Transformer: default: 6
+    num_layers: 2               # num of encoder layers, std_Transformer: default: 4
     d_model: 103                # could be adjustable unless it's prime number          ## TODO: complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 32               # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    nhead: 1
+    att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     IBRNet: true                # IBRNet Transformer    (ablation)
+    AE: false
 
     code:
         num_freqs: 6

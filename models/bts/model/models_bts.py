@@ -19,10 +19,9 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
-        self.DFT = DensityFieldTransformer( d_model=conf.get("d_model"), att_feat=conf.get("att_feat"),
-            feature_pad=conf.get("feature_pad"), num_layers=conf.get("num_layers"), DFEnlayer=conf.get("DFEnlayer")
-        ) # d_model=conf.get("d_model") ### visualizing which input_image_idx be used. Preferably, it should only be used as it gives extra memory. c.f. DFT_flag == True
-        self.DFT_flag = conf.get("DFT_flag", True) # default: True
+        self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
+            conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"))
+        self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
@@ -97,10 +96,10 @@ class MVBTSNet(torch.nn.Module):
             comb_encoder = None
             comb_render = None
 
-        n_, nv_, c_, h_, w_ = images_encoder.shape  ### torch.Size([n, nv_, 3, 192, 640]) 3:=RGB
+        n_, nv_, c_, h_, w_ = images_encoder.shape   ### torch.Size([n, nv_, 3, 192, 640]) 3:=RGB
         c_l = self.encoder.latent_size
 
-        if self.flip_augmentation and self.training:        ## data augmentation for color TODO: analyze data augmentation
+        if self.flip_augmentation and self.training: ## data augmentation for color TODO: analyze data augmentation
             do_flip = (torch.rand(1) > .5).item()
         else:
             do_flip = False

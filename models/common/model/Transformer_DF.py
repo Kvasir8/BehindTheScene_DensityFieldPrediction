@@ -57,6 +57,8 @@ class DensityFieldTransformer(nn.Module):
         self.padding_flag = feat_pad
         self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2*att_feat, bias=True), nn.ReLU(), nn.Linear(2*att_feat, att_feat, bias=True))
         self.DFEnlayer = DFEnlayer
+        self.att_feat = att_feat
+        self.AE = AE
 
         ## DFTransformer encoder layers
         if self.DFEnlayer:
@@ -69,8 +71,9 @@ class DensityFieldTransformer(nn.Module):
 
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
         # self.readout_token = torch.rand(1, 1, att_feat).to("cuda")  ## ? # self.attention = nn.MultiheadAttention(d_model, nhead, batch_first=True)
-        if AE: self.density_field_prediction = mlp.ConvAutoEncoder(att_feat, None)
-        else:  self.density_field_prediction = nn.Sequential(nn.Linear(att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
+
+        if self.AE: self.density_field_prediction = mlp.ConvAutoEncoder(6144, 5) ## self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctrucutre for validity in detail
+        else: self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
