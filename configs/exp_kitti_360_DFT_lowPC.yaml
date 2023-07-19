@@ -7,9 +7,9 @@ name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
-num_epochs: 10000000
+num_epochs: 100000
 #validate_every: 5000
-batch_size: 4                  # default: 16
+batch_size: 5                  # default: 16
 visualize_every: 1000
 
 save_best:
@@ -26,16 +26,19 @@ data:
 resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 
 model_conf:
-    arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
+    arch: "MVBTSNet"            # constructor for MVBTSNet
     use_code: true
     prediction_mode: default
-    num_multiviews: 3          # arbitrary setting. Default: 2
+    num_multiviews: 3           # number of multi views to aggregate. Default: 2
     DFT_flag: true
     feature_pad: true
-    num_layers: 2               # num of encoder layers, std_Transformer: default: 6
+    dropout_views_rate: 0.5         # 0==turn off: let model to learn robustness by deactivating some views in the frame randomly
+    num_layers: 2               # num of encoder layers, GeoNeRF's Transformer: default: 4
     d_model: 103                # could be adjustable unless it's prime number          ## TODO: complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 103               # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
-    IBRNet: true                # IBRNet Transformer    (ablation)
+    nhead: 4
+    att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    IBRNet: true                # IBRNet Transformer
+    AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:
         num_freqs: 6
@@ -43,7 +46,7 @@ model_conf:
         include_input: true
 
     encoder:
-        type: "monodepth2"      # could be DFT verison when encoder needs to be trained
+        type: "monodepth2"      # could be DFT version when encoder needs to be trained
         freeze: true            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50

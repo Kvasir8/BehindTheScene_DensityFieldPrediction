@@ -12,12 +12,12 @@ from dotmap import DotMap
 class _RenderWrapper(torch.nn.Module):
     def __init__(self, net, renderer, simple_output):
         super().__init__()
-        self.net = net                  ## net == {MVBTSNet}
+        self.net = net                  ### MVBTSNet
         self.renderer = renderer
         self.simple_output = simple_output
 
     def forward(self, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None):    ## !
-        if rays.shape[0] == 0:
+        if rays.shape[0] == 0:          ## batch_size == 0
             return (
                 torch.zeros(0, 3, device=rays.device),
                 torch.zeros(0, device=rays.device),
@@ -76,8 +76,7 @@ class NeRFRenderer(torch.nn.Module):
         hard_alpha_cap=False
     ):
         super().__init__()
-        self.n_coarse = n_coarse
-        self.n_fine = n_fine
+        self.n_coarse, self.n_fine = n_coarse, n_fine
         self.n_fine_depth = n_fine_depth
 
         self.noise_std = noise_std

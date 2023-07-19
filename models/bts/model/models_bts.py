@@ -339,7 +339,7 @@ class MVBTSNet(torch.nn.Module):
             else: ## RGB colors and invalid colors are computed directly from the mlp_output tensor. i.e. w/o calling sample_colors(xyz)
                 sigma = mlp_output[..., :1]
                 sigma = F.relu(sigma)
-                rgb = mlp_output[..., 1:4].reshape(n, 1, n_pts, 3)
+                rgb = mlp_output[..., 1:4].reshape(n_, 1, n_pts, 3)
                 rgb = F.sigmoid(rgb)
                 invalid_colors = invalid_features.unsqueeze(-2)
                 nv_ = 1

@@ -11,7 +11,7 @@
 
 
 ## d_model=num_features
-num_features = 2048  ## for resnet50 / for dim of feddforward netowrk model for vanilla Transformer
+# num_features = 2048  ## for resnet50 / for dim of feddforward netowrk model for vanilla Transformer
 # num_features = 512  ## for resnet34
 
 import torch
@@ -49,9 +49,10 @@ class DensityFieldTransformer(nn.Module):
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
         :param nhead: number of heads in the multi-head attention models (Note: att_feat(embed_dim) must be divisible by num_heads)
-        :param num_layers: The number of sub-encoder-layers in the encoder. For standard Transformer arch, defualt: 6
+        :param num_layers: The number of sub-encoder-layers in the encoder. For GeoNeRF's arch, default: 4
         :param feat_pad: flag for feature to pad
-        :param DFEnlayer: flag for replaceing encoder layer with the IBRNet's encoder
+        :param DFEnlayer: flag for replacing encoder layer with the IBRNet's encoder
+        :param AE: flag for density field prediction for MLP layer of readout token with GeoNeRF's AutoEncoder layer for aggregation of view independent tokens (for experiment)
         """
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag = feat_pad

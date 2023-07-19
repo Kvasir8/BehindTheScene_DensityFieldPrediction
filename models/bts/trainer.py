@@ -34,7 +34,7 @@ class BTSWrapper(nn.Module):
         super().__init__()
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
-
+        self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.ray_batch_size = config["ray_batch_size"]
@@ -87,11 +87,11 @@ class BTSWrapper(nn.Module):
 
     def forward(self, data):
         data = dict(data)
-        images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w     ## ? v:= patch_size??
+        images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
 
-        n, v, c, h, w = images.shape
+        n, v, c, h, w = images.shape            ### v==8 :=
         device = images.device
 
         # Use first frame as keyframe
@@ -214,9 +214,9 @@ class BTSWrapper(nn.Module):
         with profiler.record_function("trainer_sample-rays"):
             all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss] , poses[:, ids_loss], projs[:, ids_loss])
 
-        data["fine"] = []
-        data["coarse"] = []
-
+        data["fine"], data["coarse"] = [], []
+        if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)
+        
         if self.prediction_mode == "multiscale":
             for scale in self.renderer.net.encoder.scales:
                 self.renderer.net.set_scale(scale)
@@ -242,8 +242,8 @@ class BTSWrapper(nn.Module):
                 data["rays"] = render_dict["rays"]
         else:
             with profiler.record_function("trainer_render"):
-                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
-                ### [cam_views:=4, M:=128, patch_size:=8]
+                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True) ## dropout=self.do_
+                ### [n:=batch_size, M, cam_views:=8]
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
 
