@@ -20,7 +20,8 @@ class MVBTSNet(torch.nn.Module):
     def __init__(self, conf):
         super().__init__()  ### inherits the initialization behavior from its parent class
         self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
-            conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"))
+            conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
+            conf.get("dropout_views_rate") )
         self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
@@ -176,7 +177,7 @@ class MVBTSNet(torch.nn.Module):
             sampled_features = sampled_features.permute(1, 0, 2)
         else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n_, nv_, M, C1+C_pos_emb)
-        sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
+        # sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
         # If there are multiple frames with predictions, reduce them.
         # TODO: Technically, this implementations should be improved if we use multiple frames.
         # The reduction should only happen after we perform the unprojection.
@@ -299,7 +300,7 @@ class MVBTSNet(torch.nn.Module):
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
             sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (B, n_pts, n_v, 103), (B, n_pts, n_v)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
-            ### sampled_features == torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
+            ### torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
             # mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
             mlp_input = sampled_features  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
             # print("__dim(mlp_intput): ", mlp_input.shape)  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
@@ -308,12 +309,10 @@ class MVBTSNet(torch.nn.Module):
             combine_index = None
             dim_size = None
 
-
             # Run main NeRF network
             if self.DFT_flag:   ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
                 mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
-                if torch.any(torch.isnan(mlp_output)):
-                    print("nan_existed: ", torch.any(torch.isnan(mlp_output)))
+                if torch.any(torch.isnan(mlp_output)):  print("nan_existed: ", torch.any(torch.isnan(mlp_output)))
 
             elif coarse or self.mlp_fine is None:
                 mlp_output = self.mlp_coarse(

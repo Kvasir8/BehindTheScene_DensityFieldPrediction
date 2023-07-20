@@ -34,7 +34,7 @@ class BTSWrapper(nn.Module):
         super().__init__()
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
-        self.dropout = nn.Dropout1d(config["dropout_views_rate"])
+        # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.ray_batch_size = config["ray_batch_size"]
@@ -215,8 +215,8 @@ class BTSWrapper(nn.Module):
             all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss] , poses[:, ids_loss], projs[:, ids_loss])
 
         data["fine"], data["coarse"] = [], []
-        if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)
-        
+        # if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)
+
         if self.prediction_mode == "multiscale":
             for scale in self.renderer.net.encoder.scales:
                 self.renderer.net.set_scale(scale)
@@ -242,7 +242,7 @@ class BTSWrapper(nn.Module):
                 data["rays"] = render_dict["rays"]
         else:
             with profiler.record_function("trainer_render"):
-                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True) ## dropout=self.do_
+                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
                 ### [n:=batch_size, M, cam_views:=8]
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])

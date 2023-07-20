@@ -1,15 +1,3 @@
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from torch.optim import Adam
-# from torchvision.models import resnet50
-#
-# from torch import optim
-# from torch.autograd import Variable
-#
-# from models.common.backbones.image_encoder import ImageEncoder as bts
-
-
 ## d_model=num_features
 # num_features = 2048  ## for resnet50 / for dim of feddforward netowrk model for vanilla Transformer
 # num_features = 512  ## for resnet34
@@ -44,7 +32,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class DensityFieldTransformer(nn.Module):
-    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=4, feat_pad=True, DFEnlayer=True, AE=True):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
+    def __init__(self, d_model=103, att_feat=103, nhead=1, num_layers=4, feat_pad=True, DFEnlayer=True, AE=True, do_=0.):  ## dim_feedforward==input_feature Map_spatial_flattened_dim
         """
         :param d_model: (input features) Dimension of the token embeddings. In our case, it's the size of features (combined with positional encoding and feature map) to set size of input and output features for Transformer encoder layers, as well as the input for the final density field prediction layer. i.e. to specify the number of expected features in the input and output. Dimensionality of the input and output of the Transformer model. i.e. embedding dimension
         :param att_feat: attention_features, the dimension of the feedforward network model for embedding layer of the transformer (default=32)
@@ -60,6 +48,7 @@ class DensityFieldTransformer(nn.Module):
         self.DFEnlayer = DFEnlayer
         self.att_feat = att_feat
         self.AE = AE
+        self.dropout = nn.Dropout(do_)
 
         ## DFTransformer encoder layers
         if self.DFEnlayer:
@@ -73,7 +62,7 @@ class DensityFieldTransformer(nn.Module):
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
         # self.readout_token = torch.rand(1, 1, att_feat).to("cuda")  ## ? # self.attention = nn.MultiheadAttention(d_model, nhead, batch_first=True)
 
-        if self.AE: self.density_field_prediction = mlp.ConvAutoEncoder(6144, 5) ## self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctrucutre for validity in detail
+        if self.AE: self.density_field_prediction = mlp.ConvAutoEncoder(6144, 5) ## self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
         else: self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
@@ -89,18 +78,21 @@ class DensityFieldTransformer(nn.Module):
         if self.padding_flag:
             padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
-            # if self.IBRNet: transformed_features = self.transformer_enlayer(padded_features, slf_attn_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
-            if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+            if self.dropout:
+                valid_features = 1 - padded_invalid
+                valid_features_do = self.dropout(valid_features)  ## randomly zero out the valid sampled_features' matrix
+                padded_invalid = 1 - valid_features_do
+            if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
             else: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
-            invalid_features = padded_invalid
         else:
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
         aggregated_features = transformed_features[:,0,:]  # [M=100000, nv_+1 ,103]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
-        # aggregated_features = transformed_features[0][:,0,:]  ## TODO: investigate matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,3]
-
+        # aggregated_features = transformed_features[0][:,0,:]  ## TODO: investigate matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,
+        ## TODO: GeNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
+        # Make sure it is valid AE accordingly (skipping AE during the training), working properly before adding AE.
         ### MultiheadAtten( dim(Q)=(1,1,103), dim(K)=(n*n_pts,nv_,103), dim(V)=(n*n_pts,nv_,103) ) ### torch.Size([100000, 1, 103])
 
         # transformed_features = self.transformer_encoder(embedded_features, src_key_padding_mask=invalid_features[..., 0].permute(1, 0))
