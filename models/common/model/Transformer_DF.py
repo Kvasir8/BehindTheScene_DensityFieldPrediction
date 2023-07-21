@@ -71,17 +71,20 @@ class DensityFieldTransformer(nn.Module):
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
+        if self.dropout:
+            valid_features = 1 - invalid_features
+            valid_features_do = self.dropout(valid_features)  ## randomly zero out the valid sampled_features' matrix
+            invalid_features_do = 1 - valid_features_do
+        else:
+            invalid_features_do = invalid_features
         # embedded_features = self.in_embedding(sampled_features)  # Embedding to Transformer arch.
         encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))   ### [M*n==100000, nv_==6, 32]
 
         ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
         if self.padding_flag:
             padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1,)  # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
-            if self.dropout:
-                valid_features = 1 - padded_invalid
-                valid_features_do = self.dropout(valid_features)  ## randomly zero out the valid sampled_features' matrix
-                padded_invalid = 1 - valid_features_do
+            padded_invalid = torch.concat([torch.zeros(invalid_features_do.shape[0], 1, device="cuda"), invalid_features_do],dim=1,)  
+            # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
             if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
             else: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
