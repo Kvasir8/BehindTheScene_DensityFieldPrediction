@@ -4,7 +4,7 @@ defaults:                       ### This Code is to run for debugging purpose, s
     - _self_
 
 name: "kitti_360_DFT"
-model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
+model: "bts"                    # model: "bts"/ "bts_overfit"    # bts_overfit for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 100000
