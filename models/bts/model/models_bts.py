@@ -17,11 +17,11 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 
 
 class MVBTSNet(torch.nn.Module):
-    def __init__(self, conf):
+    def __init__(self, conf, ren_nc, B_):
         super().__init__()  ### inherits the initialization behavior from its parent class
         self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
             conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
-            conf.get("dropout_views_rate") )
+            conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_)
         self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.test_sample = conf.get("test_sample", False)
@@ -100,7 +100,7 @@ class MVBTSNet(torch.nn.Module):
         n_, nv_, c_, h_, w_ = images_encoder.shape   ### torch.Size([n, nv_, 3, 192, 640]) 3:=RGB
         c_l = self.encoder.latent_size
 
-        if self.flip_augmentation and self.training: ## data augmentation for color TODO: analyze data augmentation
+        if self.flip_augmentation and self.training: ## data augmentation for color
             do_flip = (torch.rand(1) > .5).item()
         else:
             do_flip = False

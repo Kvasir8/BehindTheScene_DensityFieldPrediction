@@ -64,7 +64,7 @@ class NeRFRenderer(torch.nn.Module):
 
     def __init__(
         self,
-        n_coarse=128,
+        n_coarse=128,   ## c.f. NeRF paper 5.3 equ. 6
         n_fine=0,
         n_fine_depth=0,
         noise_std=0.0,

@@ -152,7 +152,7 @@ https://github.com/idiap/GeoNeRF/blob/e6249fdae5672853c6bbbd4ba380c4c166d02c95/m
 '''
 
 ## Auto-encoder network
-class ConvAutoEncoder(nn.Module):
+class ConvAutoEncoder(nn.Module):       ## purpose: to enforce the geometric generalization
     def __init__(self, num_ch, S):
         super(ConvAutoEncoder, self).__init__()
 
@@ -416,7 +416,7 @@ class EncoderLayer(nn.Module):
 
     def forward(self, enc_input, slf_attn_mask=None):
         enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)        ## ! TODO: RuntimeError occurs where the matrix operator error arises
+            enc_input, enc_input, enc_input, mask=slf_attn_mask)
         enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 

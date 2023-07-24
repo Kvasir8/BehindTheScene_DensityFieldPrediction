@@ -116,7 +116,7 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## origin: ids_encoder = [0,1,2,3]
+        ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
 
         combine_ids = None
@@ -402,8 +402,9 @@ def get_metrics(config, device):
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "MVBTSNet")     ## origin: get("arch", "BTSNet")
-    net = globals()[arch](config["model_conf"])
+    arch = config["model_conf"].get("arch", "MVBTSNet")     ## default: get("arch", "BTSNet")
+    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
+
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
 
