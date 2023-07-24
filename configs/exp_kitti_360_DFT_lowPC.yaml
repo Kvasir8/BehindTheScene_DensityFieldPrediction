@@ -9,7 +9,7 @@ output_path: "out/kitti_360"
 
 num_epochs: 100000
 #validate_every: 5000
-batch_size: 2                  # default: 16
+batch_size: 4                  # default: 16
 visualize_every: 1000
 
 save_best:
@@ -33,12 +33,12 @@ model_conf:
     DFT_flag: true
     feature_pad: true
     dropout_views_rate: 0.5     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
-    num_layers: 2               # num of encoder layers, GeoNeRF's Transformer: default: 4
+    num_layers: 4               # num of encoder layers, GeoNeRF's Transformer: default: 4
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
     att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
-    AE: true                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
+    AE: false                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:
         num_freqs: 6
@@ -73,7 +73,7 @@ model_conf:
 
     sample_mode: patch
     patch_size: 8                       # => possible number of points along a ray in total: 4096 * 64 = 262144
-    ray_batch_size: 128                # default: 4096 #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y
+    ray_batch_size: 1024                # default: 4096 #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -90,7 +90,7 @@ scheduler:
     gamma: 0.1
 
 renderer:
-    n_coarse : 16                       # default: 64, batch size == num of sampling a patch
+    n_coarse : 32                       # default: 64, batch size == num of sampling a patch
     n_fine : 0
     n_fine_depth : 0
     depth_std : 1.0
