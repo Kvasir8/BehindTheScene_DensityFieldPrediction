@@ -9,8 +9,8 @@ output_path: "out/kitti_360"
 
 num_epochs: 1000000
 #validate_every: 5000
-batch_size: 16                   # default: 16       ## each batch contains 8 views 16*8 too much
-visualize_every: 1000           # default: 10       ## bigger is good for computational reduction
+batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
+visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -29,7 +29,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 6          # arbitrary setting. Default: 2
+    num_multiviews: 3           # number of multi views to aggregate. Default: 2
     DFT_flag: true
     feature_pad: true
     dropout_views_rate: 0.5     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
@@ -71,9 +71,9 @@ model_conf:
     n_frames_render: 2
     frame_sample_mode: kitti360-mono
 
-    sample_mode: patch
-    patch_size: 8                       # => possible number of points along a ray in total: 4096 * 64 = 262144
-    ray_batch_size: 4096                # default: 4096 #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y
+    sample_mode: patch                  # a ray_batch_size of 4096, we sample 4096/64=64 patches.
+    patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
+    ray_batch_size: 1024                # default: 4096, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
