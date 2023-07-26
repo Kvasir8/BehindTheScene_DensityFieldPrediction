@@ -153,25 +153,25 @@ https://github.com/idiap/GeoNeRF/blob/e6249fdae5672853c6bbbd4ba380c4c166d02c95/m
 
 ## Auto-encoder network
 class ConvAutoEncoder(nn.Module):       ## purpose: to enforce the geometric generalization
-    def __init__(self, num_ch, S):
+    def __init__(self, num_ch:int, S_:int):
         super(ConvAutoEncoder, self).__init__()
 
         # Encoder
         self.conv1 = nn.Sequential(
             nn.Conv1d(num_ch, num_ch * 2, 3, stride=1, padding=1),
-            nn.LayerNorm(S, elementwise_affine=False),
+            nn.LayerNorm(S_, elementwise_affine=False),  ## RuntimeError: Given normalized_shape=[64], expected input with shape [*, 64], but got input of size[1, 64, 100000]
             nn.ELU(alpha=1.0, inplace=True),
             nn.MaxPool1d(2),
         )
         self.conv2 = nn.Sequential(
             nn.Conv1d(num_ch * 2, num_ch * 4, 3, stride=1, padding=1),
-            nn.LayerNorm(S // 2, elementwise_affine=False),
+            nn.LayerNorm(S_ // 2, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
             nn.MaxPool1d(2),
         )
         self.conv3 = nn.Sequential(
             nn.Conv1d(num_ch * 4, num_ch * 4, 3, stride=1, padding=1),
-            nn.LayerNorm(S // 4, elementwise_affine=False),
+            nn.LayerNorm(S_ // 4, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
             nn.MaxPool1d(2),
         )
@@ -179,23 +179,23 @@ class ConvAutoEncoder(nn.Module):       ## purpose: to enforce the geometric gen
         # Decoder
         self.t_conv1 = nn.Sequential(
             nn.ConvTranspose1d(num_ch * 4, num_ch * 4, 4, stride=2, padding=1),
-            nn.LayerNorm(S // 4, elementwise_affine=False),
+            nn.LayerNorm(S_ // 4, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
         )
         self.t_conv2 = nn.Sequential(
             nn.ConvTranspose1d(num_ch * 8, num_ch * 2, 4, stride=2, padding=1),
-            nn.LayerNorm(S // 2, elementwise_affine=False),
+            nn.LayerNorm(S_ // 2, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
         )
         self.t_conv3 = nn.Sequential(
             nn.ConvTranspose1d(num_ch * 4, num_ch, 4, stride=2, padding=1),
-            nn.LayerNorm(S, elementwise_affine=False),
+            nn.LayerNorm(S_, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
         )
         # Output
         self.conv_out = nn.Sequential(
             nn.Conv1d(num_ch * 2, num_ch, 3, stride=1, padding=1),
-            nn.LayerNorm(S, elementwise_affine=False),
+            nn.LayerNorm(S_, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
         )
 

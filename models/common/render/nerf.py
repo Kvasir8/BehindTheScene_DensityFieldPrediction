@@ -219,7 +219,7 @@ class NeRFRenderer(torch.nn.Module):
         :return weights (B, K), rgb (B, 3), depth (B)
         """
         with profiler.record_function("renderer_composite"):
-            B, K = z_samp.shape
+            B, K = z_samp.shape     ## K:=sampled points along principle axis of a ray. ### K==64
 
             deltas = z_samp[:, 1:] - z_samp[:, :-1]  # (B, K-1)
             delta_inf = 1e10 * torch.ones_like(deltas[:, :1])  # infty (B, 1)

@@ -29,7 +29,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for MVBTSNet
     use_code: true
     prediction_mode: default
-    num_multiviews: 2           # number of multi views to aggregate. Default: 2
+    num_multiviews: 3           # number of multi views to aggregate. Default: 2
     DFT_flag: true
     feature_pad: true
     dropout_views_rate: 0.5     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
@@ -38,7 +38,7 @@ model_conf:
     att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
-    AE: false                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
+    AE: true                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:
         num_freqs: 6

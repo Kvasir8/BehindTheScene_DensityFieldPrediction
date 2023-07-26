@@ -283,7 +283,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)          ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)
+            data = model(data)          ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
 
         timing["t_forward"] = time.time() - _start_time
 
