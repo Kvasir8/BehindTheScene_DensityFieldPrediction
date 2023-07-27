@@ -183,35 +183,36 @@ class TransposeLayer(nn.Module):
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Use GPU if available, else CPU
 
-class CNN2AE(nn.Module):
-    def __init__(self, num_channels, num_features):
+class CNN2AE(nn.Module):    ## convolute density sampled features along a ray from end of cam's frustum to the end. ( n_coarse==16 x att_feat==32 x (8x8) )
+    def __init__(self, num_channels:int=32, num_features:int=64):
         super(CNN2AE, self).__init__()
-        self.conv1 = nn.Conv1d(num_channels, num_channels*2, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv1d(num_channels*2, num_channels*4, kernel_size=3, stride=1, padding=1)
+        self.n_coarse = num_features
+        self.conv1 = nn.Conv1d(num_channels, num_channels, kernel_size=3, stride=1, padding=1)
+        # self.conv2 = nn.Conv1d(num_channels*2, num_channels*4, kernel_size=3, stride=1, padding=1)
         self.pool = nn.AvgPool1d(kernel_size=2, stride=2)
-        # self.fc = nn.Linear(num_channels*4 * num_features, num_features)  # Fully connected layer to further reduce dimension
-        self.fc = None  # We will initialize this later
+        # self.fc = nn.Linear(num_channels * num_features, num_features)  # Fully connected layer to further reduce dimension
+        # self.fc = None  # We will initialize this later
 
-    def forward(self, x, desired_spatial_output):
-        x = x.to(device)  # Move the input data to the device
-        batch_size, num_channels, num_points = x.shape
+    def forward(self, x):   ## , desired_spatial_output):
+        assert (x.size(0) % self.n_coarse)==0, f"__given points should be dividable by n_coarse: {self.n_coarse},but points given: {x.size(0)}"
+        # x = x.to(device)  # Move the input data to the device
+        # B_, C_, M_ = x.shape  # Get the new number of channels and points
         x = self.pool(F.relu(self.conv1(x)))  # Apply first conv layer and pool
-        x = self.pool(F.relu(self.conv2(x)))  # Apply second conv layer and pool
-        _, C, M = x.shape  # Get the new number of channels and points
+        x = self.pool(F.relu(self.conv1(x)))  # Apply second conv layer and pool
 
-        if self.fc is None:
-            # Initialize the fully connected layer now that we know the input size
-            self.fc = nn.Linear(C * M, C * desired_spatial_output).to(device)
+        # if self.fc is None:
+        #     # Initialize the fully connected layer now that we know the input size
+        #     self.fc = nn.Linear(C_ * M_, C_ * desired_spatial_output).to(device)
 
-        x = x.view(batch_size, C * M)  # Reshape to (batch_size, C * M)
-        x = self.fc(x)  # Apply fully connected layer
-        x = x.view(batch_size, C, desired_spatial_output)  # Reshape to (batch_size, num_channels, desired_spatial_output)
+        # x = x.view(B_, C_ * M_)  # Reshape to (batch_size, C * M)
+        # x = self.fc(x)  # Apply fully connected layer
+        # x = x.view(B_, C_, desired_spatial_output)  # Reshape to (batch_size, num_channels, desired_spatial_output)
         return x
 
 
 ## Auto-encoder network
 class ConvAutoEncoder(nn.Module):           ## purpose: to enforce the geometric generalization
-    def __init__(self, num_ch:int, S_:int): ## S:= Sequence length of the input tensor TODO: Change S to proper value
+    def __init__(self, num_ch:int=32, S_:int=64): ## S:= Sequence length of the input tensor. i.e. nb_samples_per_ray
         super(ConvAutoEncoder, self).__init__()
         # Encoder
         self.conv1 = nn.Sequential(
