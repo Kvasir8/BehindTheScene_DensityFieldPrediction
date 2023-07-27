@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 torch._C._jit_set_profiling_executor(False)
 torch._C._jit_set_profiling_mode(False)
 
@@ -151,28 +152,90 @@ GeoNeRF
 https://github.com/idiap/GeoNeRF/blob/e6249fdae5672853c6bbbd4ba380c4c166d02c95/model/self_attn_renderer.py#L60
 '''
 
-## Auto-encoder network
-class ConvAutoEncoder(nn.Module):       ## purpose: to enforce the geometric generalization
-    def __init__(self, num_ch:int, S_:int):
-        super(ConvAutoEncoder, self).__init__()
+# Custom TransposeLayer to perform transpose operation
+class TransposeLayer(nn.Module):
+    def __init__(self):
+        super(TransposeLayer, self).__init__()
 
+    def forward(self, x):
+        print("x_shape before transpose: ", x.shape)
+        return x.transpose(1, 2)
+
+#
+# class CNN2AE(nn.Module):
+#     def __init__(self, num_channels, num_features, desired_spatial_output): ## reduced mapping: num_points |-> num_features
+#         super(CNN2AE, self).__init__()
+#         self.conv1 = nn.Conv1d(num_channels, num_channels*2, kernel_size=3, stride=1, padding=1)
+#         self.conv2 = nn.Conv1d(num_channels*2, num_channels*4, kernel_size=3, stride=1, padding=1)
+#         self.conv3 = nn.Conv1d(num_channels*4, num_channels*8, kernel_size=3, stride=1, padding=1)
+#         self.pool = nn.AvgPool1d(kernel_size=2, stride=2)
+#         self.desired_spatial_output = desired_spatial_output
+#         # self.fc = nn.Linear(num_channels*4 * num_features, num_features)  # Fully connected layer to further reduce dimension
+#         # self.fc = nn.Linear(num_channels*4 * (num_features // 4), num_channels)  # Fully connected layer to reduce dimension
+#
+#     def forward(self, x):   ## input_tensor's shape: (batch_size=1, C=num_channels, M=num_points)
+#         _, num_channels, num_features = x.shape
+#         x = self.pool(nn.functional.relu(self.conv1(x)))
+#         x = self.pool(nn.functional.relu(self.conv2(x)))
+#         x = self.pool(nn.functional.relu(self.conv3(x)))
+#         x = x.view(x.size(0), num_channels, self.desired_spatial_output)  # Reshape to (batch_size, num_channels, reduced_features)
+#         return x
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Use GPU if available, else CPU
+
+class CNN2AE(nn.Module):
+    def __init__(self, num_channels, num_features):
+        super(CNN2AE, self).__init__()
+        self.conv1 = nn.Conv1d(num_channels, num_channels*2, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv1d(num_channels*2, num_channels*4, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.AvgPool1d(kernel_size=2, stride=2)
+        # self.fc = nn.Linear(num_channels*4 * num_features, num_features)  # Fully connected layer to further reduce dimension
+        self.fc = None  # We will initialize this later
+
+    def forward(self, x, desired_spatial_output):
+        x = x.to(device)  # Move the input data to the device
+        batch_size, num_channels, num_points = x.shape
+        x = self.pool(F.relu(self.conv1(x)))  # Apply first conv layer and pool
+        x = self.pool(F.relu(self.conv2(x)))  # Apply second conv layer and pool
+        _, C, M = x.shape  # Get the new number of channels and points
+
+        if self.fc is None:
+            # Initialize the fully connected layer now that we know the input size
+            self.fc = nn.Linear(C * M, C * desired_spatial_output).to(device)
+
+        x = x.view(batch_size, C * M)  # Reshape to (batch_size, C * M)
+        x = self.fc(x)  # Apply fully connected layer
+        x = x.view(batch_size, C, desired_spatial_output)  # Reshape to (batch_size, num_channels, desired_spatial_output)
+        return x
+
+
+## Auto-encoder network
+class ConvAutoEncoder(nn.Module):           ## purpose: to enforce the geometric generalization
+    def __init__(self, num_ch:int, S_:int): ## S:= Sequence length of the input tensor TODO: Change S to proper value
+        super(ConvAutoEncoder, self).__init__()
         # Encoder
         self.conv1 = nn.Sequential(
             nn.Conv1d(num_ch, num_ch * 2, 3, stride=1, padding=1),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.LayerNorm(S_, elementwise_affine=False),  ## RuntimeError: Given normalized_shape=[64], expected input with shape [*, 64], but got input of size[1, 64, 100000]
             nn.ELU(alpha=1.0, inplace=True),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.MaxPool1d(2),
         )
         self.conv2 = nn.Sequential(
             nn.Conv1d(num_ch * 2, num_ch * 4, 3, stride=1, padding=1),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.LayerNorm(S_ // 2, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.MaxPool1d(2),
         )
         self.conv3 = nn.Sequential(
             nn.Conv1d(num_ch * 4, num_ch * 4, 3, stride=1, padding=1),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.LayerNorm(S_ // 4, elementwise_affine=False),
             nn.ELU(alpha=1.0, inplace=True),
+            # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.MaxPool1d(2),
         )
 

@@ -9,7 +9,7 @@ output_path: "out/kitti_360"
 
 num_epochs: 1000
 #validate_every: 5000
-batch_size: 3                  # default: 16
+batch_size: 2                  # default: 16
 visualize_every: 1000
 
 save_best:
@@ -35,10 +35,10 @@ model_conf:
     dropout_views_rate: 0.5     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
     num_layers: 2               # num of encoder layers, GeoNeRF's Transformer: default: 4
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    att_feat: 16                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
-    AE: true                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
+    AE: true                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:
         num_freqs: 6

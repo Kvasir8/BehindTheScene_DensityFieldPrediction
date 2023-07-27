@@ -43,7 +43,7 @@ class DensityFieldTransformer(nn.Module):
         :param AE: flag for density field prediction for MLP layer of readout token with GeoNeRF's AutoEncoder layer for aggregation of view independent tokens (for experiment)
         :param do_: dropout ratio to randomly zero out the valid sampled_features' matrix
         :param rb_: ray_batch_size
-        :param ren_nc: rendering number of coarse sampling for NeRF
+        :param ren_nc: n_coarse == rendering number of coarse sampling for NeRF
         :param B_: batch size for a patch base sampling
         """
         super(DensityFieldTransformer, self).__init__()
@@ -53,9 +53,11 @@ class DensityFieldTransformer(nn.Module):
         self.att_feat = att_feat
         self.AE = AE
         self.dropout = nn.Dropout(do_)
-        self.ts_ = rb_ * ren_nc * B_    ## total num sampling (to decide input dimension for AE)
         self.rb_ = rb_
-
+        self.B_ = B_
+        self.n_coarse = ren_nc  ## Note: we assume patch size is 8x8, thus we have following ts_ as computation
+        self.ts_ = B_ * ren_nc * (8*8) * (rb_//(8*8))    ## total num sampled points (to decide input dimension for AE)
+        self.S_ = 10        ## length of sequence for AE
         ## DFTransformer encoder layers
         if self.DFEnlayer:
             # self.transformer_enlayer = IBR.EncoderLayer(d_model, att_feat, nhead, att_feat, att_feat) ## problem: mat1 and mat2 shapes cannot be multiplied (24576x32 and 103x32)
@@ -68,7 +70,9 @@ class DensityFieldTransformer(nn.Module):
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
         # self.readout_token = torch.rand(1, 1, att_feat).to("cuda")  ## ? # self.attention = nn.MultiheadAttention(d_model, nhead, batch_first=True)
 
-        if self.AE: self.density_field_prediction = mlp.ConvAutoEncoder(self.att_feat, 2*self.att_feat) ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+        if self.AE:
+            self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.ts_)
+            self.density_field_prediction = mlp.ConvAutoEncoder(self.att_feat, self.S_) ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
         else: self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
@@ -93,7 +97,7 @@ class DensityFieldTransformer(nn.Module):
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
-        aggregated_features = transformed_features[:,0,:]  ### [M=100000 * nv_+1 ,att_feat==32]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        aggregated_features = transformed_features[:,0,:]  ### [M_b, nv_+1 ,att_feat==32]  ## first token refers to the readout/view-independent/global-geometric understanding token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
         # aggregated_features = transformed_features[0][:,0,:]  ## to be investigated for matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,
         ## TODO: GeoNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
         # Make sure it is valid AE accordingly (skipping AE during the training), working properly before adding AE.
@@ -101,10 +105,12 @@ class DensityFieldTransformer(nn.Module):
 
         # transformed_features = self.transformer_encoder(embedded_features, src_key_padding_mask=invalid_features[..., 0].permute(1, 0))
         # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features[..., 0].permute(1, 0))[0]
-        if self.AE: aggregated_features = torch.mean(aggregated_features, dim=0).unsqueeze(0)   ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
-        # if self.AE: aggregated_features = aggregated_features.permute(-1,0).unsqueeze(0)   ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
+        # if self.AE: aggregated_features = torch.mean(aggregated_features, dim=0).unsqueeze(0)   ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
+        if self.AE:
+            aggregated_features = aggregated_features.permute(-1,0).unsqueeze(0)  ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
+            aggregated_features = self.ConvNet2AE(aggregated_features, self.S_)  ## .permute(0,-1,1).squeeze(-1) ### (1,32,10240)
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
-        density_field = self.density_field_prediction(aggregated_features)  # .view(-1)  ### torch.Size([100000])
+        density_field = self.density_field_prediction(aggregated_features)  # .view(-1)   ### torch.Size([100000])
         # density_field = torch.nan_to_num(density_field, 0.0)
         # !!! BAD example below, see (https://pytorch.org/docs/stable/notes/autograd.html#in-place-correctness-checks) for more details
         # density_field[torch.all(invalid_features, dim=0)[:, 0], 0, 0] = 0
