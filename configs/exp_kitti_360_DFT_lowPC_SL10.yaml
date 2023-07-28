@@ -9,7 +9,7 @@ output_path: "out/kitti_360"
 
 num_epochs: 1000
 #validate_every: 5000
-batch_size: 2                  # default: 16
+batch_size: 3                  # default: 16
 visualize_every: 1000
 
 save_best:
@@ -73,7 +73,7 @@ model_conf:
 
     sample_mode: patch                  # a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 128                # default: 4096, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 128                 # default: 4096, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -90,7 +90,7 @@ scheduler:
     gamma: 0.1
 
 renderer:
-    n_coarse : 16                       # default: 64, batch size == num of sampling a patch
+    n_coarse : 64                       # default: 64, batch size == num of sampling a patch
     n_fine : 0
     n_fine_depth : 0
     depth_std : 1.0

@@ -76,7 +76,8 @@ class DensityFieldTransformer(nn.Module):
 
         if self.AE:
             self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
-            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse//4)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+            self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
         else:
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
@@ -102,10 +103,16 @@ class DensityFieldTransformer(nn.Module):
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
-        if self.AE is None:  ## Dependency injection c.f. first above from the code
+        # if self.AE is None:  ## Dependency injection c.f. first above from the code
+        if not self.AE:
             aggregated_features = transformed_features[:,0,:]  ### [M=100000 * nv_+1 ,att_feat==32]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
         else:
-            aggregated_features = self.ConvNet2AE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2)).transpose(0,2)     ## .view(-1, self.att_feat)  # C_:=Channels TODO: feeding it into AE
+            aggregated_features = self.ConvNet2AE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2)) ## .transpose(0,2)     ## .view(-1, self.att_feat)  # C_:=Channels TODO: feeding it into AE
+
+        # if self.AE is None:  ## Dependency injection c.f. first above from the code
+        #     aggregated_features = transformed_features[:,0,:]  ### [M=100000 * nv_+1 ,att_feat==32]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        # else:
+        #     aggregated_features = self.ConvNet2AE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2)).transpose(0,2)     ## .view(-1, self.att_feat)  # C_:=Channels TODO: feeding it into AE
 
         # aggregated_features = transformed_features[0][:,0,:]  ## to be investigated for matrices, the 2nd dimension [M=100000, nv_+1 ,3,3,
         ## TODO: GeoNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
@@ -117,7 +124,7 @@ class DensityFieldTransformer(nn.Module):
         # if self.AE: aggregated_features = torch.mean(aggregated_features, dim=0).unsqueeze(0)   ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
         if self.AE:
             # aggregated_features = aggregated_features.permute(-1, 0).unsqueeze(0)  ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
-            aggregated_features = self.ConvAE(aggregated_features)  ## .permute(0,-1,1).squeeze(-1) ### (1,32,10240)
+            aggregated_features = self.ConvAE(aggregated_features).view(-1, self.att_feat)  ## self.ts_//self.n_coarse ## .permute(0,2,1) ## .squeeze(-1) ### (1,32,10240)
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
         density_field = self.density_field_prediction(aggregated_features)  ## TODO: This should be 2 MLPs after AE's prediction. # .view(-1)  ### torch.Size([100000])
         # density_field = torch.nan_to_num(density_field, 0.0)

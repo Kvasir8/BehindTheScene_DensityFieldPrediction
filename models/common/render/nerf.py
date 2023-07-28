@@ -25,7 +25,7 @@ class _RenderWrapper(torch.nn.Module):
 
         outputs = self.renderer(
             self.net,
-            rays,
+            rays,       ## samples along a ray with 8 views with batches => dim(rays) == (B_, ray_batch_size, 8)
             want_weights=want_weights and not self.simple_output,
             want_alphas=want_alphas and not self.simple_output,
             want_z_samps=want_z_samps and not self.simple_output,
@@ -254,13 +254,13 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(
                     viewdirs, eval_batch_size, dim=eval_batch_dim
                 )
-                for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)       ### !! MVSBTS model (transformer)
+                for pnts, dirs in zip(split_points, split_viewdirs):    ## ! chunking 100,000 pts for computation
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)       ### MVSBTS
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
             else:
-                for pnts in split_points:
+                for pnts in split_points:   ## chunking for computational limit
                     rgbs, invalid, sigmas = model(pnts, coarse=coarse)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)

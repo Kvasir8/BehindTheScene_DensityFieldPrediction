@@ -15,7 +15,6 @@ EPS = 1e-3
 
 from models.common.model.Transformer_DF import DensityFieldTransformer
 
-
 class MVBTSNet(torch.nn.Module):
     def __init__(self, conf, ren_nc, B_):
         super().__init__()  ### inherits the initialization behavior from its parent class
@@ -29,6 +28,10 @@ class MVBTSNet(torch.nn.Module):
         self.learn_empty, self.empty_empty, self.inv_z = conf.get("learn_empty", True), conf.get("empty_empty", False), conf.get("inv_z", True)
         self.color_interpolation, self.code_mode = conf.get("color_interpolation", "bilinear"), conf.get("code_mode", "z")
         if self.code_mode not in ["z", "distance"]: raise NotImplementedError(f"Unknown mode for positional encoding: {self.code_mode}")
+
+        ## config to compute total sample convoluted, ts_conv
+        self.ts_conv = (ren_nc // 4) * (conf.get('patch_size') * conf.get('patch_size')) * (conf.get('ray_batch_size') // ren_nc)
+        self.AE = conf.get('AE')
 
         self.encoder = make_backbone(conf["encoder"])
         self.code_xyz = PositionalEncoding.from_conf(conf["code"], d_in=3)
@@ -287,6 +290,7 @@ class MVBTSNet(torch.nn.Module):
         Please call encode first!
         :param xyz (B, 3) / [nv_==4, M==8192, 3]
         B is batch of points (in rays)
+        :param ts_ : ts_ = batch_size * (self.n_coarse // 4) * self.patch_size self.patch_size * (ray_batch_size // self.n_coarse)
         :return (B, 4) r g b sigma
         """
         '''context manager that helps to measure the execution time of the code block inside it. i.e. used to profile the execution time of the forward pass of the model during inference for performance analysis and optimization purposes. ## to analyze the performance of the code block, helping developers identify bottlenecks and optimize their code.'''
@@ -329,7 +333,9 @@ class MVBTSNet(torch.nn.Module):
                     dim_size=dim_size,
                 )
 
-            mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
+            # if self.AE: mlp_output = mlp_output.reshape(n_, self.ts_conv , self._d_out)
+            if self.AE: mlp_output = mlp_output.reshape(n_, -1, self._d_out)
+            else:       mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
 
             if self.sample_color:
                 sigma = mlp_output[..., :1] ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
