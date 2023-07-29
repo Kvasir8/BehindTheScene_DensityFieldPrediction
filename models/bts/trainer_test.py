@@ -1,10 +1,13 @@
 import math
 from copy import copy
+from pathlib import Path
 
 import ignite.distributed as idist
 import torch
 from ignite.contrib.handlers import TensorboardLogger
 from ignite.engine import Engine
+from matplotlib import pyplot as plt
+import numpy as np
 from torch import nn
 from torch import optim
 from torch.nn import functional as F
@@ -21,21 +24,21 @@ from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import BTSNet, MVBTSNet
+from models.bts.model.models_bts import BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from scripts.inference_setup import render_profile, render_segmentation_profile
 from utils.base_trainer import base_training
 from utils.metrics import MeanMetric
-from utils.plotting import color_tensor
+from utils.plotting import color_tensor, color_segmentation_tensor
 from utils.projection_operations import distance_to_z
 
 
 class BTSWrapper(nn.Module):
     def __init__(self, renderer, config, eval_nvs=False) -> None:
         super().__init__()
-        self.nv_ = config["num_multiviews"]
+
         self.renderer = renderer
-        # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
+
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.ray_batch_size = config["ray_batch_size"]
@@ -91,8 +94,11 @@ class BTSWrapper(nn.Module):
         images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
+        segs = torch.stack(data["segs_gt"], dim=1)                         # n, n_segs, h, w
 
-        n, v, c, h, w = images.shape            ### v==8 :=
+        n_segs = segs.shape[1]
+
+        n, v, c, h, w = images.shape
         device = images.device
 
         # Use first frame as keyframe
@@ -117,8 +123,8 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
-        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
+        ids_encoder = [0]
+        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values
 
         combine_ids = None
 
@@ -145,7 +151,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
-            elif self.frame_sample_mode == "kitti360-mono": ## observed in debug setting
+            elif self.frame_sample_mode == "kitti360-mono":
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
 
@@ -215,8 +221,16 @@ class BTSWrapper(nn.Module):
         with profiler.record_function("trainer_sample-rays"):
             all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss], poses[:, ids_loss], projs[:, ids_loss])
 
-        data["fine"], data["coarse"] = [], []
-        # if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)
+        with profiler.record_function("trainer_sample_segmentation-rays"):
+            # we do not want the conventional split for the segmentation rays
+            # TODO: Change back to using both images with bool flags
+            # TODO: This is only temporary testing
+            # n_segs = 4
+            segmentation_rays, seg_rgb_gt, segmentation_gt = sampler.sample(images_ip[:,:n_segs], poses[:, :n_segs], projs[:, :n_segs], segs[:, :n_segs], sample_segs=True)
+
+        data["fine"] = []
+        data["coarse"] = []
+        data["segmentation"] = []
 
         if self.prediction_mode == "multiscale":
             for scale in self.renderer.net.encoder.scales:
@@ -242,14 +256,27 @@ class BTSWrapper(nn.Module):
                 data["rgb_gt"] = render_dict["rgb_gt"]
                 data["rays"] = render_dict["rays"]
         else:
+            with profiler.record_function("trainer_segmentation_render"):
+                render_segmentation_dict = self.renderer(segmentation_rays, want_weights=True, want_alphas=True,
+                                                          want_rgb_samps=True, predict_segmentation=True)
             with profiler.record_function("trainer_render"):
                 render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
-                ### [n:=batch_size, M, cam_views:=8]
+
+
+
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
+                render_segmentation_dict["fine"] = dict(render_segmentation_dict["coarse"])
 
             render_dict["rgb_gt"] = all_rgb_gt
             render_dict["rays"] = all_rays
+
+            render_segmentation_dict["rgb_gt"] = seg_rgb_gt
+            render_segmentation_dict["segmentation_gt"] = segmentation_gt
+            render_segmentation_dict["segmentation_rays"] = segmentation_rays
+
+            with profiler.record_function("trainer_reconstruct_segmentation"):
+                render_segmentation_dict = sampler.reconstruct(render_segmentation_dict, reconstruct_segmentation=True)
 
             with profiler.record_function("trainer_reconstruct"):
                 render_dict = sampler.reconstruct(render_dict)
@@ -258,14 +285,26 @@ class BTSWrapper(nn.Module):
             data["coarse"].append(render_dict["coarse"])
             data["rgb_gt"] = render_dict["rgb_gt"]
             data["rays"] = render_dict["rays"]
+            data["segmentation"].append(render_segmentation_dict["coarse"])
+            data["segmentation_rays"] = render_segmentation_dict["segmentation_rays"]
+            data["segmentation_gt"] = render_segmentation_dict["segmentation_gt"]
+            data["segmentation_rgb_gt"] = render_segmentation_dict["rgb_gt"]
 
         data["z_near"] = torch.tensor(self.z_near, device=images.device)
         data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
+        # check if we are in evaluation mode
         if self.training is False:
+            # TODO: Look at for production/prediction
             data["coarse"][0]["depth"] = distance_to_z(data["coarse"][0]["depth"], projs)
             data["fine"][0]["depth"] = distance_to_z(data["fine"][0]["depth"], projs)
 
+
+            # segmentation metrics
+            if hasattr(self.renderer.net, "mlp_segmentation"):
+                data.update(self.compute_segmentation_metrics(data))
+
+            # normal metrics
             if len(data["depths"]) > 0:
                 data.update(self.compute_depth_metrics(data))
             if self.eval_nvs:
@@ -282,12 +321,49 @@ class BTSWrapper(nn.Module):
 
             # predict the profiles
             data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust)]
-            # data["segmentation_profiles"] = [render_segmentation_profile(self.renderer.net, cam_incl_adjust)]
+            data["segmentation_profiles"] = [render_segmentation_profile(self.renderer.net, cam_incl_adjust)]
 
         if self.training:
             self._counter += 1
 
         return data
+
+
+    def compute_segmentation_metrics(self, data):
+
+        segs_pred_proba = data["segmentation"][0]["segs"]
+        segs_pred = torch.argmax(segs_pred_proba, dim=-1)
+
+
+        segs_gt = torch.stack(data["segs_gt"], dim=1)
+        segs_kitti_gt = torch.stack(data["segs_kitti_gt"], dim=1)
+
+        # standard accuracy
+        acc = segs_pred.eq(segs_gt).float().mean()
+
+        # front and side separation
+        acc_side = torch.tensor(0, dtype=float)
+        n_segs = segs_pred.shape[1]
+        n_kitti = segs_kitti_gt.shape[1]
+
+        if n_segs > 4:
+            acc_side = segs_pred[:, 4:].eq(segs_gt[:, 4:]).float().mean()
+
+        acc_front = segs_pred[:, :min(4, n_segs)].eq(segs_gt[:, :min(4, n_segs)]).float().mean()
+
+        # denosing metrics
+        acc_kitti_vs_gt = segs_kitti_gt.eq(segs_gt[:, :n_kitti]).float().mean()
+        acc_kitti_vs_pred = segs_kitti_gt.eq(segs_pred[:, :n_kitti]).float().mean()
+
+        metrics_dict = {
+            "seg_acc": acc.view(1),
+            "seg_acc_front": acc_front.view(1),
+            "seg_acc_side": acc_side.view(1),
+            "seg_acc_kitti_vs_gt": acc_kitti_vs_gt.view(1),
+            "seg_acc_kitti_vs_pred": acc_kitti_vs_pred.view(1)
+        }
+
+        return metrics_dict
 
     def compute_depth_metrics(self, data):
         # TODO: This is only correct for batchsize 1!
@@ -385,13 +461,14 @@ def get_dataflow(config, logger=None):
     # Change eval dataset to only use a single prediction and to return gt depth.
     test_dataset.frame_count = 1 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 2
     test_dataset._left_offset = 0
-    test_dataset.return_stereo = mode == "nvs"
+    # commented out as if not we only get the left half for our validation
+    # test_dataset.return_stereo = mode == "nvs"
     test_dataset.return_depth = True
-    test_dataset.length = min(256, test_dataset.length)      ## ? default: 256
+    test_dataset.length = min(256, test_dataset.length)
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50  ## kitti image frame from sequence default: 50
+    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
@@ -410,15 +487,17 @@ def get_metrics(config, device):
     names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
     if config.get("mode", "depth") == "nvs":
         names += ["ssim", "psnr", "lpips"]
-    ### x['output'].keys()==dict_keys(['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far'])
+
+    if config.get("segmentation_mode", None):
+        names += ["seg_acc", "seg_acc_front", "seg_acc_side", "seg_acc_kitti_vs_gt", "seg_acc_kitti_vs_pred"]
+
     metrics = {name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device) for name in names}
-    return metrics  ### x['output']['imgs'][0~(nv_-1)].size(), torch.Size([1, 3, 192, 640]) ## n == 'abs_rel'
+    return metrics
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "MVBTSNet")     ## default: get("arch", "BTSNet")
-    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
-
+    arch = config["model_conf"].get("arch", "BTSNet")
+    net = globals()[arch](config["model_conf"])
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
 
@@ -460,7 +539,7 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     z_near = data["z_near"]
     z_far = data["z_far"]
 
-    take_n = min(images.shape[0], 8) ## default: 6
+    take_n = min(images.shape[0], 8)
 
     _, c, h, w = images.shape
     nv = recon_imgs.shape[0]
@@ -501,10 +580,48 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     # Write images
     nrow = int(take_n ** .5)
 
+    # Segmentation plotting
+    segmentation_gt = torch.stack(data['segs_gt'], dim=0).detach().squeeze(1) # (n, h, w)
+    segmentation_kitti_gt = torch.stack(data["segs_kitti_gt"], dim=0).detach().squeeze(1)  # (n, h, w)
+    segmentation = (data['segmentation'][0]['segs'].detach()[0]).permute(0, 3, 1, 2) # (n, n_classes, h, w)
+    # segmentation_raw = (data['segmentation'][0]['segs_raw'].detach()[0]).permute(0, 4, 1, 2, 3) #(n, n_classes, h, w, n_samples)
+
+    n_classes = segmentation.shape[1]
+    n_seg = segmentation.shape[0]
+    # n_samples = segmentation_raw.shape[-1]
+
+    segmentation = torch.argmax(segmentation, dim=1) # (n, h, w)
+    # segmentation_raw = torch.argmax(segmentation_raw, dim=1) # (n, h, w, n_samples)
+
+    # segmentation_raw = torch.tensor(color_segmentation_tensor(segmentation_raw))
+    segmentation = torch.tensor(color_segmentation_tensor(segmentation)).permute(0, 3, 1, 2)
+    segmentation_gt = torch.tensor(color_segmentation_tensor(segmentation_gt)).permute(0, 3, 1, 2)
+    segmentation_kitti_gt = torch.tensor(color_segmentation_tensor(segmentation_kitti_gt)).permute(0, 3, 1, 2)
+
+    # seg_horizontal_slices = segmentation_raw[:, [h // 4, h // 2, 3 * h // 4], :, :].view(n_seg*3, w, -1, 3)
+    # seg_horizontal_slices = seg_horizontal_slices.permute(0, 3, 2, 1)
+
+    # bundle the 3 slice correctly
+    # seg_horizontal_slices = torch.stack([make_grid(seg_horizontal_slices[i * 3:(i + 1) * 3], nrow=1) for i in range(n_seg)], dim=0)
+    seg_horizontal_density = torch.stack([make_grid(depth_profile[i * 3:(i + 1) * 3], nrow=1) for i in range(take_n)], dim=0)
+
     # profile plotting
     profiles = torch.stack(data["profiles"], dim=0)
     profiles = color_tensor(profiles, cmap="magma", norm=True)
-    profiles_grid = make_grid(profiles).permute(2, 0, 1)    ## Bird-eye view
+    segmentation_profiles = torch.stack(data["segmentation_profiles"], dim=0)
+    # TODO: change n_classes depending on the segmentation mode
+    segmentation_profiles = torch.tensor(color_segmentation_tensor(segmentation_profiles))
+
+    n_row_seg = int(n_seg ** .5)
+
+    segmentation_gt_grid = make_grid(segmentation_gt, nrow=n_row_seg)
+    segmentation_kitti_gt_grid = make_grid(segmentation_kitti_gt, nrow=n_row_seg)
+    segmentation_grid = make_grid(segmentation, nrow=n_row_seg)
+    # seg_horizontal_grid = make_grid(seg_horizontal_slices, nrow=n_row_seg)
+    seg_horizontal_density_grid = make_grid(seg_horizontal_density, nrow=n_row_seg)
+
+    profiles_grid = make_grid(profiles).permute(2, 0, 1)
+    segmentation_profiles_grid = make_grid(segmentation_profiles).permute(2, 0, 1)
 
     images_grid = make_grid(images, nrow=nrow)
     recon_imgs_grid = make_grid(recon_imgs, nrow=nrow)
@@ -515,7 +632,16 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     recon_mse_grid = make_grid(recon_mse, nrow=nrow)
     invalids_grid = make_grid(invalids, nrow=nrow)
 
-    writer.add_image(f"{tag}/profiles", profiles_grid.cpu(), global_step=step)  ## Bird-eye view
+
+    writer.add_image(f"{tag}/segmentation_gt", segmentation_gt_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/segmentation_kitti_gt", segmentation_kitti_gt_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/segmentation", segmentation_grid.cpu(), global_step=step)
+    # writer.add_image(f"{tag}/segmentation_horizontal_slices", seg_horizontal_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/segmentation_horizontal_density", seg_horizontal_density_grid.cpu(), global_step=step)
+
+    writer.add_image(f"{tag}/profiles", profiles_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/profiles_segmentation", segmentation_profiles_grid.cpu(), global_step=step)
+
     writer.add_image(f"{tag}/input_im", images_grid.cpu(), global_step=step)
     writer.add_image(f"{tag}/recon_im", recon_imgs_grid.cpu(), global_step=step)
     for i, d in enumerate(recon_depths_grid):
