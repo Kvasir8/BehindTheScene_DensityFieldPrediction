@@ -18,7 +18,7 @@ save_best:
 
 data:
     data_fc: 2
-    image_size: [192, 640]
+    image_size: [192, 640]      # Memory consumption experimental config
     color_aug: true
     is_preprocessed: true
     fisheye_rotation: [0, -15]

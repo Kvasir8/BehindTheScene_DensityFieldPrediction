@@ -125,6 +125,7 @@ class DensityFieldTransformer(nn.Module):
         if self.AE:
             # aggregated_features = aggregated_features.permute(-1, 0).unsqueeze(0)  ### (C,==att_feat)  ## shrink the density fields to fit into the AE layer by making them average pooling
             aggregated_features = self.ConvAE(aggregated_features).view(-1, self.att_feat)  ## self.ts_//self.n_coarse ## .permute(0,2,1) ## .squeeze(-1) ### (1,32,10240)
+
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
         density_field = self.density_field_prediction(aggregated_features)  ## TODO: This should be 2 MLPs after AE's prediction. # .view(-1)  ### torch.Size([100000])
         # density_field = torch.nan_to_num(density_field, 0.0)
