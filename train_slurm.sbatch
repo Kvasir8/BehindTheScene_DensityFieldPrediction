@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[IDE]BTS_DFT_training"
+#SBATCH --job-name="BTS_DFT_training"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
@@ -13,6 +13,6 @@ export HYDRA_FULL_ERROR=1
 export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
-python train_pycharm.py -cn exp_kitti_360_DFT
+python train.py -cn exp_kitti_360_DFT_slurm
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

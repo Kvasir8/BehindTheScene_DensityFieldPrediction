@@ -1,4 +1,4 @@
-defaults:                       ### This Code is to run for debugging purpose, so the model parameters are very much shortened. For normal training, please follow "exp_kitti_360_DFT.yaml"
+defaults:                       ### This Code is to run for debugging purpose, so the model parameters are very much shortened. For normal training, please follow "exp_kitti_360_DFT_slurm.yaml"
     - default
     - data: kitti_360_DFT_SL10
     - _self_

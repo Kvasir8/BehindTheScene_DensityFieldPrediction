@@ -1,4 +1,4 @@
-defaults:                       ### This Code is to run for debugging purpose, so the model parameters are very much shortened. For normal training, please follow "exp_kitti_360_DFT.yaml"
+defaults:                       ### This Code is to run for debugging purpose, so the model parameters are very much shortened. For normal training, please follow "exp_kitti_360_DFT_slurm.yaml"
     - default
     - data: kitti_360_DFT
     - _self_
@@ -10,7 +10,7 @@ output_path: "out/kitti_360"
 num_epochs: 100000
 #validate_every: 5000
 batch_size: 4                  # default: 16
-visualize_every: 10000
+visualize_every: 100
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -38,7 +38,7 @@ model_conf:
     att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
-    AE: true                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
+    AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:
         num_freqs: 6

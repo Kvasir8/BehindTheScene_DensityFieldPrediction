@@ -23,7 +23,7 @@ from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
 from models.bts.model.models_bts import BTSNet, MVBTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
-from scripts.inference_setup import render_profile, render_segmentation_profile
+from scripts.inference_setup import render_profile
 from utils.base_trainer import base_training
 from utils.metrics import MeanMetric
 from utils.plotting import color_tensor
