@@ -460,7 +460,7 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     z_near = data["z_near"]
     z_far = data["z_far"]
 
-    take_n = min(images.shape[0], 8) ## default: 6
+    take_n = min(images.shape[0], 6) ## num eval viz images to be shown in tensorboard, default: 6
 
     _, c, h, w = images.shape
     nv = recon_imgs.shape[0]

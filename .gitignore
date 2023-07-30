@@ -1,6 +1,10 @@
 .uuid
+# output prediction
 outputs/
 data/
+
+# test
+test/
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template

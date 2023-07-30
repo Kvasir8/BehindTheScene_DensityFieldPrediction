@@ -1,0 +1,131 @@
+{
+  "name": "kitti_360_DFT",
+  "model": "bts",
+  "seed": 0,
+  "output_path": "out/kitti_360/kitti_360_DFT_backend-None-1_20230730-135209",
+  "batch_size": 4,
+  "num_workers": 4,
+  "eval_use_iters": true,
+  "vis_use_iters": true,
+  "validate_every": 2000,
+  "visualize_every": 10000,
+  "log_every_iters": 1,
+  "log_tb_train_every_iters": -1,
+  "log_tb_val_every_iters": -1,
+  "log_tb_vis_every_iters": 1,
+  "checkpoint_every": 500,
+  "resume_from": "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt",
+  "loss_during_validation": false,
+  "num_epochs": 1000000,
+  "stop_iteration": null,
+  "learning_rate": 0.0001,
+  "warmup_steps": 10000,
+  "decay_rate": 0.5,
+  "decay_steps": 100000,
+  "num_steps": 100000,
+  "backend": null,
+  "nproc_per_node": null,
+  "with_amp": false,
+  "data": {
+    "type": "KITTI_360_DFT",
+    "data_path": "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360",
+    "pose_path": "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses",
+    "split_path": "datasets/kitti_360/splits/seg",
+    "image_size": [
+      192,
+      640
+    ],
+    "data_stereo": true,
+    "data_fc": 2,
+    "fisheye_rotation": [
+      0,
+      -15
+    ],
+    "fisheye_offset": 10,
+    "is_preprocessed": true,
+    "data_fisheye": true,
+    "color_aug": true
+  },
+  "save_best": {
+    "metric": "abs_rel",
+    "sign": -1
+  },
+  "model_conf": {
+    "arch": "MVBTSNet",
+    "use_code": true,
+    "prediction_mode": "default",
+    "num_multiviews": 4,
+    "DFT_flag": true,
+    "feature_pad": true,
+    "dropout_views_rate": 0.5,
+    "num_layers": 1,
+    "d_model": 103,
+    "att_feat": 80,
+    "nhead": 8,
+    "DFEnlayer": true,
+    "AE": false,
+    "code": {
+      "num_freqs": 6,
+      "freq_factor": 1.5,
+      "include_input": true
+    },
+    "encoder": {
+      "type": "monodepth2",
+      "freeze": true,
+      "pretrained": true,
+      "resnet_layers": 50,
+      "num_ch_dec": [
+        32,
+        32,
+        64,
+        128,
+        256
+      ],
+      "d_out": 64
+    },
+    "mlp_coarse": {
+      "type": "resnet",
+      "n_blocks": 0,
+      "d_hidden": 64
+    },
+    "mlp_fine": {
+      "type": "empty",
+      "n_blocks": 1,
+      "d_hidden": 128
+    },
+    "z_near": 3,
+    "z_far": 80,
+    "inv_z": true,
+    "n_frames_encoder": 1,
+    "n_frames_render": 2,
+    "frame_sample_mode": "kitti360-mono",
+    "sample_mode": "patch",
+    "patch_size": 8,
+    "ray_batch_size": 2048,
+    "flip_augmentation": true,
+    "learn_empty": false,
+    "code_mode": "z"
+  },
+  "loss": {
+    "criterion": "l1+ssim",
+    "invalid_policy": "weight_guided",
+    "lambda_edge_aware_smoothness": 0.001
+  },
+  "scheduler": {
+    "type": "step",
+    "step_size": 120000,
+    "gamma": 0.1
+  },
+  "renderer": {
+    "n_coarse": 64,
+    "n_fine": 0,
+    "n_fine_depth": 0,
+    "depth_std": 1.0,
+    "sched": [],
+    "white_bkgd": false,
+    "lindisp": true,
+    "hard_alpha_cap": true
+  },
+  "cuda device name": "Quadro RTX 8000",
+  "num_iters_per_epoch": 24502
+}
