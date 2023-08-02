@@ -73,10 +73,12 @@ class NeRFRenderer(torch.nn.Module):
         white_bkgd=False,
         lindisp=False,
         sched=None,  # ray sampling schedule for coarse and fine rays
-        hard_alpha_cap=False
+        hard_alpha_cap=False,
+        pts_div=True    ## pts divisable by the number of samples on a ray, 64 in default.
     ):
         super().__init__()
         self.n_coarse, self.n_fine = n_coarse, n_fine
+        self.pts_div = pts_div
         self.n_fine_depth = n_fine_depth
 
         self.noise_std = noise_std
@@ -234,17 +236,17 @@ class NeRFRenderer(torch.nn.Module):
 
             rgbs_all, invalid_all, sigmas_all = [], [], []
             if sb > 0:
-                points = points.reshape(
-                    sb, -1, 3
-                )  # (SB, B'*K, 3) B' is real ray batch size
-                eval_batch_size = (self.eval_batch_size - 1) // sb + 1
+                points = points.reshape(sb, -1, 3)  # (SB, B'*K, 3) B' is real ray batch size
+                if self.pts_div:
+                    eval_batch_size = (self.eval_batch_size // self.n_coarse) * self.n_coarse   ## Take the biggest num possible divisible by n_coarse
+                else:   eval_batch_size = (self.eval_batch_size - 1) // sb + 1
                 eval_batch_dim = 1
             else:
                 eval_batch_size = self.eval_batch_size
                 eval_batch_dim = 0
 
             split_points = torch.split(points, eval_batch_size, dim=eval_batch_dim)
-            if use_viewdirs:
+            if use_viewdirs:        ## ?
                 dim1 = K
                 viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)
                 if sb > 0:
@@ -254,13 +256,13 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(
                     viewdirs, eval_batch_size, dim=eval_batch_dim
                 )
-                for pnts, dirs in zip(split_points, split_viewdirs):    ## ! chunking 100,000 pts for computation
+                for pnts, dirs in zip(split_points, split_viewdirs):
                     rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)       ### MVSBTS
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
             else:
-                for pnts in split_points:   ## chunking for computational limit
+                for pnts in split_points:   ## chunking for computational limit ## ! chunking 100,000 pts for computation
                     rgbs, invalid, sigmas = model(pnts, coarse=coarse)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
