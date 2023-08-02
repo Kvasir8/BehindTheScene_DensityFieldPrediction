@@ -74,7 +74,7 @@ class DensityFieldTransformer(nn.Module):
 
         if self.AE:
             self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
-            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse//4)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
         else:
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
@@ -91,37 +91,31 @@ class DensityFieldTransformer(nn.Module):
 
         ## Process the embedded features with the Transformer
         if self.padding_flag:
-            padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1, )
-            # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
-            if self.DFEnlayer: 
-                transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
-            else: 
-                transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
-            # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
-        else:
-            invalid_features = invalid_features.squeeze(-1).permute(1, 0)
-            transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
+            encoded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            invalid_features = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1, )
+        transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  
+        #     # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
+        #     if self.DFEnlayer: 
+        #         transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
+        #     else: 
+        #         transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+        #     # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+        # else:
+        #     invalid_features = invalid_features.squeeze(-1).permute(1, 0)
+        #     transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
         # if self.AE is None:  ## Dependency injection c.f. first above from the code
         if self.AE:
             aggregated_features = self.ConvAE(
                 transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2) # n_rays, C, pts_per_ray
-                ).transpose(1, 2).view(-1, self.att_feat) # n_pts, C
+                ).transpose(1, 2).contiguous().view(-1, self.att_feat) # n_pts, C
         else:
-            aggregated_features = transformed_features[:,0,:]  # n_pts, C  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+            aggregated_features = transformed_features[:,0,:]  # n_pts, C  ## first token refers to the readout token where it stores the feature information accumulated from the layers
 
         density_field = self.density_field_prediction(aggregated_features)  # n_pts
         # density_field = torch.nan_to_num(density_field, 0.0)
         # !!! BAD example below, see (https://pytorch.org/docs/stable/notes/autograd.html#in-place-correctness-checks) for more details
         # density_field[torch.all(invalid_features, dim=0)[:, 0], 0, 0] = 0
-
-        # ! This might be an alternative to the padding.
-        if False:
-            final_output = torch.zeros_like(density_field)
-            mask = torch.logical_not(torch.all(invalid_features, dim=0))[:, 0]
-            final_output[mask, 0, 0] = density_field[mask, 0, 0]
-            return final_output.mean(dim=1).squeeze(-1)
 
         # print("__dim(density_field): ", density_field.shape)
         return density_field

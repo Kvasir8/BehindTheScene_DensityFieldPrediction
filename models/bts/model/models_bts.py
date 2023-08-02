@@ -245,11 +245,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
             sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (B, n_pts, n_v, 103), (B, n_pts, n_v)
-            # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
-            ### torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
-            # mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
             mlp_input = sampled_features  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
-            # print("__dim(mlp_intput): ", mlp_input.shape)  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
 
             # Camera frustum culling stuff, currently disabled
             combine_index = None
@@ -257,7 +253,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT_flag:   ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
                 if torch.any(torch.isnan(mlp_output)):  print("nan_existed: ", torch.any(torch.isnan(mlp_output)))
                 ### mlp_input.shape == B, (n_coarse) * (8x8:=patch_size) * (ray_batch_size/path_size) where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
             elif coarse or self.mlp_fine is None:
@@ -274,10 +270,6 @@ class MVBTSNet(torch.nn.Module):
                     combine_index=combine_index,
                     dim_size=dim_size,
                 )
-
-            # if self.AE: mlp_output = mlp_output.reshape(n_, self.ts_conv , self._d_out)
-            if self.AE: mlp_output = mlp_output.reshape(n_, -1, self._d_out)
-            else:       mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
 
             if self.sample_color:
                 sigma = mlp_output[..., :1] ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
