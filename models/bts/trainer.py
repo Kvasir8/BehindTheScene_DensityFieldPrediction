@@ -117,7 +117,16 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+        random_encoding = True
+        if random_encoding:
+            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()
+            ids_encoder = [0]
+            ids_encoder.extend(
+                encoder_perm)  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+        else:
+            ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+
+        # ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
 
         combine_ids = None
@@ -505,7 +514,7 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     profiles = torch.stack(data["profiles"], dim=0)
     profiles = color_tensor(profiles, cmap="magma", norm=True)
     profiles_grid = make_grid(profiles).permute(2, 0, 1)    ## Bird-eye view
-
+    ## TODO: provide GT LiDAR for bird-eye view for the comparison
     images_grid = make_grid(images, nrow=nrow)
     recon_imgs_grid = make_grid(recon_imgs, nrow=nrow)
     recon_depths_grid = [make_grid(d, nrow=nrow) for d in recon_depths]

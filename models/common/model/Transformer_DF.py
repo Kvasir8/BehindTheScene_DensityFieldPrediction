@@ -73,8 +73,8 @@ class DensityFieldTransformer(nn.Module):
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"),requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
 
         if self.AE:
-            self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
-            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse//4)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+            # self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
+            self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
         else:
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
@@ -124,8 +124,5 @@ class DensityFieldTransformer(nn.Module):
             final_output[mask, 0, 0] = density_field[mask, 0, 0]
             return final_output.mean(dim=1).squeeze(-1)
 
-        # density_field = self.transformer(sampled_features, src_key_padding_mask=invalid_features)   ## Masking invalid features
         # print("__dim(density_field): ", density_field.shape)
         return density_field
-        # return density_field.mean(dim=1).squeeze(-1)    ## ! nn.Transformer documents to see the corresponding parameters
-        # return density_field.reshape(self.n_, self.d_model)   ## reshaping of the accumulated_density_field tensor : (batch_size, num_density for number of points).
