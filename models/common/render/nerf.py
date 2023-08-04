@@ -237,10 +237,10 @@ class NeRFRenderer(torch.nn.Module):
             rgbs_all, invalid_all, sigmas_all = [], [], []
             if sb > 0:
                 points = points.reshape(sb, -1, 3)  # (SB, B'*K, 3) B' is real ray batch size
-                if self.pts_div:
+                eval_batch_dim = 1
+                if self.pts_div: ## and (points.shape[eval_batch_dim] < self.eval_batch_size):
                     eval_batch_size = (self.eval_batch_size // self.n_coarse) * self.n_coarse   ## Take the biggest num possible divisible by n_coarse
                 else:   eval_batch_size = (self.eval_batch_size - 1) // sb + 1
-                eval_batch_dim = 1
             else:
                 eval_batch_size = self.eval_batch_size
                 eval_batch_dim = 0

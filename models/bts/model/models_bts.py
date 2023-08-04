@@ -256,8 +256,11 @@ class MVBTSNet(torch.nn.Module):
             dim_size = None
 
             # Run main NeRF network
-            if self.DFT_flag:   ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-                mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+            # if self.DFT_flag:   ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
+            #     mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
+            if self.DFT_flag:  ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
+                # mlp_output = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                mlp_output = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(mlp_output)):  print("nan_existed: ", torch.any(torch.isnan(mlp_output)))
                 ### mlp_input.shape == B, (n_coarse) * (8x8:=patch_size) * (ray_batch_size/path_size) where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
             elif coarse or self.mlp_fine is None:

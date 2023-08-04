@@ -73,7 +73,7 @@ class DensityFieldTransformer(nn.Module):
         self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"),requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
 
         if self.AE:
-            self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
+            # self.ConvNet2AE = mlp.CNN2AE(self.att_feat, self.n_coarse)
             self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
         else:
