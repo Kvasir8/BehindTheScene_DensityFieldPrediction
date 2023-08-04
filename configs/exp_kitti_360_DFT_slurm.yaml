@@ -8,9 +8,9 @@ model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ 
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
-#validate_every: 5000
+validate_every: 10000
+visualize_every: 1000           # default: 10       ## bigger is good for computational reduction
 batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
-visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -32,11 +32,11 @@ model_conf:
     num_multiviews: 4           # number of multi views to aggregate. Default: 2
     DFT_flag: true
     feature_pad: true
-    dropout_views_rate: 0.5     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
+    dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
     num_layers: 3               # num of encoder layers, GeoNeRF's Transformer 4: default: 2
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 80                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
-    nhead: 8
+    att_feat: 64                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
@@ -47,7 +47,7 @@ model_conf:
 
     encoder:
         type: "monodepth2"      # could be DFT version when encoder needs to be trained
-        freeze: true            # freezing encoder to train the transformer
+        freeze: false            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -73,7 +73,7 @@ model_conf:
 
     sample_mode: patch                  # a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 1024                # default: 4096, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -98,6 +98,7 @@ renderer:
     white_bkgd : false
     lindisp: true
     hard_alpha_cap: true
+    eval_batch_size: 32768 # 2^15       ## ~/2 /2 /2    ## Note: this is the absolute eval steps without having to worry about the variant evaluations caused by batch epoch
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.

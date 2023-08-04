@@ -23,7 +23,6 @@ class MVBTSNet(torch.nn.Module):
             conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_ )
         self.DFT_flag = conf.get("DFT_flag", True)
         self.nv_ = conf.get("nv_", "num_multiviews")
-        self.test_sample = conf.get("test_sample", False)
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
         self.learn_empty, self.empty_empty, self.inv_z = conf.get("learn_empty", True), conf.get("empty_empty", False), conf.get("inv_z", True)
         self.color_interpolation, self.code_mode = conf.get("color_interpolation", "bilinear"), conf.get("code_mode", "z")
@@ -173,65 +172,8 @@ class MVBTSNet(torch.nn.Module):
         if self.learn_empty:    ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
             sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c_)] ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
-        if self.test_sample:
-            # For testing: Initialize the features e.g. 4 views, 100000 points per view, and 103 features per point
-            sampled_features = torch.rand((4, 100000, 103))  # [num_views, num_points, num_features]
-            # Reshape the features to match the input shape that the transformer expects: [num_points, num_views, num_features]
-            sampled_features = sampled_features.permute(1, 0, 2)
-        else: sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
+        sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
         ### dim(sampled_features): (n_, nv_, M, C1+C_pos_emb)
-        # sampled_features = sampled_features    # .squeeze(1) ### torch.Size([4, 100000, 103 == feats+pos_emb]) : dim(sampled_features): (nv, M, C1+C_pos_emb)
-        # If there are multiple frames with predictions, reduce them.
-        # TODO: Technically, this implementations should be improved if we use multiple frames.
-        # The reduction should only happen after we perform the unprojection.
-
-        ## Run Density Field Transformer Network to accumulate multi-views
-        if False: ## self.DFT_flag ## TODO: integrate the code from DFT
-            ## Process the embedded features with the Transformer    ## TODO: interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-            # input_featureMap_spatial_flattened_dim = len(sampled_features)
-            # self.DFT = DensityFieldTransformer(input_featureMap_spatial_flattened_dim, )
-            ## Accumulate multiviews
-            # transformed_features = self.DFT.transformer_encoder(sampled_features)  # (B,1,M,C2)
-
-            density_predictions = self.DFT(sampled_features, invalid)  ### dim(density): (B,1,M,C2)
-
-            # for idx, DF_img in enumerate(sampled_features): # (n, nv, n_pts, c + xyz_code[...,-1])
-            #     features = self.encoder(DF_img)
-            #     # Extract features for DensityFieldTransformer
-            #     if idx == 0:
-            #         x_multiview = features.unsqueeze(1)
-            #     else:
-            #         x_multiview = torch.cat((x_multiview, features.unsqueeze(1)), dim=1)
-            #
-            # # Pass the accumulated multiviews to DensityFieldTransformer
-            # sampled_features = self.DFT(x_multiview)
-
-        '''allows the algorithm to select the best features among different views or groups of views, based on the invalid flags. It provides an additional level of flexibility for combining features from different views in a more controlled manner.'''
-        # if self.grid_f_combine is not None: ## => there are specific groups of frames/views that need to be combined.
-        #     invalid_groups = []             ## features that are out of camera's frustum or are out of range of positional encoding, [-1,1]
-        #     sampled_features_groups = []
-        #
-        #     for group in self.grid_f_combine:
-        #         if len(group) == 1:
-        #             invalid_groups.append(invalid[:, group])
-        #             sampled_features_groups.append(sampled_features[:, group])
-        #
-        #         invalid_to_combine = invalid[:, group]
-        #         features_to_combine = sampled_features[:, group]    ## the code tries to combine the features from different views within the group
-        #
-        #         indices = torch.min(invalid_to_combine, dim=1, keepdim=True)[1] ## These indices indicate the best features among the different views, as they have the lowest(torch.min) invalid flags.
-        #         invalid_picked = torch.gather(invalid_to_combine, dim=1, index=indices)     ## best invalid flags are also extracted
-        #         features_picked = torch.gather(features_to_combine, dim=1, index=indices.expand(-1, -1, -1, features_to_combine.shape[-1])) ## similarly, best features are then extracted
-        #         ## Once all groups have been processed:
-        #         invalid_groups.append(invalid_picked)
-        #         sampled_features_groups.append(features_picked)
-        #
-        #     invalid = torch.cat(invalid_groups, dim=1)
-        #     sampled_features = torch.cat(sampled_features_groups, dim=1)
-
-        # if use_single_featuremap:   ## ! compute the mean of the sampled features across the view dimension and check if any of the features are invalid.
-        #     sampled_features = sampled_features.mean(dim=1) ### torch.Size([1, 100000, 103]) : mean(dim=1)==squeeze
-        #     invalid = torch.any(invalid, dim=1) ## sampled_features are averaged into the same dim with single featuremap   ##         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 
         return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
 

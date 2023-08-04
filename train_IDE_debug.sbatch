@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[IDE]BTS_DFT_training"
+#SBATCH --job-name="[IDE_debug_slurm]BTS_DFT_training"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
