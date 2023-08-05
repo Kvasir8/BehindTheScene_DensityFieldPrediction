@@ -93,7 +93,7 @@ class BTSWrapper(nn.Module):
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
 
-        n, v, c, h, w = images.shape            ### v==8 :=
+        n, v, c, h, w = images.shape            ### v==8 := 4 cams (stereo + 2fisheyes) * 2 time stamps (t0 + t1) c.f. paper
         device = images.device
 
         # Use first frame as keyframe
@@ -118,14 +118,12 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        # random_encoding = True
         if self.fe_enc:
             encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! see how nv_ works in aggregation
-            ids_encoder = [0]
-            ids_encoder.extend(encoder_perm)  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+            ids_encoder = [0]   ## always starts sampling from mono cam
+            ids_encoder.extend(encoder_perm)
         else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
 
-        # ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
 
         combine_ids = None
