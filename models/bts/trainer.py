@@ -158,7 +158,7 @@ class BTSWrapper(nn.Module):
                 ids_loss = []
                 ids_render = []
 
-                for cam in range(4):
+                for cam in range(4):    ## stereo cam sampled from t0 -> t1
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
