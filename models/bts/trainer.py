@@ -35,6 +35,7 @@ class BTSWrapper(nn.Module):
         super().__init__()
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
+        self.fe_enc = config["fisheye_encoding"]
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
@@ -117,14 +118,12 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)
 
-        random_encoding = True
-        if random_encoding:
-            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()
+        # random_encoding = True
+        if self.fe_enc:
+            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! see how nv_ works in aggregation
             ids_encoder = [0]
-            ids_encoder.extend(
-                encoder_perm)  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
-        else:
-            ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+            ids_encoder.extend(encoder_perm)  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+        else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
 
         # ids_encoder = [v_ for v_ in range(self.nv_)] ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])

@@ -38,6 +38,7 @@ model_conf:
     att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
+    fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     AE: false                    # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
 
     code:

@@ -55,7 +55,7 @@ class MVBTSNet(torch.nn.Module):
     def get_scale(self): return self._scale
     def compute_grid_transforms(self, *args, **kwargs): pass
 
-    def encode(self, images, Ks, poses_c2w, ids_encoder=None, ids_render=None, images_alt=None, combine_ids=None):  ### ids_encoder:=which img beginning
+    def encode(self, images, Ks, poses_c2w, ids_encoder=None, ids_render=None, images_alt=None, combine_ids=None):  ## ids_encoder:=which img to begin with
         poses_w2c = torch.inverse(poses_c2w)    ## ! called from trainer_overfit.py to tell all images =>
 
         if ids_encoder is None:
