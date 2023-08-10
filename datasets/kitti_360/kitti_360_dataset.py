@@ -579,33 +579,29 @@ class Kitti360Dataset(Dataset):
         sequence, id, is_right = self._datapoints[index]
         seq_len = self._img_ids[sequence].shape[0]
 
-        load_left = (not is_right) or self.return_stereo
-        load_right = is_right or self.return_stereo
+        load_left, load_right = (not is_right) or self.return_stereo,  is_right or self.return_stereo
 
         ## randomly sample fisheye in the time steps where it can see the occlusion with the stereo
         if self.random_fisheye_offset:
-            fisheye_offset = self.fisheye_offset[torch.randint(0, len(self.fisheye_offset), (1,)).item()]
-        else:
-            fisheye_offset = self.fisheye_offset[-1]
+            fisheye_offset = self.fisheye_offset[torch.randint(0, len(self.fisheye_offset), (1,)).item()]   ## randomly select among the given list of fisheye_ids from config
+        else:   fisheye_offset = self.fisheye_offset[-1]
 
         if self.random_stereo_offset:
             stereo_offset = self.stereo_offset[torch.randint(0, len(self.stereo_offset), (1,)).item()]
-        else:
-            stereo_offset = self.stereo_offset[-1]
+        else:   stereo_offset = self.stereo_offset[-1]
 
         # ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id - self._left_offset, id - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id]
         # ids_fish = [max(min(id + self.fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + self.fisheye_offset - self._left_offset, id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + self.fisheye_offset]
         # img_ids = [self.get_img_id_from_id(sequence, id) for id in ids]
         # img_ids_fish = [self.get_img_id_from_id(sequence, id) for id in ids_fish]
-        id_st = id + stereo_offset - 1
+        id_st = id + stereo_offset - 1      ## TODO: find out how to deal with 3 steps aheada without -1 => as we sample scenes with the amount of stereo_offset
         ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id_st - self._left_offset, id_st - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id_st]
         ids_fish = [max(min(id + fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + fisheye_offset - self._left_offset, id + fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + fisheye_offset]
+        ## and now ids_fish is 5 steps ahead of ids with 2 fisheye scenes
         img_ids = [self.get_img_id_from_id(sequence, id) for id in ids]
         img_ids_fish = [self.get_img_id_from_id(sequence, id) for id in ids_fish]
 
-        if not self.return_fisheye:
-            ids_fish = []
-            img_ids_fish = []
+        if not self.return_fisheye: ids_fish, img_ids_fish = [], []
 
         if self.color_aug:
             color_aug_fn = get_color_aug_fn(ColorJitter.get_params(brightness=(0.8, 1.2), contrast=(0.8, 1.2), saturation=(0.8, 1.2), hue=(-0.1, 0.1)))
