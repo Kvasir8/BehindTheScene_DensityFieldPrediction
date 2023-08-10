@@ -1,6 +1,6 @@
 defaults:                       ### This code is to run for slurm config
     - default
-    - data: kitti_360_DFT
+    - data: kitti_360_DFT_SL10
     - _self_
 
 name: "kitti_360_DFT"
@@ -8,8 +8,8 @@ model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ 
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
-validate_every: 5000
-visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
+validate_every: 10000
+visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -23,9 +23,8 @@ data:
     is_preprocessed: true
     fisheye_rotation: [0, -15]
 
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
-#resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/kitti_360_DFT_backend-None-1_20230804-115237/training_checkpoint_168500.pt"
-## latest best performed BTS DFT
+resume_from: "/home/han/methods_test/BehindTheScene_DensityFieldPrediction/out/kitti_360/pretrained/training-checkpoint.pt"   ## pretrained one
+
 model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true

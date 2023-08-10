@@ -182,6 +182,7 @@ def make_datasets(config):
             dilation=config.get("dilation", 1),
             fisheye_rotation=config.get("fisheye_rotation", 0),
             fisheye_offset=config.get("fisheye_offset", 1),
+            stereo_offset=config.get("stereo_offset", 1),
             color_aug=config.get("color_aug", False),
             is_preprocessed=config.get("is_preprocessed", False)
         )
@@ -198,6 +199,7 @@ def make_datasets(config):
             keyframe_offset=config.get("keyframe_offset", 0),
             fisheye_rotation=config.get("fisheye_rotation", 0),
             fisheye_offset=config.get("fisheye_offset", 1),
+            stereo_offset=1,        ## config.get("stereo_offset", 1)
             dilation=config.get("dilation", 1),
             is_preprocessed=config.get("is_preprocessed", False)
         )

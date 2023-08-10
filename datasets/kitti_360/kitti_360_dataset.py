@@ -17,6 +17,7 @@ from torchvision.transforms import ColorJitter
 from datasets.kitti_360.annotation import KITTI360Bbox3D
 from utils.augmentation import get_color_aug_fn
 
+import omegaconf
 
 class FisheyeToPinholeSampler:
     def __init__(self, K_target, target_image_size, calibs, rotation=None):
@@ -85,6 +86,7 @@ class Kitti360Dataset(Dataset):
                  dilation=1,
                  fisheye_rotation=0,
                  fisheye_offset=0,
+                 stereo_offset=0,
                  eigen_depth=True,
                  color_aug=False,
                  is_preprocessed=False
@@ -102,6 +104,7 @@ class Kitti360Dataset(Dataset):
         self.dilation = dilation
         self.fisheye_rotation = fisheye_rotation
         self.fisheye_offset = fisheye_offset
+        self.stereo_offset = stereo_offset
         self.keyframe_offset = keyframe_offset
         self.eigen_depth = eigen_depth
         self.color_aug = color_aug
@@ -110,6 +113,32 @@ class Kitti360Dataset(Dataset):
         if isinstance(self.fisheye_rotation, float) or isinstance(self.fisheye_rotation, int):
             self.fisheye_rotation = (0, self.fisheye_rotation)
         self.fisheye_rotation = tuple(self.fisheye_rotation)
+
+
+        # if additional_random_front_offset and not self.random_fisheye_offset:
+        #     raise ValueError("Random Fisheye Offset needs to be active for additional random front offset!")
+        # else:
+        #     self.additional_random_front_offset = additional_random_front_offset
+
+        # Support random fisheye offset
+        if type(self.fisheye_offset) == int:
+            self.random_fisheye_offset = False
+            self.fisheye_offset = (self.fisheye_offset, )
+        elif type(self.fisheye_offset) in [tuple, list, omegaconf.listconfig.ListConfig]:
+            self.random_fisheye_offset = True
+            self.fisheye_offset = tuple(sorted(self.fisheye_offset))
+        else:
+            raise ValueError(f"Invalid datatype for fisheye offset: {type(self.fisheye_offset)}")
+
+        if type(self.stereo_offset) == int:
+            self.random_stereo_offset = False
+            self.stereo_offset = (self.stereo_offset, )
+        elif type(self.stereo_offset) in [tuple, list, omegaconf.listconfig.ListConfig]:
+            self.random_stereo_offset = True
+            self.stereo_offset = tuple(sorted(self.stereo_offset))
+        else:
+            raise ValueError(f"Invalid datatype for fisheye offset: {type(self.stereo_offset)}")
+
 
         self._sequences = self._get_sequences(self.data_path)
 
@@ -553,8 +582,24 @@ class Kitti360Dataset(Dataset):
         load_left = (not is_right) or self.return_stereo
         load_right = is_right or self.return_stereo
 
-        ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id - self._left_offset, id - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id]
-        ids_fish = [max(min(id + self.fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + self.fisheye_offset - self._left_offset, id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + self.fisheye_offset]
+        ## randomly sample fisheye in the time steps where it can see the occlusion with the stereo
+        if self.random_fisheye_offset:
+            fisheye_offset = self.fisheye_offset[torch.randint(0, len(self.fisheye_offset), (1,)).item()]
+        else:
+            fisheye_offset = self.fisheye_offset[-1]
+
+        if self.random_stereo_offset:
+            stereo_offset = self.stereo_offset[torch.randint(0, len(self.stereo_offset), (1,)).item()]
+        else:
+            stereo_offset = self.stereo_offset[-1]
+
+        # ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id - self._left_offset, id - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id]
+        # ids_fish = [max(min(id + self.fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + self.fisheye_offset - self._left_offset, id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + self.fisheye_offset]
+        # img_ids = [self.get_img_id_from_id(sequence, id) for id in ids]
+        # img_ids_fish = [self.get_img_id_from_id(sequence, id) for id in ids_fish]
+        id_st = id + stereo_offset - 1
+        ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id_st - self._left_offset, id_st - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id_st]
+        ids_fish = [max(min(id + fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + fisheye_offset - self._left_offset, id + fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + fisheye_offset]
         img_ids = [self.get_img_id_from_id(sequence, id) for id in ids]
         img_ids_fish = [self.get_img_id_from_id(sequence, id) for id in ids_fish]
 
