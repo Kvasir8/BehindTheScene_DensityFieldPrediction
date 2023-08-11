@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_DFT_longrun_maxCUDA"
+#SBATCH --job-name="BTS_DFT_cmp_easx4"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:a40:1,VRAM:48G

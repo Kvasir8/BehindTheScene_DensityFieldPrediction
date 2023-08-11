@@ -3,7 +3,7 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT_SL10
     - _self_
 
-name: "kitti_360_DFT"
+name: "kitti_360_DFT_SL10"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 

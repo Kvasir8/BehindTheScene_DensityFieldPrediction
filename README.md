@@ -1,4 +1,7 @@
-
+# TODO
+1. Make efficient transformer for faster training c.f. EfficientViT
+2. 
+To choose one of GPUs in the local machine, set the following environment variables:
 ```bash
 export HYDRA_FULL_ERROR=1
 export CUDA_VISIBLE_DEVICES=0

@@ -3,7 +3,7 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "kitti_360_DFT"
+name: "kitti_360_DFT_slurm"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
@@ -30,7 +30,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 5           # number of multi views to aggregate. Possible value ~8. Default: 2
+    num_multiviews: 5           # number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     DFT_flag: true
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
@@ -84,7 +84,7 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 0.001
+    lambda_edge_aware_smoothness: 0.004 # default: 0.001
 
 scheduler:
     type: step
