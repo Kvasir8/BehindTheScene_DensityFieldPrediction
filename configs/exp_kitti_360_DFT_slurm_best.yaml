@@ -3,13 +3,16 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "DFT_easx4_b2_nv5_l3"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "kitti_360_DFT"
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
+#nproc_per_node: 2               # for multiple GPUs running the script
+#backend: "nccl"
+
 num_epochs: 1000000
-validate_every: 5000
-visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
+validate_every: 100000
+visualize_every: 100000          # default: 10       ## bigger is good for computational reduction
 batch_size: 2                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -25,16 +28,16 @@ data:
 
 resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 #resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/kitti_360_DFT_backend-None-1_20230804-115237/training_checkpoint_168500.pt"
-
+## latest best performed BTS DFT
 model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 5           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 8           # number of multi views to aggregate. Possible value ~8. Default: 2
     DFT_flag: true
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
-    num_layers: 3               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
+    num_layers: 4               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
     att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
@@ -84,7 +87,7 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 0.004 # default: 0.001
+    lambda_edge_aware_smoothness: 0.001
 
 scheduler:
     type: step
@@ -101,13 +104,6 @@ renderer:
     lindisp: true
     hard_alpha_cap: true
     eval_batch_size: 32768 # ==2^15       ## ~/2 /2 /2    ## Note: this is the absolute eval steps without having to worry about the variant evaluations caused by batch epoch
-
-#backend = "nccl"  # Or "gloo"
-#nproc_per_node: 2
-
-IDE_debug: true                         ## set true for remote IDE debug for pydevd_pycharm
-sv_: 58
-port_: 58023
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.

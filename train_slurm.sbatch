@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_DFT_cmp_easx4"
+#SBATCH --job-name="BTS_easx4"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:a40:1,VRAM:48G
+#SBATCH --gres=gpu:rtx_8000:1,VRAM:48G
 #SBATCH --mem=32G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
