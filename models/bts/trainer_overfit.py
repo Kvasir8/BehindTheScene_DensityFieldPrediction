@@ -15,7 +15,7 @@ from datasets.data_util import make_datasets
 from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.loss import ReconstructionLoss
-from models.bts.trainer import get_metrics, BTSWrapper, BTSNet
+from models.bts.trainer import get_metrics, BTSWrapper, MVBTSNet    ## default: BTSNet
 from utils.array_operations import map_fn, unsqueezer, to
 from utils.base_trainer import base_training
 from utils.plotting import color_tensor

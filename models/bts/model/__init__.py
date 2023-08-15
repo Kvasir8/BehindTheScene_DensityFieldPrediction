@@ -1,4 +1,4 @@
 from .image_processor import make_image_processor, PerceptualProcessor, RGBProcessor, PatchProcessor, AutoMaskingWrapper
 from .loss import ReconstructionLoss
-from .models_bts import BTSNet, MVBTSNet
+from .models_bts import MVBTSNet    ## default: BTSNet
 from .ray_sampler import ImageRaySampler, PatchRaySampler, RaySampler

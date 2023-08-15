@@ -62,6 +62,7 @@ class DensityFieldTransformer(nn.Module):
         self.n_coarse = ren_nc  ## Note: we assume patch size is 8x8, thus we have following ts_ as computation
         self.ts_ = B_ * ren_nc * (8 * 8) * (rb_ // (8 * 8))  ## total num sampled points (to decide input dimension for AE)
         # self.S_ = 64  ## length of sequence for AE
+
         ## DFTransformer encoder layers
         if self.DFEnlayer:
             self.transformer_enlayer = mlp.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
@@ -84,6 +85,10 @@ class DensityFieldTransformer(nn.Module):
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
+
+
+        viz_z = 1 - invalid_features  ## visibility tensor from NeuRay
+
 
         if self.dropout:  invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
 

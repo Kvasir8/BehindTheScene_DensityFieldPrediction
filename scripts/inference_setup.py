@@ -20,7 +20,7 @@ from datasets.realestate10k.realestate10k_dataset import RealEstate10kDataset
 from datasets.kitti_360.kitti_360_dataset import Kitti360Dataset
 from datasets.kitti_raw.kitti_raw_dataset import KittiRawDataset
 
-from models.bts.model import BTSNet
+from models.bts.model import MVBTSNet   ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler
 
 from models.common.render import NeRFRenderer

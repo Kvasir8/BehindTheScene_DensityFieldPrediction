@@ -21,7 +21,7 @@ from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import BTSNet, MVBTSNet
+from models.bts.model.models_bts import MVBTSNet    ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from scripts.inference_setup import render_profile
 from utils.base_trainer import base_training
@@ -113,10 +113,8 @@ class BTSWrapper(nn.Module):
                 for params in self.renderer.net.mlp_coarse.parameters(True):
                     params.requires_grad_(True)
 
-        if self.training:
-            frame_perm = torch.randperm(v)
-        else:
-            frame_perm = torch.arange(v)
+        if self.training:   frame_perm = torch.randperm(v)
+        else:               frame_perm = torch.arange(v)
 
         if self.fe_enc:
             encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! see how nv_ works in aggregation
