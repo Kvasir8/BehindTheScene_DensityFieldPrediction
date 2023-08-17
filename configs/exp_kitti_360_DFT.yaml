@@ -3,13 +3,13 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "BTS_DFT_NeuRay"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BTS_DFT_NeuRay_f"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
 validate_every: 5000
-visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
+visualize_every: 1500          # default: 10       ## bigger is good for computational reduction
 batch_size: 3                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -29,13 +29,13 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 7           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 5           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     DFT: true                   # set true for enabling DFT model
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
     num_layers: 3               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 32                # number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    att_feat: 16                # we set 16 to match dim of NeuRay readout token. default: 32, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
@@ -49,7 +49,7 @@ model_conf:
         include_input: true
 
     encoder:
-        type: "monodepth2"      # could be DFT version when encoder needs to be trained
+        type: "monodepth2"
         freeze: false            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
@@ -76,7 +76,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 512                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false

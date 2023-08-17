@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_DFT_tr_longrun"
+#SBATCH --job-name="zfarx3_BTS_DFT_tr_longrun"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

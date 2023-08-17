@@ -20,13 +20,13 @@ class MVBTSNet(torch.nn.Module):
     def __init__(self, conf, ren_nc, B_):   ## dependency injection
         super().__init__()
         ## model constructor only if DFT | nry enabled
-        self.DFT, self.nry, self.img_feat = None, None, None
+        self.DFT, self.nry = None, None
         if conf.get("DFT", True):
             self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
                 conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
                 conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_ )
         if conf.get("NeuRay", False):
-            self.nry = IBRNetWithNeuRay(in_feat_ch=conf.get("att_feat"), n_samples=ren_nc)
+            self.nry = IBRNetWithNeuRay(neuray_in_dim=103, in_feat_ch=103, n_samples=ren_nc)
             self.use_viewdirs = conf.get("use_viewdirs", True)
 
         self.n_coarse = ren_nc
@@ -257,18 +257,20 @@ class MVBTSNet(torch.nn.Module):
             combine_index, dim_size = None, None
 
             if self.nry:
-                sb_, M_eval, nmv, feat = sampled_features.shape
+                B_, M_eval, nmv, feat = sampled_features.shape
                 img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb
                 invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
-                viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3)
-                mlp_input = self.nry(rgb_feat=img_feat, neuray_feat=self.img_feat, ray_diff=viewdirs, mask=invalid_features)
+                viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)        ## TODO: This is not usual case to broadcast along num_views, which is not sure for valid implementation. Analyze IBRNet how ray_diff used in viewdirs
+                globalfeat, num_valid_obs = self.nry(rgb_feat=img_feat, neuray_feat=img_feat, ray_diff=viewdirs, mask=invalid_feat)
+                gfeat_avg_pool, num_valid_obs = globalfeat.reshape(B_,-1,globalfeat.shape[-1]), num_valid_obs.reshape(B_,-1,1)
+                # mlp_input = F.avg_pool1d(globalfeat.transpose(1, 2), kernel_size=globalfeat.shape[-2]) ## pooling the last dim to aggregate the features to interpret global geometric info for readout token
 
             # Run main NeRF network
-            if self.DFT:  ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-                sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
-                if torch.any(torch.isnan(sigma_DFT)):  print("nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
+            if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
+                sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT
-                ### mlp_input.shape == B, (n_coarse) * (8x8:=patch_size) * (ray_batch_size/path_size) where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
+
             elif coarse or self.mlp_fine is None:
                 mlp_output = self.mlp_coarse(
                     mlp_input[..., 0, :],

@@ -246,12 +246,12 @@ class IBRNetWithNeuRay(nn.Module):
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
         activation_func = nn.ELU(inplace=True)
         self.n_samples = n_samples
-        self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),
+        self.ray_dir_fc = nn.Sequential(nn.Linear(3, 16),   ## defualt: 4
                                         activation_func,
-                                        nn.Linear(16, in_feat_ch + 3),
+                                        nn.Linear(16, in_feat_ch),  ## default: in_feat_ch + 3
                                         activation_func)
 
-        self.base_fc = nn.Sequential(nn.Linear((in_feat_ch+3)*5+neuray_in_dim, 64),
+        self.base_fc = nn.Sequential(nn.Linear((in_feat_ch)*5+neuray_in_dim, 64), ## default: ((in_feat_ch+3)*5+neuray_in_dim, 64)
                                      activation_func,
                                      nn.Linear(64, 32),
                                      activation_func)
@@ -355,14 +355,16 @@ class IBRNetWithNeuRay(nn.Module):
         mean, var = fused_mean_variance(x, weight)
         globalfeat = torch.cat([mean.squeeze(2), var.squeeze(2), weight.mean(dim=2)], dim=-1)  # [n_rays, n_samples, 32*2+1]
         globalfeat = self.geometry_fc(globalfeat)  # [n_rays, n_samples, 16] ## MLP for input transformer
-        # num_valid_obs = torch.sum(mask, dim=2)
+
+        num_valid_obs = torch.sum(mask, dim=2)
         # globalfeat = globalfeat + self.pos_encoding
-        # globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,  ## This should be replaced by DFT
-        #                                    mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
+        globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,  ## This should be replaced by DFT
+                                           mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
         # sigma = self.out_geometry_fc(globalfeat)  # [n_rays, n_samples, 1]
         # sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
-        # sigma = self.DFT(globalfeat)
-        return sigma
+        # return sigma
+
+        return globalfeat, num_valid_obs   ### [M, 64, 16], [M, 64, 1]
 
         # rgb computation
         # x = torch.cat([x, vis, ray_diff], dim=-1)

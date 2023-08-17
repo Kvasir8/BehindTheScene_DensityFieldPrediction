@@ -79,7 +79,7 @@ class DensityFieldTransformer(nn.Module):
         else:
             self.density_field_prediction = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
-    def forward(self, sampled_features, invalid_features):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+    def forward(self, sampled_features, invalid_features, nry):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
@@ -90,12 +90,15 @@ class DensityFieldTransformer(nn.Module):
 
 
         if self.dropout:  invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        # self.readout_token = nry.flatten(0,1)   ## if nry is enabled, but this doesnt work: TypeError: cannot assign 'torch.cuda.FloatTensor' as parameter 'readout_token' (torch.nn.Parameter or None expected)
 
         encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))  ### [M*n==100000, nv_==6, 32]   ## Embedding to Transformer arch.
 
         ## Process the embedded features with the Transformer
         if self.padding_flag:
-            padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            padded_features = torch.concat([nry.unsqueeze(1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            # padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1, )
             # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
             if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
