@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_easx4"
+#SBATCH --job-name="BTS_DFT_tr_longrun"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:rtx_8000:1,VRAM:48G
+#SBATCH --gres=gpu:1,VRAM:48G
 #SBATCH --mem=32G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
@@ -13,6 +13,6 @@ export HYDRA_FULL_ERROR=1
 export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
-python train.py -cn exp_kitti_360_DFT_slurm
+python train.py -cn exp_kitti_360_DFT
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

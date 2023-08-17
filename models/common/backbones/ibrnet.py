@@ -241,7 +241,6 @@ class IBRNetWithNeuRay(nn.Module):
     def __init__(self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, **kwargs):
         super().__init__()
         # self.args = args
-        self.DFT = DFT.DensityFieldTransformer()
         self.anti_alias_pooling = False
         if self.anti_alias_pooling:
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
@@ -315,19 +314,19 @@ class IBRNetWithNeuRay(nn.Module):
         return sinusoid_table
 
     def forward(self, rgb_feat, neuray_feat, ray_diff, mask):
-        '''
-        :param rgb_feat: rgbs and image features [n_rays, n_samples, n_views, n_feat]
+        '''                             ibrnet dim e.g. [6, 64, 8, 35]
+        :param rgb_feat: rgbs and image features [n_rays, n_samples, n_views, n_feat] == img_feat
         :param ray_diff: ray direction difference [n_rays, n_samples, n_views, 4], first 3 channels are directions,
         last channel is inner product
         :param mask: mask for whether each projection is valid or not. [n_rays, n_samples, n_views, 1]
         :return: rgb and density output, [n_rays, n_samples, 4]
         '''
 
-        # num_views = rgb_feat.shape[2]
-        # direction_feat = self.ray_dir_fc(ray_diff)
+        ## Assumption: rgb_feat already contains image feature + dir_feat / this can be implemented further
+        num_views = rgb_feat.shape[2]
+        direction_feat = self.ray_dir_fc(ray_diff)
         rgb_in = rgb_feat[..., :3]
-        # rgb_feat = rgb_feat + direction_feat
-        ## Assumption: rgb_feat already contains image feature + dir_feat
+        rgb_feat = rgb_feat + direction_feat
 
         if self.anti_alias_pooling:
             _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
@@ -362,7 +361,7 @@ class IBRNetWithNeuRay(nn.Module):
         #                                    mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
         # sigma = self.out_geometry_fc(globalfeat)  # [n_rays, n_samples, 1]
         # sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
-        sigma = self.DFT(globalfeat)
+        # sigma = self.DFT(globalfeat)
         return sigma
 
         # rgb computation

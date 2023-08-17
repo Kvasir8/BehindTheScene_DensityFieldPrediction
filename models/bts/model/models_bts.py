@@ -14,14 +14,22 @@ from models.common.model.mlp_util import make_mlp
 EPS = 1e-3
 
 from models.common.model.Transformer_DF import DensityFieldTransformer
+from models.common.backbones.ibrnet import IBRNetWithNeuRay
 
 class MVBTSNet(torch.nn.Module):
-    def __init__(self, conf, ren_nc, B_):
-        super().__init__()  ### inherits the initialization behavior from its parent class
-        self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
-            conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
-            conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_ )
-        self.DFT_flag = conf.get("DFT_flag", True)
+    def __init__(self, conf, ren_nc, B_):   ## dependency injection
+        super().__init__()
+        ## model constructor only if DFT | nry enabled
+        self.DFT, self.nry, self.img_feat = None, None, None
+        if conf.get("DFT", True):
+            self.DFT = DensityFieldTransformer( conf.get("d_model"),conf.get("att_feat"),conf.get("nhead"),
+                conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
+                conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_ )
+        if conf.get("NeuRay", False):
+            self.nry = IBRNetWithNeuRay(in_feat_ch=conf.get("att_feat"), n_samples=ren_nc)
+            self.use_viewdirs = conf.get("use_viewdirs", True)
+
+        self.n_coarse = ren_nc
         self.nv_ = conf.get("nv_", "num_multiviews")
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
         self.learn_empty, self.empty_empty, self.inv_z = conf.get("learn_empty", True), conf.get("empty_empty", False), conf.get("inv_z", True)
@@ -32,13 +40,13 @@ class MVBTSNet(torch.nn.Module):
         self.ts_conv = (ren_nc // 4) * (conf.get('patch_size') * conf.get('patch_size')) * (conf.get('ray_batch_size') // ren_nc)
         self.AE = conf.get('AE')
 
-        self.encoder = make_backbone(conf["encoder"])
+        self.encoder = make_backbone(conf["encoder"])                       ### ResNetEncoder + Monodepth2 as decoder
         self.code_xyz = PositionalEncoding.from_conf(conf["code"], d_in=3)
         self.flip_augmentation = conf.get("flip_augmentation", False)
         self.return_sample_depth = conf.get("return_sample_depth", False)
         self.sample_color = conf.get("sample_color", True)
 
-        d_in = self.encoder.latent_size + self.code_xyz.d_out
+        d_in = self.encoder.latent_size + self.code_xyz.d_out               ### 64 + 39
         d_out = 1 if self.sample_color else 4
         ## If sample_color is set to False, then d_out is set to 4 to represent the RGBA color values
         ## (red, green, blue, alpha) of the reconstructed scene. If sample_color is set to True, then d_out is set to 1
@@ -49,7 +57,7 @@ class MVBTSNet(torch.nn.Module):
 
         if self.learn_empty: self.empty_feature = nn.Parameter(torch.randn((self.encoder.latent_size,), requires_grad=True))
         ## factor to multiply the output of the corresponding MLP in the forward, which helps to control the range of the output values from the MLP
-        self._scale = 0
+        self._scale = 0     ## set spatial resolution size accoridng to the scale of output feature map from the encoder
 
     def set_scale(self, scale): self._scale = scale
     def get_scale(self): return self._scale
@@ -99,24 +107,23 @@ class MVBTSNet(torch.nn.Module):
             comb_encoder = None
             comb_render = None
 
-        n_, nv_, c_, h_, w_ = images_encoder.shape   ### torch.Size([n, nv_, 3, 192, 640]) 3:=RGB
-        c_l = self.encoder.latent_size
+        n_, nv_, c_, h_, w_ = images_encoder.shape   ### [n, nv_, 3:=RGB, 192, 640]
+        c_l = self.encoder.latent_size               ### 64 c.f. paper D.1.
 
         if self.flip_augmentation and self.training: ## data augmentation for color
             do_flip = (torch.rand(1) > .5).item()
-        else:
-            do_flip = False
+        else:do_flip = False
 
-        if do_flip:
-            images_encoder = torch.flip(images_encoder, dims=(-1, ))
+        if do_flip: images_encoder = torch.flip(images_encoder, dims=(-1, ))
 
-        image_latents_ms = self.encoder(images_encoder.view(n_ * nv_, c_, h_, w_))
+        image_latents_ms = self.encoder(images_encoder.view(n_ * nv_, c_, h_, w_))              ## Encoder of BTS
 
-        if do_flip:
-            image_latents_ms = [torch.flip(il, dims=(-1, )) for il in image_latents_ms]
+        if do_flip: image_latents_ms = [torch.flip(il, dims=(-1, )) for il in image_latents_ms]
 
-        _, _, h_, w_ = image_latents_ms[0].shape
-        image_latents_ms = [F.interpolate(image_latents, (h_, w_)).view(n_, nv_, c_l, h_, w_) for image_latents in image_latents_ms]    ### UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead
+        _, _, h_, w_ = image_latents_ms[0].shape    ## get spatial resol from 1st layer out of 4 from feature maps generated by Enc
+        image_latents_ms = [F.interpolate(image_latents, size=(h_, w_)).view(n_, nv_, c_l, h_, w_) for image_latents in image_latents_ms]    ## upsampling the feature maps from down-sampled 4 layers to the same spatial resolution of 1st layer
+
+        # self.img_feat = image_latents_ms[-1]    ## taking last layer of encoder to feed into Neuray
 
         self.grid_f_features = image_latents_ms
         self.grid_f_Ks = Ks_encoder
@@ -130,7 +137,7 @@ class MVBTSNet(torch.nn.Module):
 
     def sample_features(self, xyz, use_single_featuremap=True): ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
         n_, n_pts, _ = xyz.shape ## Get the shape of the input point cloud and the feature grid (n, pts, spatial_coordinate == 3)
-        n_, nv_, c_, h_, w_ = self.grid_f_features[self._scale].shape       ### torch.Size([1, 4, 64, 192, 640])
+        n_, nv_, c_, h_, w_ = self.grid_f_features[self._scale].shape       ### [1, 4, 64, 192, 640]
         # if not use_single_featuremap:   nv_ = self.nv_
         xyz = xyz.unsqueeze(1)  # (n, 1, pts, 3)    ## Add a singleton dimension to the input point cloud to match grid_f_poses_w2c shape
         ones = torch.ones_like(xyz[..., :1])        ## Create a tensor of ones to add a fourth dimension to the point cloud for homogeneous coordinates
@@ -157,21 +164,22 @@ class MVBTSNet(torch.nn.Module):
             xyz_projected = torch.cat((xy, distance), dim=-1)    ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
         xyz_code = self.code_xyz(xyz_projected.view(n_ * nv_ * n_pts, -1)).view(n_, nv_, n_pts, -1).permute(0, 2, 1, 3)   ## ! positional encoding dimension to check (concatenate)
 
-        feature_map = self.grid_f_features[self._scale][:, :nv_] ## Encoder part: Extract the feature map corresponding to the current scale and view. i.e. extracting the features for the first nv_ views c.f. encoder in pipeline
+        feature_map = self.grid_f_features[self._scale][:, :nv_]
+        # self.img_feat = sampled_features[-1]    ## taking last layer of encoder to feed into Neuray
 
         # These samples are from different scales
         if self.learn_empty:    ## "empty space" can refer to areas in a scene where there is no object, or it could also refer to areas that are not observed or are beyond the range of the sensor. This allows the model to have a distinct learned representation for "empty" space, which can be beneficial in tasks like 3D reconstruction where understanding both the objects in a scene and the empty space between them is important.
             empty_feature_expanded = self.empty_feature.view(1, 1, 1, c_).expand(n_, nv_, n_pts, c_)    ## trainable parameter, initialized with random features
         ## feature_map (2, 4, 64, 128, 128): n_ = 2, nv_ = 4 views, c_ = 64 channels in the feature map, and the height and width of the feature map are h = 128 and w = 128
         ## !TODO: for multiviews for F.grid_sample : xy.view(n_ * nv_, 1, -1, 2) To debug how xy looks like in order to integrate for multiview (by looking over doc in Pytorch regarding how to sample all frames)
-        sampled_features = F.grid_sample(feature_map.view(n_ * nv_, c_, h_, w_), xy.view(n_ * nv_, 1, -1, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n_, nv_, c_, n_pts).permute(0, 3, 1, 2)   ## Decoder part: Sample features using grid sampling and interpolate them using bilinear interpolation
+        sampled_features = F.grid_sample(feature_map.view(n_ * nv_, c_, h_, w_), xy.view(n_ * nv_, 1, -1, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n_, nv_, c_, n_pts).permute(0, 3, 1, 2)   ## set x,y coordinates as grid feature
+
         ### dim(sampled_features): (n_, nv_, n_pts, c_)
         if self.learn_empty:    ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
             sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c_)] ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
-        sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ## Concatenate the sampled features and the encoded xyz coordinates, and then it will be passed to MLP
-        ### dim(sampled_features): (n_, nv_, M, C1+C_pos_emb)
-        return sampled_features, invalid[..., 0].permute(0, 2, 1)    ## !! The output of the function is a tuple containing the sampled features and a boolean tensor indicating the invalid features
+        sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ### (n_, nv_, M, C1+C_pos_emb)
+        return sampled_features, invalid[..., 0].permute(0, 2, 1)           ## output of decoder
 
     def sample_colors(self, xyz):
         n_, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
@@ -221,11 +229,11 @@ class MVBTSNet(torch.nn.Module):
 
         return sampled_colors, invalid  ## Return the sampled colors tensor and the invalid tensor.
 
-    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False):  ##? what are "viewdirs" and "far" for?
+    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, eval_batch_dim=None):  ## ? "far"
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!
-        :param xyz (B, 3) / [nv_==4, M==8192, 3]
+        :param xyz (B==sb, M//sb, 3) / [nv_==4, M==8192, 3] / [n_rays, n_samples, n_views, n_feat] == img_feat
         B is batch of points (in rays)
         :param ts_ : ts_ = batch_size * (self.n_coarse // 4) * self.patch_size self.patch_size * (ray_batch_size // self.n_coarse)
         :return (B, 4) r g b sigma
@@ -233,12 +241,12 @@ class MVBTSNet(torch.nn.Module):
         '''context manager that helps to measure the execution time of the code block inside it. i.e. used to profile the execution time of the forward pass of the model during inference for performance analysis and optimization purposes. ## to analyze the performance of the code block, helping developers identify bottlenecks and optimize their code.'''
         with profiler.record_function("model_inference"):   ## create object with the name "model_inference". ## stop the timer when exiting the block
             n_, n_pts, _ = xyz.shape         ## n:=Batch_size
-            nv_ = self.grid_c_imgs.shape[1] ## 4 == (stereo 2 + side fish eye cam 2)
+            nv_ = self.grid_c_imgs.shape[1]  ## 4 == (stereo 2 + side fish eye cam 2)
 
             if self.grid_c_combine is not None:     nv_ = len(self.grid_c_combine)
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
-            sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (B, n_pts, n_v, 103), (B, n_pts, n_v)
+            sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (sb, n_pts, n_v, 103)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
             ### torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
             # mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
@@ -248,11 +256,15 @@ class MVBTSNet(torch.nn.Module):
             # Camera frustum culling stuff, currently disabled
             combine_index, dim_size = None, None
 
+            if self.nry:
+                sb_, M_eval, nmv, feat = sampled_features.shape
+                img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb
+                invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
+                viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3)
+                mlp_input = self.nry(rgb_feat=img_feat, neuray_feat=self.img_feat, ray_diff=viewdirs, mask=invalid_features)
+
             # Run main NeRF network
-            # if self.DFT_flag:   ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-            #     mlp_output = self.DFT(mlp_input.flatten(0,1), invalid_features.flatten(0,1)) ## Transformer to learn inter-view dependencies ## squeeze to unbatch to pass them to Transformer ## mlp_input.view(1, -1, 4, sampled_features.size()[-1])
-            if self.DFT_flag:  ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
-                # mlp_output = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+            if self.DFT:  ## interchangeable into the code snippet in models_bts.py to make comparison with vanilla vs modified (e.g. tranforemr or VAE, pos_enc, mlp, layers, change)
                 sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT

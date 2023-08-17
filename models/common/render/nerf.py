@@ -74,7 +74,8 @@ class NeRFRenderer(torch.nn.Module):
         lindisp=False,
         sched=None,  # ray sampling schedule for coarse and fine rays
         hard_alpha_cap=False,
-        pts_div=True    ## pts divisable by the number of samples on a ray, 64 in default.
+        pts_div=True,    ## pts divisable by the number of samples on a ray, 64 in default.
+        # ibr=False        ## pass the n_pts as [n_rays, n_samples, n_views, n_feat] == img_feat for ibrnet
     ):
         super().__init__()
         self.n_coarse, self.n_fine = n_coarse, n_fine
@@ -208,7 +209,7 @@ class NeRFRenderer(torch.nn.Module):
 
         return z_samp
 
-    def composite(self, model, rays, z_samp, coarse=True, sb=0):        ## ! model argument is params of func
+    def composite(self, model, rays, z_samp, coarse=True, sb=0):
         """
         Render RGB and depth for each ray using NeRF alpha-compositing formula,
         given sampled positions along each ray (see sample_*)
@@ -221,22 +222,22 @@ class NeRFRenderer(torch.nn.Module):
         :return weights (B, K), rgb (B, 3), depth (B)
         """
         with profiler.record_function("renderer_composite"):
-            B, K = z_samp.shape     ## K:=sampled points along principle axis of a ray. ### K==64
+            B, K = z_samp.shape     ## B:= (batch(2) * ray_batch_size(2048)), K:= sampled points along a ray. ### K==64
 
-            deltas = z_samp[:, 1:] - z_samp[:, :-1]  # (B, K-1)
-            delta_inf = 1e10 * torch.ones_like(deltas[:, :1])  # infty (B, 1)
+            deltas = z_samp[:, 1:] - z_samp[:, :-1]             # (B, K-1)
+            delta_inf = 1e10 * torch.ones_like(deltas[:, :1])   # infty (B, 1)
             # delta_inf = rays[:, -1:] - z_samp[:, -1:]
-            deltas = torch.cat([deltas, delta_inf], -1)  # (B, K)
+            deltas = torch.cat([deltas, delta_inf], -1)         # (B, K)
 
             # (B, K, 3)
-            points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
+            points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]       ## ?
+            ## pts_ibr = points.clone()  ## deep copy for ibrnet
             points = points.reshape(-1, 3)  # (B*K, 3)
-
             use_viewdirs = hasattr(model, "use_viewdirs") and model.use_viewdirs
-
             rgbs_all, invalid_all, sigmas_all = [], [], []
+
             if sb > 0:
-                points = points.reshape(sb, -1, 3)  # (SB, B'*K, 3) B' is real ray batch size
+                points = points.reshape(sb, -1, 3)              # (SB, B'*K, 3) B' is real ray batch size
                 eval_batch_dim = 1
                 if self.pts_div: ## and (points.shape[eval_batch_dim] < self.eval_batch_size):
                     eval_batch_size = (self.eval_batch_size // self.n_coarse) * self.n_coarse   ## Take the biggest num possible divisible by n_coarse
@@ -245,30 +246,29 @@ class NeRFRenderer(torch.nn.Module):
                 eval_batch_size = self.eval_batch_size
                 eval_batch_dim = 0
 
-            split_points = torch.split(points, eval_batch_size, dim=eval_batch_dim)
-            if use_viewdirs:        ## ?
+            split_points = torch.split(points, eval_batch_size, dim=eval_batch_dim)     ## chunking for computational limit
+
+            if use_viewdirs:        ## for ibrnet
                 dim1 = K
-                viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)
-                if sb > 0:
-                    viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)
-                else:
-                    viewdirs = viewdirs.reshape(-1, 3)  # (B*K, 3)
-                split_viewdirs = torch.split(
-                    viewdirs, eval_batch_size, dim=eval_batch_dim
-                )
+                viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)         ## ? ray direction o_{n} = o + t_{n} d
+                if sb > 0:  viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)
+                else:       viewdirs = viewdirs.reshape(-1, 3)  # (B*K, 3)
+                split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
+
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)       ### MVSBTS
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs, eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for ibrnet
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
             else:
-                for pnts in split_points:   ## chunking for computational limit ## ! chunking 100,000 pts for computation
+                for pnts in split_points:
                     rgbs, invalid, sigmas = model(pnts, coarse=coarse)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
-            points = None
-            viewdirs = None
+
+            points, viewdirs = None, None
+
             # (B*K, 4) OR (SB, B'*K, 4)
             rgbs = torch.cat(rgbs_all, dim=eval_batch_dim)
             invalid = torch.cat(invalid_all, dim=eval_batch_dim)
@@ -286,8 +286,8 @@ class NeRFRenderer(torch.nn.Module):
             if self.hard_alpha_cap:
                 alphas[:, -1] = 1
 
-            deltas = None
-            sigmas = None
+            deltas, sigmas = None, None
+
             alphas_shifted = torch.cat(
                 [torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], -1
             )  # (B, K+1) = [1, a1, a2, ...]
@@ -303,15 +303,8 @@ class NeRFRenderer(torch.nn.Module):
                 # White background
                 pix_alpha = weights.sum(dim=1)  # (B), pixel alpha
                 rgb_final = rgb_final + 1 - pix_alpha.unsqueeze(-1)  # (B, 3)
-            return (
-                weights,
-                rgb_final,
-                depth_final,
-                alphas,
-                invalid,
-                z_samp,
-                rgbs
-            )
+
+            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs)
 
     def forward(
         self, model, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None

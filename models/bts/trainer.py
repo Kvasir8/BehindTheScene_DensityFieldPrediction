@@ -93,7 +93,7 @@ class BTSWrapper(nn.Module):
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
 
-        n, v, c, h, w = images.shape            ### v==8 := 4 cams (stereo + 2fisheyes) * 2 time stamps (t0 + t1) c.f. paper
+        n, v, c, h, w = images.shape  ### v==8 := 4 cams (stereo + 2fisheyes) * 2 time stamps (t0 + t1) c.f. paper
         device = images.device
 
         # Use first frame as keyframe
@@ -117,7 +117,7 @@ class BTSWrapper(nn.Module):
         else:               frame_perm = torch.arange(v)
 
         if self.fe_enc:
-            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! see how nv_ works in aggregation
+            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! TODO: Check see how nv_ works in aggregation
             ids_encoder = [0]   ## always starts sampling from mono cam
             ids_encoder.extend(encoder_perm)
         else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
@@ -149,7 +149,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
-            elif self.frame_sample_mode == "kitti360-mono": ## observed in debug setting
+            elif self.frame_sample_mode == "kitti360-mono":
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
 
@@ -197,8 +197,8 @@ class BTSWrapper(nn.Module):
                 ids_render = [0, steps, steps * 2]
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-        if self.loss_from_single_img:
-            ids_loss = ids_loss[:1]
+        if self.loss_from_single_img:   ids_loss = ids_loss[:1]
+
 
         ip = self.train_image_processor if self.training else self.val_image_processor
 
@@ -275,7 +275,6 @@ class BTSWrapper(nn.Module):
             if self.eval_nvs:
                 data.update(self.compute_nvs_metrics(data))
 
-            # TODO: Move this to initialization (this is only for KITTI-360 currently)
             cam_incl_adjust = torch.tensor(
                 [[1.0000000, 0.0000000, 0.0000000, 0],
                  [0.0000000, 0.9961947, -0.0871557, 0],

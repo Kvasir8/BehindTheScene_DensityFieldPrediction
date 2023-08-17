@@ -28,7 +28,6 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     logger = setup_logger(name=config["name"])
 
     log_basic_info(logger, config)
-
     output_path = config["output_path"]
     if rank == 0:   ## could use rank to coordinate the exchange of information between processes: for instance, we might have all processes send their computed gradients to the process with rank 0, which would then compute the average gradient and send this back to the other processes.
         if config["stop_iteration"] is None:
