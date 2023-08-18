@@ -240,7 +240,8 @@ class NeRFRenderer(torch.nn.Module):
                 points = points.reshape(sb, -1, 3)              # (SB, B'*K, 3) B' is real ray batch size
                 eval_batch_dim = 1
                 if self.pts_div: ## and (points.shape[eval_batch_dim] < self.eval_batch_size):
-                    eval_batch_size = (self.eval_batch_size // self.n_coarse) * self.n_coarse   ## Take the biggest num possible divisible by n_coarse
+                    eval_batch_size = (self.eval_batch_size // self.n_coarse) * self.n_coarse   ## Take the biggest num possible divisible by n_coarse  ## TODO: for last quotient gives error when it is not divisable by 64, which needs to be solved (img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb
+                    # RuntimeError: shape '[-1, 64, 4, 103]' is invalid for input of size 20600000
                 else:   eval_batch_size = (self.eval_batch_size - 1) // sb + 1
             else:
                 eval_batch_size = self.eval_batch_size
@@ -256,7 +257,7 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs, eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for ibrnet
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs) ## ,eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for NeuRay
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)

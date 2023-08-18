@@ -229,7 +229,7 @@ class MVBTSNet(torch.nn.Module):
 
         return sampled_colors, invalid  ## Return the sampled colors tensor and the invalid tensor.
 
-    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, eval_batch_dim=None):  ## ? "far"
+    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=None):  ## ? "far"
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!
@@ -256,9 +256,9 @@ class MVBTSNet(torch.nn.Module):
             # Camera frustum culling stuff, currently disabled
             combine_index, dim_size = None, None
 
-            if self.nry:
+            if self.nry and not infer:
                 B_, M_eval, nmv, feat = sampled_features.shape
-                img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb
+                img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb   ## # RuntimeError: shape '[-1, 64, 4, 103]' is invalid for input of size 20600000
                 invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
                 viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)        ## TODO: This is not usual case to broadcast along num_views, which is not sure for valid implementation. Analyze IBRNet how ray_diff used in viewdirs
                 globalfeat, num_valid_obs = self.nry(rgb_feat=img_feat, neuray_feat=img_feat, ray_diff=viewdirs, mask=invalid_feat)
@@ -267,7 +267,8 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
-                sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                if infer:       sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=None).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                elif not infer: sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT
 

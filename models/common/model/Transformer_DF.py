@@ -85,10 +85,6 @@ class DensityFieldTransformer(nn.Module):
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
-
-        # viz_z = 1 - invalid_features  ## visibility tensor from NeuRay
-
-
         if self.dropout:  invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
         # self.readout_token = nry.flatten(0,1)   ## if nry is enabled, but this doesnt work: TypeError: cannot assign 'torch.cuda.FloatTensor' as parameter 'readout_token' (torch.nn.Parameter or None expected)
 
@@ -96,13 +92,13 @@ class DensityFieldTransformer(nn.Module):
 
         ## Process the embedded features with the Transformer
         if self.padding_flag:
-            padded_features = torch.concat([nry.unsqueeze(1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            # padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            if nry in locals():         padded_features = torch.concat([nry.unsqueeze(1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            elif not nry in locals():   padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
 
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],dim=1, )
             # invalid_features[...,0].permute(1,0) ### [M, num_features + one zero padding layer] == [6250, 96+1]
-            if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
-            else: transformed_features = self.transformer_encoder(padded_features,src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+            if self.DFEnlayer: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
+            else: transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
         else:
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)

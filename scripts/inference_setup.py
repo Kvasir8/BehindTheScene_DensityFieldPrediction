@@ -203,6 +203,7 @@ def render_profile(net, cam_incl_adjust):
     q_pts = q_pts.to(device).view(1, -1, 3)
 
     batch_size = 50000
+    if net.n_coarse:   batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     if q_pts.shape[1] > batch_size:
         sigmas = []
         invalid = []
@@ -211,7 +212,8 @@ def render_profile(net, cam_incl_adjust):
             f = i * batch_size
             t = min((i + 1) * batch_size, l)
             q_pts_ = q_pts[:, f:t, :]
-            _, invalid_, sigmas_ = net.forward(q_pts_)
+            if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
+            else:               _, invalid_, sigmas_ = net.forward(q_pts_)
             sigmas.append(sigmas_)
             invalid.append(invalid_)
         sigmas = torch.cat(sigmas, dim=1)

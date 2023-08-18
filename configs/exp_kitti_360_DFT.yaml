@@ -3,14 +3,14 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "BTS_DFT_NeuRay_f"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BTS_DFT_NeuRay"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
 validate_every: 5000
-visualize_every: 1500          # default: 10       ## bigger is good for computational reduction
-batch_size: 3                   # default: 16       ## each batch contains 8 views 16*8 too much
+visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
+batch_size: 2                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -29,7 +29,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 5           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 8           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     DFT: true                   # set true for enabling DFT model
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
@@ -76,7 +76,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 512                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false

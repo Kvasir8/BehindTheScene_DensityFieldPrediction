@@ -122,6 +122,9 @@ class BTSWrapper(nn.Module):
             ids_encoder.extend(encoder_perm)
         else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
 
+        if not self.training:       ## This is the case for eval (not viz, but eval) is on:  it's eval from line 354, base_trainer.py
+            ids_encoder = [0]       ## TODO: Think about 0~nv to play around
+
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
 
         combine_ids = None
