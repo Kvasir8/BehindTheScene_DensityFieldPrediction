@@ -35,12 +35,11 @@ def main(config: DictConfig):
     spawn_kwargs["nproc_per_node"] = nproc_per_node
     if backend == "xla-tpu" and with_amp:
         raise RuntimeError("The value of with_amp should be False if backend is xla")
-    ## the script will use the "bts_overfit" training function that's been imported from models.bts.trainer_overfit
-    training = globals()[config["model"]]
-    ## A distributed training context is created and the training function is run:
-    with idist.Parallel(backend=backend, **spawn_kwargs) as parallel:
+    
+    training = globals()[config["model"]]   ## the script will use the "bts_overfit" training function that's been imported from models.bts.trainer_overfit
+    
+    with idist.Parallel(backend=backend, **spawn_kwargs) as parallel:   ## A distributed training context is created and the training function is run
         parallel.run(training, config)
-    ## idist.Parallel creates a context for distributed training.
-    ## The parallel.run method starts the distributed computation.
+        
 if __name__ == "__main__":
     main()

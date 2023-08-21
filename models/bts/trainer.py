@@ -36,6 +36,7 @@ class BTSWrapper(nn.Module):
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
         self.fe_enc = config["fisheye_encoding"]
+        self.ids_enc_viz_eval = config["ids_enc_offset_viz", [0]]
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
@@ -122,8 +123,8 @@ class BTSWrapper(nn.Module):
             ids_encoder.extend(encoder_perm)
         else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
 
-        if not self.training:       ## when eval should be standardized (not viz):  it's eval from line 354, base_trainer.py
-            ids_encoder = [0, 1]       ## TODO: Think about 0~nv to play around
+        if not self.training and self.ids_enc_viz_eval:       ## when eval should be standardized (not viz):  it's eval from line 354, base_trainer.py
+            ids_encoder = self.ids_enc_viz_eval       ## TODO: Think about 0~nv to play around
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
         ## TODO: ids_render vs ids_encoder vs ids_loss
