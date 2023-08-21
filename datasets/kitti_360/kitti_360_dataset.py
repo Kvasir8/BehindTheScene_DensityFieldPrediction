@@ -594,7 +594,8 @@ class Kitti360Dataset(Dataset):
         # ids_fish = [max(min(id + self.fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + self.fisheye_offset - self._left_offset, id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + self.fisheye_offset]
         # img_ids = [self.get_img_id_from_id(sequence, id) for id in ids]
         # img_ids_fish = [self.get_img_id_from_id(sequence, id) for id in ids_fish]
-        id_st = id + stereo_offset - 1      ## TODO: find out how to deal with 3 steps aheada without -1 => as we sample scenes with the amount of stereo_offset
+
+        id_st = id + stereo_offset - 1      ## TODO: find out how to deal with 3 steps ahead without -1 => as we sample scenes with the amount of stereo_offset
         ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id_st - self._left_offset, id_st - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id_st]
         ids_fish = [max(min(id + fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + fisheye_offset - self._left_offset, id + fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + fisheye_offset]
         ## and now ids_fish is 5 steps ahead of ids with 2 fisheye scenes

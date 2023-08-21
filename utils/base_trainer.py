@@ -351,11 +351,11 @@ def create_evaluator(model, metrics, criterion, config, tag="val"):
         data = to(data, device)
 
         with autocast(enabled=with_amp):
-            data = model(data)                ### BTSWrapperOverfit object == model
+            data = model(data)                ### BTSWrapperOverfit
 
         for name in metrics.keys():
             data[name] = data[name].mean()    ## origin # if 'abs_rel' in data:   data[name] = data[name].mean()    ## key error handler as overfitting
-            ## data.keys() == dict_keys(['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far'])
+            ## data.keys() == ['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far']
         if criterion is not None:   ## !
             loss, loss_metrics = criterion(data)
         else:

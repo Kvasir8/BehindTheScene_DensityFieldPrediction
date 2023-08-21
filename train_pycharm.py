@@ -15,11 +15,12 @@ import pydevd_pycharm  ## for external debugging
 def main(config: DictConfig):
     ## For remote IDE debugging. Note: remember to port forward to the port as the port 58022 is taken by atcremers PC
     sv, port_ = config.get("sv_", 58), config.get("port_", 58023)  ## atcremers(sv) server allocation for debug server in Pycharm IDE
-    if sv == 51:    debug_sv = '131.159.18.70'
+    if   sv == 51:  debug_sv = '131.159.18.70'
     elif sv == 58:  debug_sv = '131.159.18.114'
     elif sv == 59:  debug_sv = '131.159.18.113'
     elif sv == 85:  debug_sv = '131.159.18.198'
     pydevd_pycharm.settrace(debug_sv, port=port_, stdoutToServer=True, stderrToServer=True)  ## IDE host name of the machine where the IDE is running
+
 
     OmegaConf.set_struct(config, False)
 
