@@ -58,10 +58,8 @@ class BTSWrapper(nn.Module):
         self.train_image_processor = make_image_processor(cfg_ip)
         self.val_image_processor = RGBProcessor()
 
-        if type(frames_render) == int:
-            self.frames_render = list(range(frames_render))
-        else:
-            self.frames_render = frames_render
+        if type(frames_render) == int:  self.frames_render = list(range(frames_render))
+        else:                           self.frames_render = frames_render
         self.frames = self.frames_render
 
         if self.sample_mode == "random":
@@ -70,17 +68,14 @@ class BTSWrapper(nn.Module):
             self.train_sampler = PatchRaySampler(self.ray_batch_size, self.z_near, self.z_far, self.patch_size, channels=self.train_image_processor.channels)
         elif self.sample_mode == "image":
             self.train_sampler = ImageRaySampler(self.z_near, self.z_far, channels=self.train_image_processor.channels)
-        else:
-            raise NotImplementedError
+        else:   raise NotImplementedError
 
-        if self.use_automasking:
-            self.train_sampler.channels += 1
+        if self.use_automasking:    self.train_sampler.channels += 1
 
         self.val_sampler = ImageRaySampler(self.z_near, self.z_far)
 
         self.eval_nvs = eval_nvs
-        if self.eval_nvs:
-            self.lpips = lpips.LPIPS(net="alex")
+        if self.eval_nvs:           self.lpips = lpips.LPIPS(net="alex")
 
         self._counter = 0
 
@@ -92,7 +87,7 @@ class BTSWrapper(nn.Module):
         data = dict(data)
         images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
         poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
-        projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
+        projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)    ## kitti_360_dataset.py, 629
 
         n, v, c, h, w = images.shape  ### v==8 := 4 cams (stereo + 2fisheyes) * 2 time stamps (t0 + t1) c.f. paper
         device = images.device
@@ -114,21 +109,21 @@ class BTSWrapper(nn.Module):
                 for params in self.renderer.net.mlp_coarse.parameters(True):
                     params.requires_grad_(True)
 
-        if self.training:   frame_perm = torch.randperm(v)
-        else:               frame_perm = torch.arange(v)
+        if self.training:   frame_perm = torch.randperm(v)  
+        else:               frame_perm = torch.arange(v)    ## during eval
 
         if self.fe_enc:     ## views that are encoded
-            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! TODO: Check see how nv_ works in aggregation
-            ids_encoder = [0]                   ## always starts sampling from mono cam
-            ids_encoder.extend(encoder_perm)    ## add more cam_views randomly incl. fe
+            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
+            ids_encoder = [0]                               ## always starts sampling from mono cam
+            ids_encoder.extend(encoder_perm)                ## add more cam_views randomly incl. fe
         else: ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if not self.training and self.ids_enc_viz_eval:       ## when eval should be standardized (not viz):  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval
+        if not self.training and self.ids_enc_viz_eval:       ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+            ids_encoder = self.ids_enc_viz_eval                 ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
-        ## TODO: ids_render vs ids_encoder vs ids_loss
+        
         combine_ids = None
 
         if self.training:
@@ -176,19 +171,17 @@ class BTSWrapper(nn.Module):
                 # Combine all frames half-left, center, half-right for efficiency reasons
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-                if self.training:
-                    step_perm = torch.randperm(steps)
-                else:
-                    step_perm = torch.arange(steps)
-                step_perm = step_perm.tolist()
+                if self.training:   step_perm = torch.randperm(steps)
+                else:               step_perm = torch.arange(steps)     ## eval
+                step_perm =         step_perm.tolist()
 
                 ids_loss = sum([[i + j * steps for j in range(num_views)] for i in step_perm[:split]], [])
                 ids_render = sum([[i + j * steps for j in range(num_views)] for i in step_perm[split:]], [])
 
             elif self.frame_sample_mode == "default":
                 ids_loss = frame_perm[[i for i in range(v) if frame_perm[i] not in ids_render]]
-            else:
-                raise NotImplementedError
+            else:   raise NotImplementedError
+
         else:
             ids_loss = torch.arange(v)
             ids_render = [0]
@@ -203,7 +196,6 @@ class BTSWrapper(nn.Module):
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
         if self.loss_from_single_img:   ids_loss = ids_loss[:1]
-
 
         ip = self.train_image_processor if self.training else self.val_image_processor
 

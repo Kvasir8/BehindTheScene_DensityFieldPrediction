@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="BTS_DFT_nry_frozen_encRandom08"
+#SBATCH --job-name="enc0_BTS_DFT_nry_frozen"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

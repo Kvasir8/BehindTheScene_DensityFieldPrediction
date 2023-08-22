@@ -3,13 +3,13 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "BTS_DFT_nry_frozen_encRandom08"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BTS_DFT_nry_frozen_encRand"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
 validate_every: 5000
-visualize_every: 1000          # default: 10       ## bigger is good for computational reduction
+visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
 batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -42,7 +42,7 @@ model_conf:
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
     NeuRay: true
     use_viewdirs: true
-    ids_enc_offset_viz: None    # which cam to choose for inference of viz_eval. set None if you want to sample randomly (c.f. fisheye_offset)
+    ids_enc_offset_viz: None    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
 
     code:
         num_freqs: 6
