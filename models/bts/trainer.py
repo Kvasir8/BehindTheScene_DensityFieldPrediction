@@ -36,7 +36,7 @@ class BTSWrapper(nn.Module):
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
         self.fe_enc = config["fisheye_encoding"]
-        self.ids_enc_viz_eval = config["ids_enc_offset_viz", [0]]
+        self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
@@ -117,14 +117,15 @@ class BTSWrapper(nn.Module):
         if self.training:   frame_perm = torch.randperm(v)
         else:               frame_perm = torch.arange(v)
 
-        if self.fe_enc:
+        if self.fe_enc:     ## views that are encoded
             encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## ! TODO: Check see how nv_ works in aggregation
-            ids_encoder = [0]   ## always starts sampling from mono cam
-            ids_encoder.extend(encoder_perm)
-        else:   ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   ## default: ids_encoder = [0,1,2,3]
+            ids_encoder = [0]                   ## always starts sampling from mono cam
+            ids_encoder.extend(encoder_perm)    ## add more cam_views randomly incl. fe
+        else: ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   
+        ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
         if not self.training and self.ids_enc_viz_eval:       ## when eval should be standardized (not viz):  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval       ## TODO: Think about 0~nv to play around
+            ids_encoder = self.ids_enc_viz_eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
         ## TODO: ids_render vs ids_encoder vs ids_loss
@@ -216,7 +217,7 @@ class BTSWrapper(nn.Module):
 
         with profiler.record_function("trainer_encode-grid"):
             self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
-            self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_render, images_alt=images_ip, combine_ids=combine_ids)
+            self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_render, images_alt=images_ip, combine_ids=combine_ids)   ## models_bts.py
 
         sampler = self.train_sampler if self.training else self.val_sampler
 

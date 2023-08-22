@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach: train_debug_remote_IDE",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+              "host": "localhost", // replace this with remote machine name
+              "port": 58022                 // accessing to the allowed port from the remote machine
+            },
+        //     "skipFiles": [
+        //         "<node_internals>/**"
+        //     ],
+        //     "program": "train.py",
+        //     "args": [
+        //         "-cn",
+        //     "exp_kitti_360_DFT_SL10"
+        // ],
+            // "stopOnEntry": false,
+            // "cwd": "${workspaceFolder}",
+            // "justMyCode": true,
+            // // "python": "../../miniconda3/envs/EfficientLPS/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+        }
+    ]
+}

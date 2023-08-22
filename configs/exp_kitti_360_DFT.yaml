@@ -3,7 +3,7 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "BTS_DFT_nry_frozen"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BTS_DFT_nry_frozen_encRandom08"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
@@ -42,7 +42,7 @@ model_conf:
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
     NeuRay: true
     use_viewdirs: true
-    ids_enc_offset_viz: [0, 1]    # which cam to choose for inference of viz_eval. set None if you want randomly sample (c.f. fisheye_offset)
+    ids_enc_offset_viz: None    # which cam to choose for inference of viz_eval. set None if you want to sample randomly (c.f. fisheye_offset)
 
     code:
         num_freqs: 6
@@ -109,7 +109,7 @@ renderer:
 
 IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
     sv_: 51
-    port_: 58023
+    port_: 58022
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.
