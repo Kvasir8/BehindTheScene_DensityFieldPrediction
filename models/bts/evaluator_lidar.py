@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 from datasets.data_util import make_test_dataset
 from models.common.render import NeRFRenderer
-from models.bts.model.models_bts import BTSNet
+from models.bts.model.models_bts import MVBTSNet            ## BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler
 from utils.base_evaluator import base_evaluation
 from utils.metrics import MeanMetric
@@ -366,7 +366,8 @@ def get_metrics(config, device):
 
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "BTSNet")
-    net = globals()[arch](config["model_conf"])
+    # net = globals()[arch](config["model_conf"])
+    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
 

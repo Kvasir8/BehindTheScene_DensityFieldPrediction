@@ -5,13 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "launch: eval.py (occ)",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "args": [
+                "-cn",
+                "eval_lidar_occ"
+            ],
+            "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/EfficientLPS/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/EfficientLPS/lib/python3.10/site-packages/"
+            },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+
+        {
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",
             "request": "attach",
             "connect": {
               "host": "localhost", // replace this with remote machine name
-              "port": 58022                 // accessing to the allowed port from the remote machine
-            },
+              "port": 22                 // accessing to the allowed port from the remote machine
+            }
         //     "skipFiles": [
         //         "<node_internals>/**"
         //     ],

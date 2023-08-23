@@ -12,7 +12,7 @@ import skimage.metrics
 
 from datasets.data_util import make_test_dataset
 from models.common.render import NeRFRenderer
-from models.bts.model.models_bts import BTSNet
+from models.bts.model.models_bts import MVBTSNet        ## BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler
 from utils.base_evaluator import base_evaluation
 from utils.metrics import MeanMetric

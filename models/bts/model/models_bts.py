@@ -17,7 +17,7 @@ from models.common.model.Transformer_DF import DensityFieldTransformer
 from models.common.backbones.ibrnet import IBRNetWithNeuRay
 
 class MVBTSNet(torch.nn.Module):
-    def __init__(self, conf, ren_nc, B_):   ## dependency injection
+    def __init__(self, conf, ren_nc=None, B_=None):   ## dependency injection
         super().__init__()
         ## model constructor only if DFT | nry enabled
         self.DFT, self.nry = None, None
@@ -230,7 +230,7 @@ class MVBTSNet(torch.nn.Module):
 
         return sampled_colors, invalid  ## Return the sampled colors tensor and the invalid tensor.
 
-    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=None):  ## ? "far"
+    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=True):  ## ? "far"
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!

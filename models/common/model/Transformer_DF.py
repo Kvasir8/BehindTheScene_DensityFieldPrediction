@@ -59,7 +59,7 @@ class DensityFieldTransformer(nn.Module):
         # self.ts_ = rb_ * ren_nc * B_  ## total num sampling (to decide input dimension for AE)
         self.rb_, self.B = rb_, B_
         self.n_coarse = ren_nc  ## Note: we assume patch size is 8x8, thus we have following ts_ as computation
-        self.ts_ = B_ * ren_nc * (8 * 8) * (rb_ // (8 * 8))  ## total num sampled points (to decide input dimension for AE)
+        # self.ts_ = B_ * ren_nc * (8 * 8) * (rb_ // (8 * 8))  ## total num sampled points (to decide input dimension for AE)
         # self.S_ = 64  ## length of sequence for AE
 
         ## DFTransformer encoder layers

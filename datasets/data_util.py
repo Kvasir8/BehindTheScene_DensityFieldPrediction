@@ -241,6 +241,24 @@ def make_test_dataset(config):
             is_preprocessed=config.get("is_preprocessed", False)
         )
         return test_dataset
+    elif type == "KITTI_360_DFT":
+        test_dataset = Kitti360Dataset(
+            data_path=config["data_path"],
+            pose_path=config["pose_path"],
+            split_path=os.path.join(config.get("split_path", None), "test_files.txt"),
+            target_image_size=tuple(config.get("image_size", (192, 640))),
+            frame_count=config.get("data_fc", 1),
+            return_stereo=config.get("data_stereo", False),
+            return_fisheye=config.get("data_fisheye", False),
+            return_3d_bboxes=config.get("data_3d_bboxes", False),
+            return_segmentation=config.get("data_segmentation", False),
+            keyframe_offset=0,
+            fisheye_rotation=config.get("fisheye_rotation", 0),
+            fisheye_offset=config.get("fisheye_offset", 1),
+            dilation=config.get("dilation", 1),
+            is_preprocessed=config.get("is_preprocessed", False)
+        )
+        return test_dataset
     elif type == "RealEstate10k":
         test_dataset = RealEstate10kDataset(
             data_path=config["data_path"],
