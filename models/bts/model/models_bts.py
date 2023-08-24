@@ -117,7 +117,7 @@ class MVBTSNet(torch.nn.Module):
 
         if do_flip: images_encoder = torch.flip(images_encoder, dims=(-1, ))
 
-        image_latents_ms = self.encoder(images_encoder.view(n_ * nv_, c_, h_, w_))              ## Encoder of BTS
+        image_latents_ms, img_feat = self.encoder(images_encoder.view(n_ * nv_, c_, h_, w_))              ## Encoder of BTS's backbone model e.g. Monodepth2
 
         if do_flip: image_latents_ms = [torch.flip(il, dims=(-1, )) for il in image_latents_ms]
 
@@ -125,6 +125,8 @@ class MVBTSNet(torch.nn.Module):
         image_latents_ms = [F.interpolate(image_latents, size=(h_, w_)).view(n_, nv_, c_l, h_, w_) for image_latents in image_latents_ms]    ## upsampling the feature maps from down-sampled 4 layers to the same spatial resolution of 1st layer
 
         # self.img_feat = image_latents_ms[-1]    ## taking last layer of encoder to feed into Neuray
+
+        self.img_feat = img_feat        ## for feeding into NeuRay
 
         self.grid_f_features = image_latents_ms
         self.grid_f_Ks = Ks_encoder
@@ -230,11 +232,11 @@ class MVBTSNet(torch.nn.Module):
 
         return sampled_colors, invalid  ## Return the sampled colors tensor and the invalid tensor.
 
-    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=True):  ## ? "far"
+    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=True):  ## ? "far"  ## Note: this forward propagation can be used for both training and eval
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!
-        :param xyz (B==sb, M//sb, 3) / [nv_==4, M==8192, 3] / [n_rays, n_samples, n_views, n_feat] == img_feat
+        :param xyz (B==sb, M//sb, 3) | e.g. [nv_==4, M==8192, 3] | [n_rays, n_samples, n_views, n_feat] == img_feat
         B is batch of points (in rays)
         :param infer when the feeded points are to be inferred. When training, we need to feed both viewdirs + xyz, so we need to specify if it is for training or inference.
         :return (B, 4) r g b sigma
@@ -259,10 +261,13 @@ class MVBTSNet(torch.nn.Module):
 
             if self.nry and not infer:  ## only training with given viewdirs + sampled_features, otherwise we rely on features extract from RGB image
                 B_, M_eval, nmv, feat = sampled_features.shape
-                img_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb   ## # RuntimeError: shape '[-1, 64, 4, 103]' is invalid for input of size 20600000
+                viz_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb   ## # RuntimeError: shape '[-1, 64, 4, 103]' is invalid for input of size 20600000
                 invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
                 viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)        ## TODO: (naively done) This is not usual case to broadcast along num_views, which is not sure for valid implementation. Analyze IBRNet how ray_diff used in viewdirs
-                globalfeat, num_valid_obs = self.nry(rgb_feat=img_feat, neuray_feat=img_feat, ray_diff=viewdirs, mask=invalid_feat) ## TODO: rgb_feat should come from output of encoder part of BTS
+                self.img_feat = self.img_feat.reshape(-1, self.n_coarse, nmv, feat)
+                # img_feat = viewdirs
+
+                globalfeat, num_valid_obs = self.nry(rgb_feat=self.img_feat, neuray_feat=viz_feat, ray_diff=viewdirs, mask=invalid_feat) ## TODO: rgb_feat should come from output of encoder part of BTS
                 gfeat_avg_pool, num_valid_obs = globalfeat.reshape(B_,-1,globalfeat.shape[-1]), num_valid_obs.reshape(B_,-1,1)
                 # mlp_input = F.avg_pool1d(globalfeat.transpose(1, 2), kernel_size=globalfeat.shape[-2]) ## pooling the last dim to aggregate the features to interpret global geometric info for readout token
 

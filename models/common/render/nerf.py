@@ -25,7 +25,7 @@ class _RenderWrapper(torch.nn.Module):
 
         outputs = self.renderer(
             self.net,
-            rays,       ## samples along a ray with 8 views with batches => dim(rays) == (B_, ray_batch_size, 8)
+            rays,       ### [B_, ray_batch_size, 8] : samples along a ray with 8 views with batches
             want_weights=want_weights and not self.simple_output,
             want_alphas=want_alphas and not self.simple_output,
             want_z_samps=want_z_samps and not self.simple_output,
@@ -253,11 +253,11 @@ class NeRFRenderer(torch.nn.Module):
                 dim1 = K
                 viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)         ## ? ray direction o_{n} = o + t_{n} d
                 if sb > 0:  viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)
-                else:       viewdirs = viewdirs.reshape(-1, 3)  # (B*K, 3)
+                else:       viewdirs = viewdirs.reshape(-1, 3)      # (B*K, 3)
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs) ## ,eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for NeuRay
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)   ## ,eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for NeuRay
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)

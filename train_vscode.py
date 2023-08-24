@@ -14,7 +14,7 @@ import debugpy
 @hydra.main(version_base=None, config_path="configs", config_name="exp_kitti_360_DFT_slurm")
 def main(config: DictConfig):
     ## connecting to the cluster's remote server to debug. Note: remember to port forward to the port as the port 58022 is taken by atcremers PC
-    sv, port_ = config.get("sv_", 58), config.get("port_", 58022)  ## atcremers(sv) server allocation for debug server in Pycharm IDE
+    sv, port_ = config.get("sv_", 58), config.get("port_", 22)  ## atcremers(sv) server allocation for debug server in Pycharm IDE
     debugpy.listen(port_)  ## IDE host name of the machine where the IDE is running
     print("__Waiting for debugger attach")
     debugpy.wait_for_client()

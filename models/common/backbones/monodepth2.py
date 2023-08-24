@@ -289,7 +289,7 @@ class Monodepth2(nn.Module):
 
             x = [outputs[("disp", i)] for i in self.scales]
 
-        return x
+        return x, image_features                            ## default: x
 
     @classmethod
     def from_conf(cls, conf):

@@ -328,8 +328,8 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     resume_from = config["resume_from"]
     if resume_from is not None:
         checkpoint_fp = Path(resume_from)
-        assert checkpoint_fp.exists(), f"Checkpoint '{checkpoint_fp.as_posix()}' is not found"
-        logger.info(f"Resume from a checkpoint: {checkpoint_fp.as_posix()}")
+        assert checkpoint_fp.exists(), f"__Checkpoint '{checkpoint_fp.as_posix()}' is not found"
+        logger.info(f"__Resume from a checkpoint: {checkpoint_fp.as_posix()}")
         checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
         Checkpoint.load_objects(to_load=to_save, checkpoint=checkpoint, strict = False) ## !strickt := matching parameters only done mis match ML != DFT
 

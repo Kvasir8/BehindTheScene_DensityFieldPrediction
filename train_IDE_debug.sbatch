@@ -14,6 +14,6 @@ export MY_PORT=58023  # Define the desired port number to port-forwarding
 pwd; hostname; date; nvidia-smi
 
 ## comment out one of them to execute the script for IDE of choice
-# python train_pycharm.py -cn exp_kitti_360_DFT # -nproc_per_node 2  ## for pydevd_pycharm
-python -m debugpy --listen 131.159.18.114:58022 --wait-for-client train_vscode.py -cn exp_kitti_360_DFT               ## for VSCode
+ python train_pycharm.py -cn exp_kitti_360_DFT # -nproc_per_node 2  ## for pydevd_pycharm
+#python -m debugpy --listen 131.159.18.114:58022 --wait-for-client train_vscode.py -cn exp_kitti_360_DFT               ## for VSCode
 # python train_vscode.py -cn exp_kitti_360_DFT               ## for VSCode

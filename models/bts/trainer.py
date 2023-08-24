@@ -432,7 +432,7 @@ def initialize(config: dict, logger=None):
 
     model = idist.auto_model(model)
 
-    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])  ## TODO:(bellow)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
+    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
     # optimizer = optim.Adam([{"encoder_decoder": model.[...encoder].parameters()}, {"final_decoder": model.transformer.parameters(), "lr": config["learning_rate"] / 10}], lr=config["learning_rate"])
     optimizer = idist.auto_optim(optimizer)
 
@@ -444,7 +444,7 @@ def initialize(config: dict, logger=None):
 
 
 def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
-    print("Visualizing")
+    print("__Visualizing...")
 
     data = engine.state.output["output"]
     writer = logger.writer

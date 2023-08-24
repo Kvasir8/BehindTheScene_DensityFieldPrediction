@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="enc0_BTS_DFT_nry_frozen"
+#SBATCH --job-name="enc0_unfr_lr5e-5_BTS_DFT_nry_longrun"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

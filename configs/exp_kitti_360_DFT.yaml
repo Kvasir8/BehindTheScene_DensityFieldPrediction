@@ -3,18 +3,41 @@ defaults:                       ### This code is to run for slurm config
     - data: kitti_360_DFT
     - _self_
 
-name: "BTS_DFT_nry_frozen_encRand"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+#### Simply comment one of them for usage. (Because we want the same configuration as the model was trained last time.)
+
+## For eval_lidar_occ.yaml
+# name: "eval_lidar_occ"
+# model: "bts_lidar"
+# # checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/"  ## change whenever you want to evaluate the model
+# checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc0_backend-None-1_20230822-232314"  ## change whenever you want to evaluate the model
+# log_every: 10
+# batch_size: 4
+# num_workers: 1
+
+# data:
+#     image_size: [192, 640]
+#     data_3d_bboxes: false
+#     data_segmentation: false
+#     data_fisheye: true          ## default: false
+#     data_stereo: true           ## default: false
+#     data_fc: 2                  ## default: 1. 2 => gives 8 views with 2 time stamps
+#     is_preprocessed: false
+
+## For training
+name: "enc0_unfr_lr5e-5_BTS_DFT_nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
-validate_every: 5000
+validate_every: 10000
 visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
-batch_size: 4                   # default: 16       ## each batch contains 8 views 16*8 too much
+batch_size: 2                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
     sign: -1                    # The sign is negative, meaning that the model with the smallest abs_rel is the best
+
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 
 data:
     data_fc: 2
@@ -23,7 +46,7 @@ data:
     is_preprocessed: true
     fisheye_rotation: [0, -15]
 
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+#### below are the same for both eval and training
 
 model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
@@ -42,7 +65,7 @@ model_conf:
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
     NeuRay: true
     use_viewdirs: true
-    ids_enc_offset_viz: None    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
+    ids_enc_offset_viz: [0]    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
 
     code:
         num_freqs: 6
@@ -51,7 +74,7 @@ model_conf:
 
     encoder:
         type: "monodepth2"
-        freeze: true            # freezing encoder to train the transformer
+        freeze: false            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -88,6 +111,8 @@ loss:
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
 
+learning_rate: 5e-5           ## default: 1e-4
+
 scheduler:
     type: step
     step_size: 120000
@@ -108,8 +133,8 @@ renderer:
 #nproc_per_node: 2
 
 IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
-    sv_: 51
-    port_: 58022 
+    sv_: 58
+    port_: 5678
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.
