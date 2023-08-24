@@ -251,7 +251,7 @@ class MVBTSNet(torch.nn.Module):
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
             sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (sb, n_pts, n_v, 103)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
-            ### torch.Size([1*batch_size, 4, 100000, 103])  ## 100,000 points in world coordinate
+            ### [1*batch_size, 4, Msb, 103]
             # mlp_input = sampled_features.view(1, n*n_pts, self.grid_f_features[0].shape[1], -1) ### dim(mlp_input)==torch.Size([1, 100000, 4, 103])==([one batch==1 for convection, B*100000, 4, 103]) ## origin : (n, n_pts, -1) == (Batch_size, number of 3D points, 103)
             mlp_input = sampled_features  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
             # print("__dim(mlp_intput): ", mlp_input.shape)  ## Transformer will receive a single sequence of B*100,000 tokens, each token being a 103-dimensional vector
@@ -263,7 +263,7 @@ class MVBTSNet(torch.nn.Module):
                 B_, M_eval, nmv, feat = sampled_features.shape
                 viz_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ## Note: -1 == M / sb   ## # RuntimeError: shape '[-1, 64, 4, 103]' is invalid for input of size 20600000
                 invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
-                viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)        ## TODO: (naively done) This is not usual case to broadcast along num_views, which is not sure for valid implementation. Analyze IBRNet how ray_diff used in viewdirs
+                viewdirs = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)        ## TODO: Analyze IBRNet how ray_diff used in viewdirs and change accordingly. As it's(naively done. This is not usual case to broadcast along num_views, which is not sure for valid implementation.
                 self.img_feat = self.img_feat.reshape(-1, self.n_coarse, nmv, feat)
                 # img_feat = viewdirs
 
