@@ -110,7 +110,7 @@ class BTSWrapper(nn.Module):
                     params.requires_grad_(True)
 
         if self.training:   frame_perm = torch.randperm(v)  
-        else:               frame_perm = torch.arange(v)    ## during eval
+        else:               frame_perm = torch.arange(v)    ## eval
 
         if self.fe_enc:     ## views that are encoded
             encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
@@ -120,7 +120,7 @@ class BTSWrapper(nn.Module):
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
         if not self.training and self.ids_enc_viz_eval:       ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval                 ## fixed during eval
+            ids_encoder = self.ids_enc_viz_eval               ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
         
@@ -156,7 +156,7 @@ class BTSWrapper(nn.Module):
                 ids_loss = []
                 ids_render = []
 
-                for cam in range(4):    ## stereo cam sampled from t0 -> t1
+                for cam in range(4):    ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
@@ -182,7 +182,7 @@ class BTSWrapper(nn.Module):
                 ids_loss = frame_perm[[i for i in range(v) if frame_perm[i] not in ids_render]]
             else:   raise NotImplementedError
 
-        else:
+        else:   ## eval
             ids_loss = torch.arange(v)
             ids_render = [0]
 
@@ -207,8 +207,8 @@ class BTSWrapper(nn.Module):
                 errors = compute_errors_l1ssim(reference_imgs, render_imgs).mean(-2).squeeze(-1).unsqueeze(2)
                 images_ip = torch.cat((images_ip, errors), dim=2)
 
-        with profiler.record_function("trainer_encode-grid"):
-            self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
+        with profiler.record_function("trainer_encode-grid"):   ## call encode method in MVBTS instance
+            self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])         ## return pass
             self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_render, images_alt=images_ip, combine_ids=combine_ids)   ## models_bts.py
 
         sampler = self.train_sampler if self.training else self.val_sampler
@@ -245,7 +245,7 @@ class BTSWrapper(nn.Module):
         else:
             with profiler.record_function("trainer_render"):
                 render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
-                ### [n:=batch_size, M, cam_views:=8]
+                ### [n:=batch_size, M_patches, cam_views:=8]    ## forward in _RenderWrapper
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
 
@@ -424,11 +424,7 @@ def initialize(config: dict, logger=None):
 
     mode = config.get("mode", "depth")
 
-    model = BTSWrapper(
-        renderer,
-        config["model_conf"],
-        mode == "nvs"
-    )
+    model = BTSWrapper(renderer, config["model_conf"], mode == "nvs")
 
     model = idist.auto_model(model)
 

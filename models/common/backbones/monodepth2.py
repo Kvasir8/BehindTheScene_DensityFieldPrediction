@@ -284,12 +284,12 @@ class Monodepth2(nn.Module):
         """
         with profiler.record_function("encoder_forward"):
             x = torch.cat([x * .5 + .5], dim=1)
-            image_features = self.encoder(x)
+            image_features = self.encoder(x)                ## output encoder from Monodepth2
             outputs = self.decoder(image_features)
 
             x = [outputs[("disp", i)] for i in self.scales]
 
-        return x, image_features                            ## default: x
+        return x, image_features[-1]                            ## default: x ## note: we need img_feat for feeding into NeuRay
 
     @classmethod
     def from_conf(cls, conf):

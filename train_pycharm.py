@@ -11,7 +11,7 @@ from models.bts.trainer_overfit import training as bts_overfit
 ## connection to the cluster server and debugging
 import pydevd_pycharm  ## for external debugging
 
-@hydra.main(version_base=None, config_path="configs", config_name="exp_kitti_360_DFT_slurm")
+@hydra.main(version_base=None, config_path="configs", config_name="exp_kitti_360_DFT")
 def main(config: DictConfig):
     ## For remote IDE debugging. Note: remember to port forward to the port as the port 58022 is taken by atcremers PC
     sv, port_ = config.get("sv_", 58), config.get("port_", 58023)  ## atcremers(sv) server allocation for debug server in Pycharm IDE

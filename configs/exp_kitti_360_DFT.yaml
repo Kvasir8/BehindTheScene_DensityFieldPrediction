@@ -24,21 +24,21 @@ defaults:                       ### This code is to run for slurm config
 #     is_preprocessed: false
 
 ## For training
-name: "enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "att64_enc1_Unfr_Lr1e_4_BTS_Nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
 num_epochs: 1000000
 validate_every: 10000
 visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
-batch_size: 2                   # default: 16       ## each batch contains 8 views 16*8 too much
+batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
-    metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
+    metric: rmse             # The model that has the smallest absolute relative error will be saved.
     sign: -1                    # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/BTS_DFT_nry_frozen_enc0/training_checkpoint_195000.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/BTS_DFT_nry_frozen_enc0/training_checkpoint_195000.pt"
 
 data:
     data_fc: 2
@@ -53,20 +53,20 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 8           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 5           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     DFT: true                   # set true for enabling DFT model
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
     num_layers: 3               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 16                # we set 16 to match dim of NeuRay readout token. default: 32, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
-    nhead: 4
+    att_feat: 32                # we set 16 to match dim of NeuRay readout token. default: 32, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    nhead: 4                    # set transformer's encoder's num heads for both DFT and NeuRay model
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
     NeuRay: true
-    use_viewdirs: true
-    ids_enc_offset_viz: [0]    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
+    use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
+    ids_enc_offset_viz: [0,1]    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
 
     code:
         num_freqs: 6
@@ -96,7 +96,7 @@ model_conf:
     inv_z: true
 
     n_frames_encoder: 1
-    n_frames_render: 2
+    n_frames_render: 2                  # num frame to render among v==8
     frame_sample_mode: kitti360-mono
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
@@ -112,7 +112,7 @@ loss:
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
 
-learning_rate: 1e-6                     ## default: 1e-4
+learning_rate: 5e-5                     ## default: 1e-4
 
 scheduler:
     type: step
@@ -135,7 +135,7 @@ renderer:
 
 IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
     sv_: 58
-    port_: 5678
+    port_: 58023
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.

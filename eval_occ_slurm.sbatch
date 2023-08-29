@@ -13,6 +13,7 @@ export HYDRA_FULL_ERROR=1
 export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
-python eval.py -cn exp_kitti_360_DFT
+# python eval.py -cn exp_kitti_360_DFT
+python eval.py -cn eval_lidar_occ
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

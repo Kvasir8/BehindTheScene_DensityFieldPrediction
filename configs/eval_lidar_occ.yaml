@@ -5,7 +5,7 @@ defaults:       ## Note: Make sure the configuration is the same with the one fr
 
 name: "eval_lidar_occ"
 model: "bts_lidar"
-checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/"  ## change whenever you want to evaluate the model
+checkpoint: "out/kitti_360/enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry_backend-None-1_20230824-232011/"  ## change whenever you want to evaluate the model
 # /usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/training_checkpoint_174000.pt
 
 log_every: 10

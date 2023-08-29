@@ -15,7 +15,7 @@ save_best:
     sign: -1
 
 data:
-    data_fc: 2
+    data_fc: 2                  ## 2 time stamps
     image_size: [192, 640]
     color_aug: true
     data_stereo: true

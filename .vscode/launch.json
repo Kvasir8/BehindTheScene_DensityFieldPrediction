@@ -14,9 +14,27 @@
                 "eval_lidar_occ"
             ],
             "cwd": "${workspaceFolder}",
-            // "python": "${workspaceFolder}../../miniconda3/envs/EfficientLPS/bin/python",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/EfficientLPS/lib/python3.10/site-packages/"
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+
+        {
+            "name": "launch: train.py",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_360_DFT_debug"
+            ],
+            "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
             },
             "stopOnEntry": false,
             "justMyCode": true
@@ -26,9 +44,9 @@
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",
             "request": "attach",
-            "connect": {
-              "host": "localhost", // replace this with remote machine name
-              "port": 22                 // accessing to the allowed port from the remote machine
+            "connect": {  
+              "host": "node11", // replace this with remote machine name
+              "port": 42825                 // accessing to the allowed port from the remote machine
             }
         //     "skipFiles": [
         //         "<node_internals>/**"

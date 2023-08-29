@@ -5,11 +5,10 @@ defaults:                       ### This code is to run for debug config with lo
 
 #### Simply comment one of them for usage. (Because we want the same configuration as the model was trained last time.)
 
-## For eval_lidar_occ.yaml
+# For eval_lidar_occ.yaml
 # name: "eval_lidar_occ"
 # model: "bts_lidar"
-# # checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/"  ## change whenever you want to evaluate the model
-# checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc0_backend-None-1_20230822-232314"  ## change whenever you want to evaluate the model
+# checkpoint: "out/kitti_360/enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry_backend-None-1_20230824-232011/"  ## change whenever you want to evaluate the model
 # log_every: 10
 # batch_size: 4
 # num_workers: 1
@@ -24,21 +23,21 @@ defaults:                       ### This code is to run for debug config with lo
 #     is_preprocessed: false
 
 ## For training
-name: "enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "[IDE]enc0_chkpt_unfr_lr1e-3_BTS_DFT_nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
-output_path: "out/kitti_360"
+output_path: "out/kitti_360/IDE_debug"
 
 num_epochs: 1000000
 validate_every: 10
 visualize_every: 5          # default: 10       ## bigger is good for computational reduction
-batch_size: 3                   # default: 16       ## each batch contains 8 views 16*8 too much
+batch_size: 1                   # default: 16       ## each batch contains 8 views 16*8 too much
 
 save_best:
-    metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
+    metric: rmse             # The model that has the smallest absolute relative error will be saved.
     sign: -1                    # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/BTS_DFT_nry_frozen_enc0/training_checkpoint_195000.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/BTS_DFT_nry_frozen_enc0/training_checkpoint_195000.pt"
 
 data:
     data_fc: 2
@@ -59,7 +58,7 @@ model_conf:
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
     num_layers: 3               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 16                # we set 16 to match dim of NeuRay readout token. default: 32, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    att_feat: 4                # we set 16 to match dim of NeuRay readout token. default: 32, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
     nhead: 4
     DFEnlayer: true             # Use Density Field Transformer Encoder layer
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
@@ -101,7 +100,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 256                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 128                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -112,7 +111,7 @@ loss:
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
 
-learning_rate: 1e-6                     ## default: 1e-4
+learning_rate: 1e-3                     ## default: 1e-4
 
 scheduler:
     type: step
@@ -135,7 +134,7 @@ renderer:
 
 IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
     sv_: 58
-    port_: 5678
+    port_: 58023
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.

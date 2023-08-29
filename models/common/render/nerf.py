@@ -25,7 +25,7 @@ class _RenderWrapper(torch.nn.Module):
 
         outputs = self.renderer(
             self.net,
-            rays,       ### [B_, ray_batch_size, 8] : samples along a ray with 8 views with batches
+            rays,       ### [B_, ray_batch_size, 8] : samples along a ray with 8 views (default: data_fc:= frame count=2) with batches
             want_weights=want_weights and not self.simple_output,
             want_alphas=want_alphas and not self.simple_output,
             want_z_samps=want_z_samps and not self.simple_output,
@@ -222,7 +222,7 @@ class NeRFRenderer(torch.nn.Module):
         :return weights (B, K), rgb (B, 3), depth (B)
         """
         with profiler.record_function("renderer_composite"):
-            B, K = z_samp.shape     ## B:= (batch(2) * ray_batch_size(2048)), K:= sampled points along a ray. ### K==64
+            B, K = z_samp.shape     ## B:= (batch(3) * ray_batch_size(2048)), K:= sampled points along a ray. ### K==64
 
             deltas = z_samp[:, 1:] - z_samp[:, :-1]             # (B, K-1)
             delta_inf = 1e10 * torch.ones_like(deltas[:, :1])   # infty (B, 1)
@@ -233,7 +233,7 @@ class NeRFRenderer(torch.nn.Module):
             points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
             ## pts_ibr = points.clone()  ## deep copy for ibrnet
             points = points.reshape(-1, 3)  # (B*K, 3)
-            use_viewdirs = hasattr(model, "use_viewdirs") and model.use_viewdirs
+            use_viewdirs = model.use_viewdirs   ## hasattr(model, "use_viewdirs")
             rgbs_all, invalid_all, sigmas_all = [], [], []
 
             if sb > 0:
@@ -251,13 +251,13 @@ class NeRFRenderer(torch.nn.Module):
 
             if use_viewdirs:        ## for NeuRay input for the model
                 dim1 = K
-                viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)         ## ? ray direction o_{n} = o + t_{n} d
+                viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)         ## ray direction d from o_{n} = o + t_{n} d : c.f. ibrnet class ray_diff: ray direction difference, first 3 channels are directions
                 if sb > 0:  viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)
                 else:       viewdirs = viewdirs.reshape(-1, 3)      # (B*K, 3)
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)   ## ,eval_batch_dim=eval_batch_dim)   ## TODO: check viewdirs is applicable for NeuRay
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs, infer=False)   ## ,eval_batch_dim=eval_batch_dim)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
@@ -316,7 +316,7 @@ class NeRFRenderer(torch.nn.Module):
         SB = 'super-batch' = size of object batch,
         B  = size of per-object ray batch.
         Should also support 'coarse' boolean argument for coarse NeRF.
-        :param rays ray spec [origins (3), directions (3), near (1), far (1)] (SB, B, 8)
+        :param rays ray spec [origins (3), directions (3), near (1), far (1)] (SB, B, 8)        ## ! viewdirs
         :param want_weights if true, returns compositing weights (SB, B, K)
         :return render dict
         """
@@ -338,7 +338,7 @@ class NeRFRenderer(torch.nn.Module):
                 prop_z_samp = prop_z_samp.reshape(-1, n_samples)
                 z_coarse = self.sample_coarse_from_dist(rays, prop_weights, prop_z_samp)
                 z_coarse, _ = torch.sort(z_coarse, dim=-1)
-            coarse_composite = self.composite(
+            coarse_composite = self.composite(                              ## !
                 model, rays, z_coarse, coarse=True, sb=superbatch_size,
             )
 

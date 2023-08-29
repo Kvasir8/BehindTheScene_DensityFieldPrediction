@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry"
+#SBATCH --job-name="att64_enc1_Unfr_Lr1e_4_BTS_Nry"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
