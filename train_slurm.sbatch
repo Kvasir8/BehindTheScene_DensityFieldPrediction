@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="att64_enc1_Unfr_Lr1e_4_BTS_Nry"
+#SBATCH --job-name="Pos_att64_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

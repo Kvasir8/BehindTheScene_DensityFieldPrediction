@@ -23,8 +23,9 @@ class MVBTSNet(torch.nn.Module):
         self.DFT, self.nry = None, None
         if conf.get("DFT", True):
             self.DFT = DensityFieldTransformer( conf.get("d_model"), conf.get("att_feat"), conf.get("nhead"),
-                conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("AE"),
-                conf.get("dropout_views_rate"), rb_=conf.get("ray_batch_size"), ren_nc=ren_nc, B_=B_ )
+                conf.get("num_layers"), conf.get("feature_pad"), conf.get("DFEnlayer"), conf.get("NeuRay"),
+                conf.get("AE"), conf.get("dropout_views_rate"), emb_enc = conf.get("embed_encoding"),
+                rb_ = conf.get("ray_batch_size"), ren_nc = ren_nc, B_ = B_)
         if conf.get("NeuRay", False):
             self.nry = IBRNetWithNeuRay(neuray_in_dim=conf.get("d_model"),
                                         in_feat_ch=conf.get("d_model"),
@@ -34,7 +35,7 @@ class MVBTSNet(torch.nn.Module):
             self.use_viewdirs = conf.get("use_viewdirs", True)
 
         self.n_coarse = ren_nc
-        self.nv_ = conf.get("num_multiviews")
+
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
         self.learn_empty, self.empty_empty, self.inv_z = conf.get("learn_empty", True), conf.get("empty_empty", False), conf.get("inv_z", True)
         self.color_interpolation, self.code_mode = conf.get("color_interpolation", "bilinear"), conf.get("code_mode", "z")
@@ -77,7 +78,7 @@ class MVBTSNet(torch.nn.Module):
             poses_w2c_encoder = poses_w2c
             ids_encoder = list(range(len(images)))
         else:
-            images_encoder = images[:, ids_encoder]
+            images_encoder = images[:, ids_encoder]         ## TODO: Check how ids_encoder sth to do with nv_ (nv_ == nmv?)
             Ks_encoder = Ks[:, ids_encoder]
             poses_w2c_encoder = poses_w2c[:, ids_encoder]
 
@@ -112,7 +113,7 @@ class MVBTSNet(torch.nn.Module):
             comb_encoder = None
             comb_render = None
         ## Note: This is yet to be feature map before passing img to encoder
-        n_, nv_, c_, h_, w_ = images_encoder.shape      ### [n, nv_, 3:=RGB, 192, 640]
+        n_, nv_, c_, h_, w_ = images_encoder.shape      ### [n_, nv_, 3:=RGB, 192, 640]
         c_l = self.encoder.latent_size                  ### 64 c.f. paper D.1.
 
         if self.flip_augmentation and self.training:    ## data augmentation for color
@@ -143,7 +144,7 @@ class MVBTSNet(torch.nn.Module):
         self.grid_c_poses_w2c = poses_w2c_render
         self.grid_c_combine = comb_render
 
-    def sample_features(self, xyz, use_single_featuremap=True): ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
+    def sample_features(self, xyz, use_single_featuremap=True):     ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
         n_, n_pts, _ = xyz.shape                                                            ## Get the shape of the input point cloud and the feature grid (n, pts, spatial_coordinate == 3)
         n_, nv_, c_, h_, w_ = self.grid_f_features[self._scale].shape                       ### [B, nv, C, 192, 640]
         # if not use_single_featuremap:   nv_ = self.nv_
@@ -301,13 +302,10 @@ class MVBTSNet(torch.nn.Module):
                 # if self.use_viewdirs
 
                 # ray_diff = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)
-                # train_poses = self.grid_f_poses_w2c[0, :nmv, :3, 3].unsqueeze(1)  ## Note: assunme batch_size=1 for squeeze  # take translation part of [n_views, 4, 4]
                 train_poses = self.grid_f_poses_w2c[0, :nmv, ...]  ## Note: assunme batch_size=1 for squeeze  # take translation part of [n_views, 4, 4]
-                # query_pose  = train_poses[nmv//2, :].unsqueeze(1).expand(-1, nmv, -1).squeeze(0)    ## take median of the camera as query
                 query_pose  = train_poses[nmv//2, ...].unsqueeze(0)    ## take median of the camera as query
                 # train_poses = torch.cat((train_poses[:nmv//2], train_poses[nmv//2+1:])) ## removing query pose
 
-                # ray_diff = self.compute_angle(xyz, query_pose, train_poses).reshape(-1, self.n_coarse, 1, 3)
                 ray_diff = self.compute_angle(xyz.reshape(-1, self.n_coarse, 3), query_pose, train_poses)           # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
                 ray_diff = ray_diff.permute(1,2,0,3)           # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
                 # rgb_feat_sampled, ray_diff, mask = projector.compute(pts, ray_batch['camera'],
@@ -326,9 +324,9 @@ class MVBTSNet(torch.nn.Module):
             # Run main NeRF network
             if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
                 if not self.nry or infer:
-                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=None).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 elif not infer:
-                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), nry=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT
 

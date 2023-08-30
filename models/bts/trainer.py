@@ -417,7 +417,7 @@ def get_metrics(config, device):
 
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "MVBTSNet")     ## default: get("arch", "BTSNet")
-    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
+    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"])         ## default: globals()[arch](config["model_conf"])
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()

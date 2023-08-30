@@ -339,6 +339,31 @@ class PositionwiseFeedForward(nn.Module):
 
         return x
 
+
+class PoswiseFF_emb4enc(nn.Module):
+    ''' A two-feed-forward-layer module (tailored to encoder for DFT model's input) '''
+
+    def __init__(self, d_in, d_hid, d_out, dropout=0.1):
+        super().__init__()
+        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
+        self.w_2 = nn.Linear(d_hid,  d_out ) # position-wise
+        self.w_match = nn.Linear(d_in,  d_out ) # position-wise
+        self.layer_norm = nn.LayerNorm(d_out, eps=1e-6)
+        # self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+
+        emb_residual = self.w_match(x)
+
+        x = self.w_2(F.leaky_relu(self.w_1(x)))    ## default: ReLU, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
+        # x = self.dropout(x)
+        x += emb_residual
+
+        x = self.layer_norm(x)
+
+        return x
+
+
 class PreLNPositionwiseFeedForward(nn.Module):
     ''' A two-feed-forward-layer module '''
 
