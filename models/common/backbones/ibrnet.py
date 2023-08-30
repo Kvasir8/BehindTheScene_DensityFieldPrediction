@@ -291,6 +291,12 @@ class IBRNetWithNeuRay(nn.Module):
             nn.Linear(8, 1),
         )
 
+        self.img_feat2low = nn.Sequential(
+            nn.Linear(2048, 2048//4),     ## TODO: replace this hard coded with the flexible
+            activation_func,
+            nn.Linear(2048//4, 103)
+        )
+
         self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
 
         self.base_fc.apply(weights_init)
@@ -327,6 +333,7 @@ class IBRNetWithNeuRay(nn.Module):
         num_views = rgb_feat.shape[2]
         direction_feat = self.ray_dir_fc(ray_diff)
         rgb_in = rgb_feat[..., :3]
+        rgb_feat = self.img_feat2low(rgb_feat)
         rgb_feat = rgb_feat + direction_feat
 
         if self.anti_alias_pooling:

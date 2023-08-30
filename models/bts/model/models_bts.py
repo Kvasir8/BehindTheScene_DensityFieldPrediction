@@ -174,7 +174,7 @@ class MVBTSNet(torch.nn.Module):
         xyz_code = self.code_xyz(xyz_projected.view(n_ * nv_ * n_pts, -1)).view(n_, nv_, n_pts, -1).permute(0, 2, 1, 3)   ## ! positional encoding dimension to check (concatenate)
 
         feature_map = self.grid_f_features[self._scale][:, :nv_]
-        # self.img_feat = sampled_features[-1]                                              ## taking last layer of encoder to feed into Neuray
+        img_feat = self.img_feat                                             ## taking last layer of encoder to feed into NeuRay
 
         # These samples are from different scales
         if self.learn_empty:    ## "empty space" can refer to areas in a scene where there is no object, or it could also refer to areas that are not observed or are beyond the range of the sensor. This allows the model to have a distinct learned representation for "empty" space, which can be beneficial in tasks like 3D reconstruction where understanding both the objects in a scene and the empty space between them is important.
@@ -182,13 +182,14 @@ class MVBTSNet(torch.nn.Module):
         ## feature_map (2, 4, 64, 128, 128): n_ = 2, nv_ = 4 views, c_ = 64 channels in the feature map, and the height and width of the feature map are h = 128 and w = 128
         ## !TODO: for multiviews for F.grid_sample : xy.view(n_ * nv_, 1, -1, 2) To debug how xy looks like in order to integrate for multiview (by looking over doc in Pytorch regarding how to sample all frames)
         sampled_features = F.grid_sample(feature_map.view(n_ * nv_, c_, h_, w_), xy.view(n_ * nv_, 1, -1, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n_, nv_, c_, n_pts).permute(0, 3, 1, 2)   ## set x,y coordinates as grid feature
+        img_feat_sampled = F.grid_sample(img_feat, xy.view(n_ * nv_, 1, n_pts, 2), mode="bilinear", padding_mode="border", align_corners=False).view(n_, nv_, img_feat.shape[1], n_pts).permute(0, 3, 1, 2)
 
         ### dim(sampled_features): (n_, nv_, n_pts, c_)
         if self.learn_empty:    ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
             sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c_)] ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
         sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ### (n_, nv_, M, C1+C_pos_emb)
-        return sampled_features, invalid[..., 0].permute(0, 2, 1)           ## output BTS's decoder
+        return sampled_features, invalid[..., 0].permute(0, 2, 1), img_feat_sampled           ## output BTS's decoder   ### img_feat_sampled.shape == (n_, n_pts, nv_, C_)
 
     def sample_colors(self, xyz):
         n_, n_pts, _ = xyz.shape                     ## n := batch size, n_pts := #_points in world coord.
@@ -282,7 +283,7 @@ class MVBTSNet(torch.nn.Module):
             if self.grid_c_combine is not None:     nv_ = len(self.grid_c_combine)
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
-            sampled_features, invalid_features = self.sample_features(xyz, use_single_featuremap=False)  # (sb, n_pts, n_v, 103)
+            sampled_features, invalid_features, img_feat = self.sample_features(xyz, use_single_featuremap=False)  # (sb, n_pts, n_v, 103)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
             ### [1*batch_size, 4, Msb, 103]
 
@@ -293,9 +294,10 @@ class MVBTSNet(torch.nn.Module):
             # Camera frustum culling stuff, currently disabled
             combine_index, dim_size = None, None
 
-            if self.nry and not infer:  ## only training with given viewdirs + sampled_features, otherwise we rely on features extract from RGB image
+            if self.nry: # and not infer:  ## only training with given viewdirs + sampled_features, otherwise we rely on features extract from RGB image
                 B_, M_eval, nmv, feat = sampled_features.shape
                 viz_feat = sampled_features.reshape(-1, self.n_coarse, nmv, feat)       ### [n_rays, n_samples, n_views, n_feat]    ## Note: -1 == M / sb
+                img_feat = img_feat.reshape(-1, self.n_coarse, nmv, img_feat.shape[-1])       ### [n_rays, n_samples, n_views, n_feat]    ## Note: -1 == M / sb
                 invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
 
                 ## TODO: Analyze IBRNet how ray_diff used in viewdirs and change accordingly. As it's (naively done. This is not usual case to broadcast along num_views, which is not sure for valid implementation.
@@ -317,14 +319,14 @@ class MVBTSNet(torch.nn.Module):
                 # img_feat = viewdirs
                 # for vzf, rdff, invf in zip(ray_diff, )
 
-                globalfeat, num_valid_obs = self.nry(rgb_feat=viz_feat, neuray_feat=viz_feat, ray_diff=ray_diff, mask=invalid_feat)         ## TODO: rgb_feat should come from output of encoder part of BTS
+                globalfeat, num_valid_obs = self.nry(rgb_feat=img_feat, neuray_feat=viz_feat, ray_diff=ray_diff, mask=invalid_feat)         ## TODO: rgb_feat should come from output of encoder part of BTS
                 gfeat_avg_pool, num_valid_obs = globalfeat.reshape(B_,-1,globalfeat.shape[-1]), num_valid_obs.reshape(B_,-1,1)
                 # mlp_input = F.avg_pool1d(globalfeat.transpose(1, 2), kernel_size=globalfeat.shape[-2]) ## pooling the last dim to aggregate the features to interpret global geometric info for readout token
 
             # Run main NeRF network
             if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
-                if not self.nry or infer:
-                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                if not self.nry or infer:   ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
+                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 elif not infer:
                     sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))

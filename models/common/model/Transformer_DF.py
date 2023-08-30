@@ -82,7 +82,7 @@ class DensityFieldTransformer(nn.Module):
 
         self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
-    def forward(self, sampled_features, invalid_features, gfeat=None):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+    def forward(self, sampled_features, invalid_features, gfeat):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
