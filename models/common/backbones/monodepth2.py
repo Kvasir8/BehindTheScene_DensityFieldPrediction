@@ -289,7 +289,7 @@ class Monodepth2(nn.Module):
 
             x = [outputs[("disp", i)] for i in self.scales]
 
-        return x, image_features[-1]                            ## default: x ## note: we need img_feat for feeding into NeuRay
+        return x, image_features                            ## default: x ## note: we need img_feat for feeding into NeuRay
 
     @classmethod
     def from_conf(cls, conf):

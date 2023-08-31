@@ -24,7 +24,7 @@ defaults:                       ### This code is to run for slurm config
 #     is_preprocessed: false
 
 ## For training
-name: "Fin_att32_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "pwf_nmv8_Fin_att64_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
@@ -34,11 +34,11 @@ visualize_every: 2500          # default: 10       ## bigger is good for computa
 batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
-    metric: rmse             # The model that has the smallest absolute relative error will be saved.
+    metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
     sign: -1                    # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-#resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
-resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/Pos_att64_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry_backend-None-1_20230830-220650/training_checkpoint_155000.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+#resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/Pos_att64_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry_backend-None-1_20230830-220650/training_checkpoint_155000.pt"
 
 data:
     data_fc: 2
@@ -60,8 +60,8 @@ model_conf:
     num_layers: 4               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     nhead: 4                    # set transformer's encoder's num heads for both DFT and NeuRay model
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 32               # default: 64, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
-    embed_encoding: true       # shrink the size of sequence of dimension of token (for model's complexity reason)
+    att_feat: 64               # default: 64, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    embed_encoding: "pwf"       # set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
     DFEnlayer: true             # To choose the model uses whether built-in Pytorch library or code implementation      (Density Field Transformer Encoder layer)
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)

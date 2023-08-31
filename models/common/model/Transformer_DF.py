@@ -1,5 +1,5 @@
 ## d_model=num_features
-# num_features = 2048  ## for resnet50 / for dim of feddforward netowrk model for vanilla Transformer
+# num_features = 2048  ## for resnet50 / for dim of feedforward network model for vanilla Transformer
 # num_features = 512  ## for resnet34
 
 import torch
@@ -50,15 +50,17 @@ class DensityFieldTransformer(nn.Module):
         """
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag,  self.emb_enc = feat_pad, emb_enc
-        if emb_enc:
-            self.emb_encoder = mlp.PoswiseFF_emb4enc(d_model, 2*att_feat, att_feat)
-            # self.emb_encoder = nn.Sequential( ## == mlp.PositionwiseFeedForward
-            #     nn.Linear(d_model, 2 * att_feat, bias=True),
-            #     nn.LeakyReLU(),
-            #     nn.LayerNorm(d_in, eps=1e-6)
-            #     nn.Linear(2 * att_feat, att_feat, bias=True),
-            # )
-            # self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.LeakyReLU(), nn.Linear(2 * att_feat, att_feat, bias=True))
+        if emb_enc == "pwf":    self.emb_encoder = mlp.PoswiseFF_emb4enc(d_model, 2*att_feat, att_feat)
+        elif emb_enc == "hpwf":
+            self.emb_encoder = nn.Sequential( ## == mlp.PositionwiseFeedForward
+                nn.Linear(d_model, 2 * att_feat, bias=True),
+                nn.ELU(),
+                nn.LayerNorm(d_in, eps=1e-6),
+                nn.Linear(2 * att_feat, att_feat, bias=True)
+            )
+        elif emb_enc == "ff":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ReLU(), nn.Linear(2 * att_feat, att_feat, bias=True))
+        else:   print("__unrecognized input for emb_enc")
+
         self.DFEnlayer, self.nry = DFEnlayer, nry
         self.att_feat = att_feat
         self.AE = AE
@@ -71,14 +73,14 @@ class DensityFieldTransformer(nn.Module):
 
         if self.DFEnlayer:
             self.transformer_enlayer = mlp.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
-            self.transformer_encoder = mlp.TrEnLayer(self.transformer_enlayer,num_layers)  ## TODO: replace MHA module with IBRNet network and complete integratable encoder part of transformer
+            self.transformer_encoder = mlp.TrEnLayer(self.transformer_enlayer,num_layers)  ## TODO: replace MHA module with IBRNet network and complete integretable encoder part of transformer
         else:
             self.transformer_enlayer = TransformerEncoderLayer(att_feat, nhead, dim_feedforward=att_feat,batch_first=True)
             self.transformer_encoder = TransformerEncoder(self.transformer_enlayer, num_layers)
 
         if not self.nry: self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
 
-        if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model sctructure for validity in detail
+        if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model structure for validity in detail
 
         self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
@@ -88,7 +90,9 @@ class DensityFieldTransformer(nn.Module):
         invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
 
-        if self.dropout:  invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        if self.dropout:
+            invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+
         # self.readout_token = nry.flatten(0,1)   ## if nry is enabled, but this doesnt work: TypeError: cannot assign 'torch.cuda.FloatTensor' as parameter 'readout_token' (torch.nn.Parameter or None expected)
 
         if self.emb_enc:    encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))  ### [M*n==100000, nv_==6, 32]   ## Embedding to Transformer arch.
@@ -98,7 +102,7 @@ class DensityFieldTransformer(nn.Module):
         if self.padding_flag:
             if self.nry:         padded_features = torch.concat([gfeat.unsqueeze(1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
             elif not self.nry:   padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            else:                print("__unrecognizable condition statement")
+            else:                print("__unrecognizable nry condition")
 
             padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features], dim=1, )
             transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer

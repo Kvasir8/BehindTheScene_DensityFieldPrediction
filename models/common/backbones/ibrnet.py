@@ -372,7 +372,7 @@ class IBRNetWithNeuRay(nn.Module):
         # sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
         # return sigma
 
-        return globalfeat, num_valid_obs   ### [M, 64, att_feat], [M, 64, 1]
+        return globalfeat   ### [M, 64, att_feat], [M, 64, 1]   ## Note: gfeat is already masked out above
 
         # rgb computation
         # x = torch.cat([x, vis, ray_diff], dim=-1)
