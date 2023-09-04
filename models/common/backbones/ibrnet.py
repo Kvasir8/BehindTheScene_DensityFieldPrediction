@@ -123,7 +123,7 @@ class IBRNet(nn.Module):
         self.anti_alias_pooling = False
         if self.anti_alias_pooling:
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
-        activation_func = nn.LeakyReLU(inplace=True)  ## default: nn.ELU
+        activation_func = nn.ELU(inplace=True)
         self.n_samples = n_samples
         self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),
                                         activation_func,
@@ -244,7 +244,7 @@ class IBRNetWithNeuRay(nn.Module):
         self.anti_alias_pooling = False
         if self.anti_alias_pooling:
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
-        activation_func = nn.ELU(inplace=True)
+        activation_func = nn.ELU(inplace=True)  ## (+): Mean Outputs Closer to Zero: want activations with mean outputs closer to zero.        ## nn.LeakyReLU: (+): faster convergence, When the distribution of the negative values in your dataset is meaningful and shouldn't be discarded.
         self.n_samples = n_samples
         self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),           ## defualt: 4
                                         activation_func,
