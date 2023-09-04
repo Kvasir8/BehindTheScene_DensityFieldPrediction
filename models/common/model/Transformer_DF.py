@@ -58,7 +58,7 @@ class DensityFieldTransformer(nn.Module):
                 nn.LayerNorm(d_in, eps=1e-6),
                 nn.Linear(2 * att_feat, att_feat, bias=True)
             )
-        elif emb_enc == "ff":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ReLU(), nn.Linear(2 * att_feat, att_feat, bias=True))
+        elif emb_enc == "ff":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ELU(), nn.Linear(2 * att_feat, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
         else:   print("__unrecognized input for emb_enc")
 
         self.DFEnlayer, self.nry = DFEnlayer, nry
@@ -84,11 +84,11 @@ class DensityFieldTransformer(nn.Module):
 
         self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
-    def forward(self, sampled_features, invalid_features, gfeat):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+    def forward(self, sampled_features, invalid_features, gfeat=None, iv_gfeat=None):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
-        invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
+        # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
 
         if self.dropout:
             invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
@@ -100,11 +100,15 @@ class DensityFieldTransformer(nn.Module):
 
         ## Process the embedded features with the Transformer
         if self.padding_flag:
-            if self.nry:         padded_features = torch.concat([gfeat.unsqueeze(1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-            elif not self.nry:   padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+            if self.nry:
+                padded_features = torch.concat([gfeat.unsqueeze(1), encoded_features], dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+                padded_invalid  = torch.concat([iv_gfeat, invalid_features], dim=1, )
+            elif not self.nry:
+                padded_features = torch.concat([self.readout_token.expand(encoded_features.shape[0], -1, -1), encoded_features],dim=1)  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
+                padded_invalid  = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features], dim=1, )
             else:                print("__unrecognizable nry condition")
 
-            padded_invalid = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features], dim=1, )
+
             transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
         else:

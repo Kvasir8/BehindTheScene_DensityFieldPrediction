@@ -355,7 +355,8 @@ class PoswiseFF_emb4enc(nn.Module):
 
         emb_residual = self.w_match(x)
 
-        x = self.w_2(F.leaky_relu(self.w_1(x)))    ## default: ReLU, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
+        # x = self.w_2(F.leaky_relu(self.w_1(x)))    ## default: ReLU, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
+        x = self.w_2(F.elu(self.w_1(x)))    ## default: ReLU, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
         # x = self.dropout(x)
         x += emb_residual
 
@@ -380,7 +381,7 @@ class PreLNPositionwiseFeedForward(nn.Module):
 
         x = self.layer_norm(x)
 
-        x = self.w_2(F.relu(self.w_1(x)))
+        x = self.w_2(F.leaky_relu(self.w_1(x)))       ## default: F.relu
         # x = self.dropout(x)
         x += residual
 

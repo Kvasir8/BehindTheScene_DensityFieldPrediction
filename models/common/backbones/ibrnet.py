@@ -123,7 +123,7 @@ class IBRNet(nn.Module):
         self.anti_alias_pooling = False
         if self.anti_alias_pooling:
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
-        activation_func = nn.ELU(inplace=True)
+        activation_func = nn.LeakyReLU(inplace=True)  ## default: nn.ELU
         self.n_samples = n_samples
         self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),
                                         activation_func,
@@ -238,7 +238,7 @@ class IBRNet(nn.Module):
         return out
 
 class IBRNetWithNeuRay(nn.Module):
-    def __init__(self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, att_feat=16, nhead=4, **kwargs):
+    def __init__(self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, att_feat=16, d_model = 103, rbs=2048, nhead=4, **kwargs):
         super().__init__()
         # self.args = args
         self.anti_alias_pooling = False
@@ -268,12 +268,12 @@ class IBRNetWithNeuRay(nn.Module):
                                      nn.Sigmoid()
                                      )
 
-        self.geometry_fc = nn.Sequential(nn.Linear(32*2+1, 64),
+        self.geometry_fc = nn.Sequential(nn.Linear(32*2+1, att_feat*2),               ## default: (32*2+1, 64)
                                          activation_func,
-                                         nn.Linear(64, att_feat),
+                                         nn.Linear(att_feat*2, att_feat),
                                          activation_func)
 
-        self.ray_attention = MultiHeadAttention(nhead, att_feat, 4, 4)        ## default: (4, 16, 4, 4)
+        # self.ray_attention = MultiHeadAttention(nhead, att_feat, 4, 4)        ## default: (4, 16, 4, 4)
         self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16),
                                              activation_func,
                                              nn.Linear(16, 1),
@@ -292,32 +292,32 @@ class IBRNetWithNeuRay(nn.Module):
         )
 
         self.img_feat2low = nn.Sequential(
-            nn.Linear(2048, 2048//4),     ## TODO: replace this hard coded with the flexible
+            nn.Linear(rbs, rbs//4),     ## TODO: replace this hard coded with the flexible
             activation_func,
-            nn.Linear(2048//4, 103)
+            nn.Linear(rbs//4, d_model)
         )
 
-        self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
+        # self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
 
         self.base_fc.apply(weights_init)
         self.vis_fc2.apply(weights_init)
         self.vis_fc.apply(weights_init)
-        self.geometry_fc.apply(weights_init)
+        # self.geometry_fc.apply(weights_init)
         self.rgb_fc.apply(weights_init)
         self.neuray_fc.apply(weights_init)
 
-    def change_pos_encoding(self,n_samples):
-        self.pos_encoding = self.posenc(16, n_samples=n_samples)
+    # def change_pos_encoding(self,n_samples):
+    #     self.pos_encoding = self.posenc(16, n_samples=n_samples)
 
-    def posenc(self, d_hid, n_samples):
-        def get_position_angle_vec(position):
-            return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
-
-        sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_samples)])
-        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
-        sinusoid_table = torch.from_numpy(sinusoid_table).to("cuda:{}".format(0)).float().unsqueeze(0)
-        return sinusoid_table
+    # def posenc(self, d_hid, n_samples):
+    #     def get_position_angle_vec(position):
+    #         return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
+    #
+    #     sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_samples)])
+    #     sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
+    #     sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
+    #     sinusoid_table = torch.from_numpy(sinusoid_table).to("cuda:{}".format(0)).float().unsqueeze(0)
+    #     return sinusoid_table
 
     def forward(self, rgb_feat, neuray_feat, ray_diff, mask):
         '''                             ibrnet dim e.g. [6, 64, 8, 35]
@@ -351,7 +351,7 @@ class IBRNetWithNeuRay(nn.Module):
         globalfeat = torch.cat([mean0, var0, mean1, var1], dim=-1)      # [n_rays, n_samples, 1, 2*n_feat]
 
         x = torch.cat([globalfeat.expand(-1, -1, num_views, -1), rgb_feat, neuray_feat], dim=-1)  # [n_rays, n_samples, n_views, 3*n_feat]
-        x = self.base_fc(x) ## after concat it gives output for net A
+        x = self.base_fc(x)                 ## after concat it gives input for net A
 
         x_vis = self.vis_fc(x * weight)
         x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
@@ -365,14 +365,17 @@ class IBRNetWithNeuRay(nn.Module):
         globalfeat = self.geometry_fc(globalfeat)  # [n_rays, n_samples, att_feat] ## MLP for input transformer
 
         num_valid_obs = torch.sum(mask, dim=2)
+        num_valid_obs = num_valid_obs > torch.mean(num_valid_obs, dtype=float)  ## making boolean
+
         # globalfeat = globalfeat + self.pos_encoding
-        globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,  ## This should be replaced by DFT
-                                           mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
+        # globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,  ## This should be replaced by DFT
+        #                                    mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
+
         # sigma = self.out_geometry_fc(globalfeat)  # [n_rays, n_samples, 1]
         # sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
         # return sigma
 
-        return globalfeat   ### [M, 64, att_feat], [M, 64, 1]   ## Note: gfeat is already masked out above
+        return globalfeat, num_valid_obs   ### [M, 64, att_feat], [M, 64, 1]   ## Note: gfeat is already masked out above
 
         # rgb computation
         # x = torch.cat([x, vis, ray_diff], dim=-1)

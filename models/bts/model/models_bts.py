@@ -31,6 +31,8 @@ class MVBTSNet(torch.nn.Module):
             self.nry = IBRNetWithNeuRay(neuray_in_dim=conf.get("d_model"),
                                         in_feat_ch=conf.get("d_model"),
                                         n_samples=ren_nc,
+                                        rbs = conf.get("ray_batch_size"),
+                                        d_model = conf.get("d_model"),
                                         att_feat=conf.get("att_feat"),
                                         nhead=conf.get("nhead"))
             self.use_viewdirs = conf.get("use_viewdirs", True)
@@ -323,17 +325,18 @@ class MVBTSNet(torch.nn.Module):
                 # img_feat = viewdirs
                 # for vzf, rdff, invf in zip(ray_diff, )
 
-                globalfeat = self.nry(rgb_feat=img_feat, neuray_feat=viz_feat, ray_diff=ray_diff, mask=invalid_feat)
-                gfeat_avg_pool = globalfeat.reshape(B_, -1, globalfeat.shape[-1])          ## TODO: take invalid feature into account for NeuRay
+                globalfeat, num_valid_obs = self.nry(rgb_feat=img_feat, neuray_feat=viz_feat, ray_diff=ray_diff, mask=invalid_feat)
+                globalfeat    = globalfeat.reshape(B_, -1, globalfeat.shape[-1])          ## TODO: take invalid feature into account for NeuRay
+                num_valid_obs = num_valid_obs.reshape(B_, -1, num_valid_obs.shape[-1])
                 # gfeat_avg_pool, num_valid_obs = globalfeat.reshape(B_, -1, globalfeat.shape[-1]), num_valid_obs.reshape(B_, -1, 1)          ## TODO: take invalid feature into account for NeuRay
                 # mlp_input = F.avg_pool1d(globalfeat.transpose(1, 2), kernel_size=globalfeat.shape[-2]) ## pooling the last dim to aggregate the features to interpret global geometric info for readout token
 
             # Run main NeRF network
             if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
                 if not self.nry or infer:   ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
-                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=globalfeat.flatten(0,1), iv_gfeat=num_valid_obs.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 elif not infer:
-                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=gfeat_avg_pool.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
+                    sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=globalfeat.flatten(0,1), iv_gfeat=num_valid_obs.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT
 
