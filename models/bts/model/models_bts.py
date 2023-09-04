@@ -356,8 +356,8 @@ class MVBTSNet(torch.nn.Module):
                 )
 
             # if self.AE: mlp_output = mlp_output.reshape(n_, self.ts_conv , self._d_out)
-            if self.AE: mlp_output = mlp_output.reshape(n_, -1, self._d_out)
-            else:       mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
+            # if self.AE: mlp_output = mlp_output.reshape(n_, -1, self._d_out)
+            mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
 
             if self.sample_color:
                 sigma = mlp_output[..., :1] ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma

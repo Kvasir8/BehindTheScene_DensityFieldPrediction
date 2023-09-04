@@ -116,126 +116,128 @@ def fused_mean_variance(x, weight):
     var = torch.sum(weight * (x - mean)**2, dim=2, keepdim=True)
     return mean, var
 
-class IBRNet(nn.Module):
-    def __init__(self, in_feat_ch=32, n_samples=64, **kwargs):
-        super(IBRNet, self).__init__()
-        # self.args = args
-        self.anti_alias_pooling = False
-        if self.anti_alias_pooling:
-            self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
-        activation_func = nn.ELU(inplace=True)
-        self.n_samples = n_samples
-        self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),
-                                        activation_func,
-                                        nn.Linear(16, in_feat_ch + 3),
-                                        activation_func)
+#
+# class IBRNet(nn.Module):
+#     def __init__(self, in_feat_ch=32, n_samples=64, **kwargs):
+#         super(IBRNet, self).__init__()
+#         # self.args = args
+#         self.anti_alias_pooling = False
+#         if self.anti_alias_pooling:
+#             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
+#         activation_func = nn.ELU(inplace=True)
+#         self.n_samples = n_samples
+#         self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),
+#                                         activation_func,
+#                                         nn.Linear(16, in_feat_ch + 3),
+#                                         activation_func)
+#
+#         self.base_fc = nn.Sequential(nn.Linear((in_feat_ch+3)*3, 64),
+#                                      activation_func,
+#                                      nn.Linear(64, 32),
+#                                      activation_func)
+#
+#         self.vis_fc = nn.Sequential(nn.Linear(32, 32),
+#                                     activation_func,
+#                                     nn.Linear(32, 33),
+#                                     activation_func,
+#                                     )
+#
+#         self.vis_fc2 = nn.Sequential(nn.Linear(32, 32),
+#                                      activation_func,
+#                                      nn.Linear(32, 1),
+#                                      nn.Sigmoid()
+#                                      )
+#
+#         self.geometry_fc = nn.Sequential(nn.Linear(32*2+1, 64),
+#                                          activation_func,
+#                                          nn.Linear(64, 16),
+#                                          activation_func)
+#
+#         self.ray_attention = MultiHeadAttention(4, 16, 4, 4)
+#         self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16),
+#                                              activation_func,
+#                                              nn.Linear(16, 1),
+#                                              nn.ReLU())
+#
+#         self.rgb_fc = nn.Sequential(nn.Linear(32+1+4, 16),
+#                                     activation_func,
+#                                     nn.Linear(16, 8),
+#                                     activation_func,
+#                                     nn.Linear(8, 1))
+#
+#         self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
+#
+#         self.base_fc.apply(weights_init)
+#         self.vis_fc2.apply(weights_init)
+#         self.vis_fc.apply(weights_init)
+#         self.geometry_fc.apply(weights_init)
+#         self.rgb_fc.apply(weights_init)
+#
+#     def posenc(self, d_hid, n_samples):
+#
+#         def get_position_angle_vec(position):
+#             return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
+#
+#         sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_samples)])
+#         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
+#         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
+#         sinusoid_table = torch.from_numpy(sinusoid_table).to("cuda:{}".format(self.args.local_rank)).float().unsqueeze(0)
+#         return sinusoid_table
+#
+#     def forward(self, rgb_feat, ray_diff, mask):
+#         '''
+#         :param rgb_feat: featumre map from encoder from BTS. rgbs and image features [n_rays, n_samples, n_views, n_feat]
+#         :param ray_diff: ray direction difference [n_rays, n_samples, n_views, 4], first 3 channels are directions,
+#         last channel is inner product
+#         :param mask: mask for whether each projection is valid or not. [n_rays, n_samples, n_views, 1]
+#         :return: rgb and density output, [n_rays, n_samples, 4]
+#         '''
+#
+#         num_views = rgb_feat.shape[2]
+#         direction_feat = self.ray_dir_fc(ray_diff)
+#         rgb_in = rgb_feat[..., :3]
+#         rgb_feat = rgb_feat + direction_feat                    ## element-wise summation
+#         if self.anti_alias_pooling:
+#             _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
+#             exp_dot_prod = torch.exp(torch.abs(self.s) * (dot_prod - 1))
+#             weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=2, keepdim=True)[0]) * mask
+#             weight = weight / (torch.sum(weight, dim=2, keepdim=True) + 1e-8) # means it will trust the one more with more consistent view point
+#         else:   ## from view dirs
+#             weight = mask / (torch.sum(mask, dim=2, keepdim=True) + 1e-8)
+#
+#         # compute mean and variance across different views for each point
+#         mean, var = fused_mean_variance(rgb_feat, weight)  # [n_rays, n_samples, 1, n_feat]
+#         globalfeat = torch.cat([mean, var], dim=-1)  # [n_rays, n_samples, 1, 2*n_feat]
+#
+#         x = torch.cat([globalfeat.expand(-1, -1, num_views, -1), rgb_feat], dim=-1)  # [n_rays, n_samples, n_views, 3*n_feat]
+#         x = self.base_fc(x)
+#
+#         x_vis = self.vis_fc(x * weight)
+#         x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
+#         vis = F.sigmoid(vis) * mask
+#         x = x + x_res
+#         vis = self.vis_fc2(x * vis) * mask
+#         weight = vis / (torch.sum(vis, dim=2, keepdim=True) + 1e-8) ## weight vector
+#
+#         mean, var = fused_mean_variance(x, weight)
+#         globalfeat = torch.cat([mean.squeeze(2), var.squeeze(2), weight.mean(dim=2)], dim=-1)  # [n_rays, n_samples, 32*2+1]
+#         globalfeat = self.geometry_fc(globalfeat)  # [n_rays, n_samples, 16]
+#         num_valid_obs = torch.sum(mask, dim=2)
+#         globalfeat = globalfeat + self.pos_encoding
+#         globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,
+#                                            mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
+#         sigma = self.out_geometry_fc(globalfeat)  # [n_rays, n_samples, 1]
+#         sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
+#
+#         # rgb computation
+#         x = torch.cat([x, vis, ray_diff], dim=-1)
+#         x = self.rgb_fc(x)
+#         x = x.masked_fill(mask == 0, -1e9)
+#         blending_weights_valid = F.softmax(x, dim=2)  # color blending
+#         rgb_out = torch.sum(rgb_in*blending_weights_valid, dim=2)
+#         out = torch.cat([rgb_out, sigma_out], dim=-1)
+#         return out
 
-        self.base_fc = nn.Sequential(nn.Linear((in_feat_ch+3)*3, 64),
-                                     activation_func,
-                                     nn.Linear(64, 32),
-                                     activation_func)
-
-        self.vis_fc = nn.Sequential(nn.Linear(32, 32),
-                                    activation_func,
-                                    nn.Linear(32, 33),
-                                    activation_func,
-                                    )
-
-        self.vis_fc2 = nn.Sequential(nn.Linear(32, 32),
-                                     activation_func,
-                                     nn.Linear(32, 1),
-                                     nn.Sigmoid()
-                                     )
-
-        self.geometry_fc = nn.Sequential(nn.Linear(32*2+1, 64),
-                                         activation_func,
-                                         nn.Linear(64, 16),
-                                         activation_func)
-
-        self.ray_attention = MultiHeadAttention(4, 16, 4, 4)
-        self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16),
-                                             activation_func,
-                                             nn.Linear(16, 1),
-                                             nn.ReLU())
-
-        self.rgb_fc = nn.Sequential(nn.Linear(32+1+4, 16),
-                                    activation_func,
-                                    nn.Linear(16, 8),
-                                    activation_func,
-                                    nn.Linear(8, 1))
-
-        self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
-
-        self.base_fc.apply(weights_init)
-        self.vis_fc2.apply(weights_init)
-        self.vis_fc.apply(weights_init)
-        self.geometry_fc.apply(weights_init)
-        self.rgb_fc.apply(weights_init)
-
-    def posenc(self, d_hid, n_samples):
-
-        def get_position_angle_vec(position):
-            return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
-
-        sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_samples)])
-        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
-        sinusoid_table = torch.from_numpy(sinusoid_table).to("cuda:{}".format(self.args.local_rank)).float().unsqueeze(0)
-        return sinusoid_table
-
-    def forward(self, rgb_feat, ray_diff, mask):
-        '''
-        :param rgb_feat: featumre map from encoder from BTS. rgbs and image features [n_rays, n_samples, n_views, n_feat]
-        :param ray_diff: ray direction difference [n_rays, n_samples, n_views, 4], first 3 channels are directions,
-        last channel is inner product
-        :param mask: mask for whether each projection is valid or not. [n_rays, n_samples, n_views, 1]
-        :return: rgb and density output, [n_rays, n_samples, 4]
-        '''
-
-        num_views = rgb_feat.shape[2]
-        direction_feat = self.ray_dir_fc(ray_diff)
-        rgb_in = rgb_feat[..., :3]
-        rgb_feat = rgb_feat + direction_feat                    ## element-wise summation
-        if self.anti_alias_pooling:
-            _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
-            exp_dot_prod = torch.exp(torch.abs(self.s) * (dot_prod - 1))
-            weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=2, keepdim=True)[0]) * mask
-            weight = weight / (torch.sum(weight, dim=2, keepdim=True) + 1e-8) # means it will trust the one more with more consistent view point
-        else:   ## from view dirs
-            weight = mask / (torch.sum(mask, dim=2, keepdim=True) + 1e-8)
-
-        # compute mean and variance across different views for each point
-        mean, var = fused_mean_variance(rgb_feat, weight)  # [n_rays, n_samples, 1, n_feat]
-        globalfeat = torch.cat([mean, var], dim=-1)  # [n_rays, n_samples, 1, 2*n_feat]
-
-        x = torch.cat([globalfeat.expand(-1, -1, num_views, -1), rgb_feat], dim=-1)  # [n_rays, n_samples, n_views, 3*n_feat]
-        x = self.base_fc(x)
-
-        x_vis = self.vis_fc(x * weight)
-        x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
-        vis = F.sigmoid(vis) * mask
-        x = x + x_res
-        vis = self.vis_fc2(x * vis) * mask
-        weight = vis / (torch.sum(vis, dim=2, keepdim=True) + 1e-8) ## weight vector
-
-        mean, var = fused_mean_variance(x, weight)
-        globalfeat = torch.cat([mean.squeeze(2), var.squeeze(2), weight.mean(dim=2)], dim=-1)  # [n_rays, n_samples, 32*2+1]
-        globalfeat = self.geometry_fc(globalfeat)  # [n_rays, n_samples, 16]
-        num_valid_obs = torch.sum(mask, dim=2)
-        globalfeat = globalfeat + self.pos_encoding
-        globalfeat, _ = self.ray_attention(globalfeat, globalfeat, globalfeat,
-                                           mask=(num_valid_obs > 1).float())  # [n_rays, n_samples, 16]
-        sigma = self.out_geometry_fc(globalfeat)  # [n_rays, n_samples, 1]
-        sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
-
-        # rgb computation
-        x = torch.cat([x, vis, ray_diff], dim=-1)
-        x = self.rgb_fc(x)
-        x = x.masked_fill(mask == 0, -1e9)
-        blending_weights_valid = F.softmax(x, dim=2)  # color blending
-        rgb_out = torch.sum(rgb_in*blending_weights_valid, dim=2)
-        out = torch.cat([rgb_out, sigma_out], dim=-1)
-        return out
 
 class IBRNetWithNeuRay(nn.Module):
     def __init__(self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, att_feat=16, d_model = 103, rbs=2048, nhead=4, **kwargs):
@@ -273,7 +275,7 @@ class IBRNetWithNeuRay(nn.Module):
                                          nn.Linear(att_feat*2, att_feat),
                                          activation_func)
 
-        # self.ray_attention = MultiHeadAttention(nhead, att_feat, 4, 4)        ## default: (4, 16, 4, 4)
+        # self.ray_attention = MultiHeadAttention(nhead, att_feat, 4, 4)              ## default: (4, 16, 4, 4)
         self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16),
                                              activation_func,
                                              nn.Linear(16, 1),

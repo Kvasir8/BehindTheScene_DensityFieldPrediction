@@ -353,19 +353,21 @@ class PoswiseFF_emb4enc(nn.Module):
         # self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        # Pre-layer normalization
-        x_norm = self.pre_layer_norm(x)
+        # embedding for residual input
+        emb_residual = self.w_match(x)
 
-        # Transform the normalized input
-        x_tran = self.w_2(F.elu(self.w_1(x_norm)))    ## default: ReLU | or F.leaky_relu, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
+        # Pre-layer normalization
+        x = self.pre_layer_norm(x)
+
+        # Transform the (normalized) input
+        x = self.w_2(F.elu(self.w_1(x)))    ## default: ReLU | or F.leaky_relu, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
         # x = self.dropout(x)
 
         # Post-layer normaliation
         # x = self.post_layer_norm(x)
 
         # Residual connection
-        emb_residual = self.w_match(x)
-        x = x_tran + emb_residual
+        x += emb_residual
 
         return x
 

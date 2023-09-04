@@ -24,7 +24,7 @@ defaults:                       ### This code is to run for slurm config
 #     is_preprocessed: false
 
 ## For training
-name: "nl_pwf_nmv5_att16_lay2_enc0_Unfr_B1_Lr5e_5_BTS_Nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "PreLN_nmv5_att16_lay1_enc0_Unfr_B1_Lr5e_5_BTS_Nry"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/kitti_360"
 
@@ -57,17 +57,17 @@ model_conf:
     DFT: true                   # set true for enabling DFT model
     feature_pad: true
     dropout_views_rate: 0.1     # 0==turn off: let model to learn robustness by dropping out sampled_features randomly
-    num_layers: 2               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
+    num_layers: 1               # num of encoder layers, GeoNeRF 4: default: 3 maximum complexity with 48GB
     nhead: 4                    # set transformer's encoder's num heads for both DFT and NeuRay model
     d_model: 103                # num channels for each token from the feature. It could be adjustable unless it's prime number          ## complexity analysis (maybe to be done in linear for efficiency)
-    att_feat: 16               # default: 64, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
-    embed_encoding: "pwf"       # set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
+    att_feat: 16                # default: 64, number of dim of embedding FFlayer (to reduce the dim of feature embedding and make divisible by num of heads)
+    embed_encoding: "pwf"        # set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
     DFEnlayer: true             # To choose the model uses whether built-in Pytorch library or code implementation      (Density Field Transformer Encoder layer)
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     AE: false                   # GeoNeRF's AutoEncoder for view-independent tokens (ablation)
     NeuRay: true
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
-    ids_enc_offset_viz: [0]    # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
+    ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
 
     code:
         num_freqs: 6
@@ -113,7 +113,7 @@ loss:
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
 
-learning_rate: 5e-5                     ## default: 1e-4
+learning_rate: 5e-5                     # default: 1e-4
 
 scheduler:
     type: step

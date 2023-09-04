@@ -64,7 +64,7 @@ class DensityFieldTransformer(nn.Module):
 
         self.DFEnlayer, self.nry = DFEnlayer, nry
         self.att_feat = att_feat
-        self.AE = AE
+        # self.AE = AE
         self.dropout = nn.Dropout(do_)
         # self.ts_ = rb_ * ren_nc * B_  ## total num sampling (to decide input dimension for AE)
         self.rb_, self.B_ = rb_, B_
@@ -81,7 +81,7 @@ class DensityFieldTransformer(nn.Module):
 
         if not self.nry: self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
 
-        if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model structure for validity in detail
+        # if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model structure for validity in detail
 
         self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
@@ -116,13 +116,13 @@ class DensityFieldTransformer(nn.Module):
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
 
-        if self.AE:
-            # aggregated_features = transformed_features[:,0,:]  ### [M=100000 * nv_+1 ,att_feat==32]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
-            aggregated_features = self.ConvAE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2) # n_rays, C, pts_per_ray
-                ).transpose(1, 2).view(-1, self.att_feat) # n_pts, C
-        else:
+        # if self.AE:
+        #     # aggregated_features = transformed_features[:,0,:]  ### [M=100000 * nv_+1 ,att_feat==32]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        #     aggregated_features = self.ConvAE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2) # n_rays, C, pts_per_ray
+        #         ).transpose(1, 2).view(-1, self.att_feat) # n_pts, C
+        # else:
             # aggregated_features = self.ConvNet2AE(transformed_features[:, 0, :].view(-1, self.n_coarse, self.att_feat).transpose(1, 2)) ## .transpose(0,2)     ## .view(-1, self.att_feat)  # C_:=Channels TODO: feeding it into AE
-            aggregated_features = transformed_features[:,0,:]  # n_pts, C  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        aggregated_features = transformed_features[:,0,:]  # n_pts, C  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
         ## TODO: GeoNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
         density_field = self.DF_pred_head(aggregated_features)  ## TODO: This should be 2 MLPs after AE's prediction. # .view(-1)  ### torch.Size([100000])
