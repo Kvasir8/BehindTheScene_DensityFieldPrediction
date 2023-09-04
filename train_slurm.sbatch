@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="nonlin_pwf_nmv6_att16_lay2_enc0_Unfr_B1_Lr5e_5_BTS_Nry"
+#SBATCH --job-name="nl_pwf_nmv5_att16_lay2_enc0_Unfr_B1_Lr5e_5_BTS_Nry"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:rtx_a6000:1,VRAM:48G

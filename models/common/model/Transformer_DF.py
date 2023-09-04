@@ -51,6 +51,8 @@ class DensityFieldTransformer(nn.Module):
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag,  self.emb_enc = feat_pad, emb_enc
         if emb_enc == "pwf":    self.emb_encoder = mlp.PoswiseFF_emb4enc(d_model, 2*att_feat, att_feat)
+        elif emb_enc == "ff":
+            self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ELU(), nn.Linear(2 * att_feat, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
         elif emb_enc == "hpwf":
             self.emb_encoder = nn.Sequential( ## == mlp.PositionwiseFeedForward
                 nn.Linear(d_model, 2 * att_feat, bias=True),
@@ -58,7 +60,6 @@ class DensityFieldTransformer(nn.Module):
                 nn.LayerNorm(d_in, eps=1e-6),
                 nn.Linear(2 * att_feat, att_feat, bias=True)
             )
-        elif emb_enc == "ff":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ELU(), nn.Linear(2 * att_feat, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
         else:   print("__unrecognized input for emb_enc")
 
         self.DFEnlayer, self.nry = DFEnlayer, nry
