@@ -233,7 +233,8 @@ class NeRFRenderer(torch.nn.Module):
             points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
             ## pts_ibr = points.clone()  ## deep copy for ibrnet
             points = points.reshape(-1, 3)  # (B*K, 3)
-            use_viewdirs = model.use_viewdirs   ## hasattr(model, "use_viewdirs")
+            if hasattr(model, "use_viewdirs"): use_viewdirs = model.use_viewdirs
+            else:   use_viewdirs = None
             rgbs_all, invalid_all, sigmas_all = [], [], []
 
             if sb > 0:

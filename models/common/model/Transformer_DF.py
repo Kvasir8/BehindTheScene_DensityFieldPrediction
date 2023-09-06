@@ -91,8 +91,7 @@ class DensityFieldTransformer(nn.Module):
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
         # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
 
-        if self.dropout:
-            invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        if self.dropout:    invalid_features = 1 - self.dropout((1 - invalid_features.float()))  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
 
         # self.readout_token = nry.flatten(0,1)   ## if nry is enabled, but this doesnt work: TypeError: cannot assign 'torch.cuda.FloatTensor' as parameter 'readout_token' (torch.nn.Parameter or None expected)
 
@@ -109,9 +108,9 @@ class DensityFieldTransformer(nn.Module):
                 padded_invalid  = torch.concat([torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features], dim=1, )
             else:                print("__unrecognizable nry condition")
 
-
             transformed_features = self.transformer_encoder(padded_features, src_key_padding_mask=padded_invalid)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])    ## self.transformer_enlayer for one encoder layer
             # transformed_features = self.transformer_enlayer(padded_features)  ### masking dim(features) ([100000 * B, 1+nv_, 103]) with invalid padding [100000, 3])
+
         else:
             invalid_features = invalid_features.squeeze(-1).permute(1, 0)
             transformed_features = self.transformer_encoder(encoded_features, src_key_padding_mask=invalid_features)  ### [100000, nv_==2, 103]
