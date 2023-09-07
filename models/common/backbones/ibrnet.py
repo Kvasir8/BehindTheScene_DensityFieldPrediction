@@ -334,7 +334,7 @@ class IBRNetWithNeuRay(nn.Module):
         ## Assumption: rgb_feat already contains image feature + dir_feat / this can be implemented further
         num_views = rgb_feat.shape[2]
         direction_feat = self.ray_dir_fc(ray_diff)
-        rgb_in = rgb_feat[..., :3]
+        # rgb_in = rgb_feat[..., :3]            ## no used in both original code and necessary code here
         rgb_feat = self.img_feat2low(rgb_feat)
         rgb_feat = rgb_feat + direction_feat
 

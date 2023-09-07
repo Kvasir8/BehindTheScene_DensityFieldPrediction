@@ -51,13 +51,13 @@ class DensityFieldTransformer(nn.Module):
         super(DensityFieldTransformer, self).__init__()
         self.padding_flag,  self.emb_enc = feat_pad, emb_enc
         if emb_enc == "pwf":    self.emb_encoder = mlp.PoswiseFF_emb4enc(d_model, 2*att_feat, att_feat)
-        elif emb_enc == "ff":
-            self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ELU(), nn.Linear(2 * att_feat, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
+        elif emb_enc == "ff":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, 2 * att_feat, bias=True), nn.ELU(), nn.Linear(2 * att_feat, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
+        elif emb_enc == "ffh":   self.emb_encoder = nn.Sequential(nn.Linear(d_model, att_feat, bias=True)) ## default: ReLU |  nn.LeakyReLU()
         elif emb_enc == "hpwf":
             self.emb_encoder = nn.Sequential( ## == mlp.PositionwiseFeedForward
                 nn.Linear(d_model, 2 * att_feat, bias=True),
                 nn.ELU(),
-                nn.LayerNorm(d_in, eps=1e-6),
+                nn.LayerNorm(2 * att_feat, eps=1e-6),
                 nn.Linear(2 * att_feat, att_feat, bias=True)
             )
         else:   print("__unrecognized input for emb_enc")
@@ -74,16 +74,17 @@ class DensityFieldTransformer(nn.Module):
 
         if self.DFEnlayer:
             self.transformer_enlayer = mlp.EncoderLayer(att_feat, att_feat, nhead, att_feat, att_feat)
-            self.transformer_encoder = mlp.TrEnLayer(self.transformer_enlayer,num_layers)  ## TODO: replace MHA module with IBRNet network and complete integretable encoder part of transformer
+            self.transformer_encoder = mlp.TrEnLayer(self.transformer_enlayer, num_layers)  ## TODO: replace MHA module with IBRNet network and complete integretable encoder part of transformer
         else:
             self.transformer_enlayer = TransformerEncoderLayer(att_feat, nhead, dim_feedforward=att_feat,batch_first=True)
             self.transformer_encoder = TransformerEncoder(self.transformer_enlayer, num_layers)
 
-        if not self.nry: self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
+        if not self.nry:    self.readout_token = nn.Parameter(torch.rand(1, 1, att_feat).to("cuda"), requires_grad=True)  ## ? # self.readout_token = torch.rand(1, 1, d_model).to("cuda") ## instead of dummy
 
         # if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model structure for validity in detail
 
-        self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat,1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
+        self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat, self.att_feat//2), nn.ELU(), nn.Linear(self.att_feat//2, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
+        # self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features, gfeat=None, iv_gfeat=None):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view

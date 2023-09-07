@@ -272,8 +272,9 @@ class MVBTSNet(torch.nn.Module):
         ray_diff = torch.cat([ray_diff_direction, ray_diff_dot], dim=-1)
         ray_diff = ray_diff.reshape((num_views, ) + original_shape + (4, ))       ## default: reshape((num_views, )
         return ray_diff
+
     ## TODO: source view with cor. query cam pose
-    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, infer=None):  ## ? "far"  ## Note: this forward propagation can be used for both training and eval
+    def forward(self, xyz, coarse=True, viewdirs=None, far=False, only_density=False):   ## , infer=None):  ## ? "far"  ## Note: this forward propagation can be used for both training and eval
         """
         Predict (r, g, b, sigma) at world space points xyz.
         Please call encode first!
@@ -313,8 +314,8 @@ class MVBTSNet(torch.nn.Module):
 
                 # ray_diff = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)
                 train_poses = self.grid_f_poses_w2c[0, :nmv, ...]  ## Note: assunme batch_size=1 for squeeze  # take translation part of [n_views, 4, 4]
-                # query_pose  = train_poses[nmv//2, ...].unsqueeze(0)    ## take median of the camera as query
-                train_poses = torch.cat((train_poses[:nmv//2], train_poses[nmv//2+1:])) ## removing query pose  ## TODO: exclude training poses
+                query_pose  = train_poses[nmv//2, ...].unsqueeze(0)    ## take median of the camera as query
+                # train_poses = torch.cat((train_poses[:nmv//2], train_poses[nmv//2+1:])) ## removing query pose  ## TODO: exclude training poses
 
                 ray_diff = self.compute_angle(xyz.reshape(-1, self.n_coarse, 3), query_pose, train_poses)           # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
                 ray_diff = ray_diff.permute(1,2,0,3)           # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
@@ -335,9 +336,10 @@ class MVBTSNet(torch.nn.Module):
 
             # Run main NeRF network
             if self.DFT:    ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
-                if not self.nry or infer:   ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
+                # if not self.nry or infer:   ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
+                if not self.nry:  ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
                     sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
-                elif not infer:
+                elif self.nry:
                     sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1), gfeat=globalfeat.flatten(0,1), iv_gfeat=num_valid_obs.flatten(0,1)).view(mlp_input.shape[0], mlp_input.shape[1], 1)
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT

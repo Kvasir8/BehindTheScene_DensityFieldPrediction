@@ -258,7 +258,7 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs, infer=False)   ## ,eval_batch_dim=eval_batch_dim)
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)

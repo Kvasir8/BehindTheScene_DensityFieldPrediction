@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="PreLN_nmv5_att16_lay1_enc0_Unfr_B1_Lr5e_5_BTS_Nry"
+#SBATCH --job-name="ff_nmv8_att16_lay3_enc0_do0_Unfr_B1_Lr1e_4_BTS_Nry_woViedir_PredHead_Fxd"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:rtx_a6000:1,VRAM:48G
+#SBATCH --gres=gpu:1,VRAM:48G
 #SBATCH --mem=32G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL

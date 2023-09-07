@@ -212,7 +212,8 @@ def render_profile(net, cam_incl_adjust):
             f = i * batch_size
             t = min((i + 1) * batch_size, l)
             q_pts_ = q_pts[:, f:t, :]
-            if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
+            # if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
+            if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
             else:               _, invalid_, sigmas_ = net.forward(q_pts_)
             sigmas.append(sigmas_)
             invalid.append(invalid_)
