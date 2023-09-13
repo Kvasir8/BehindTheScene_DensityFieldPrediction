@@ -17,11 +17,14 @@ import lpips
 from datasets.data_util import make_datasets
 from datasets.kitti_odom.kitti_odometry_dataset import KittiOdometryDataset
 from datasets.kitti_raw.kitti_raw_dataset import KittiRawDataset
+from models.common.backbones.backbone_util import make_backbone
+from models.common.model.code import PositionalEncoding
+from models.common.model.head_util import make_head
 from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import MVBTSNet    ## default: BTSNet
+from models.bts.model.models_bts import MVBTSNet  ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from scripts.inference_setup import render_profile
 from utils.base_trainer import base_training
@@ -58,24 +61,37 @@ class BTSWrapper(nn.Module):
         self.train_image_processor = make_image_processor(cfg_ip)
         self.val_image_processor = RGBProcessor()
 
-        if type(frames_render) == int:  self.frames_render = list(range(frames_render))
-        else:                           self.frames_render = frames_render
+        if type(frames_render) == int:
+            self.frames_render = list(range(frames_render))
+        else:
+            self.frames_render = frames_render
         self.frames = self.frames_render
 
         if self.sample_mode == "random":
-            self.train_sampler = RandomRaySampler(self.ray_batch_size, self.z_near, self.z_far, channels=self.train_image_processor.channels)
+            self.train_sampler = RandomRaySampler(
+                self.ray_batch_size, self.z_near, self.z_far, channels=self.train_image_processor.channels
+            )
         elif self.sample_mode == "patch":
-            self.train_sampler = PatchRaySampler(self.ray_batch_size, self.z_near, self.z_far, self.patch_size, channels=self.train_image_processor.channels)
+            self.train_sampler = PatchRaySampler(
+                self.ray_batch_size,
+                self.z_near,
+                self.z_far,
+                self.patch_size,
+                channels=self.train_image_processor.channels,
+            )
         elif self.sample_mode == "image":
             self.train_sampler = ImageRaySampler(self.z_near, self.z_far, channels=self.train_image_processor.channels)
-        else:   raise NotImplementedError
+        else:
+            raise NotImplementedError
 
-        if self.use_automasking:    self.train_sampler.channels += 1
+        if self.use_automasking:
+            self.train_sampler.channels += 1
 
         self.val_sampler = ImageRaySampler(self.z_near, self.z_far)
 
         self.eval_nvs = eval_nvs
-        if self.eval_nvs:           self.lpips = lpips.LPIPS(net="alex")
+        if self.eval_nvs:
+            self.lpips = lpips.LPIPS(net="alex")
 
         self._counter = 0
 
@@ -85,9 +101,9 @@ class BTSWrapper(nn.Module):
 
     def forward(self, data):
         data = dict(data)
-        images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
-        poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
-        projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)    ## kitti_360_dataset.py, 629
+        images = torch.stack(data["imgs"], dim=1)  # n, v, c, h, w
+        poses = torch.stack(data["poses"], dim=1)  # n, v, 4, 4 w2c
+        projs = torch.stack(data["projs"], dim=1)  # n, v, 4, 4 (-1, 1)    ## kitti_360_dataset.py, 629
 
         n, v, c, h, w = images.shape  ### v==8 := 4 cams (stereo + 2fisheyes) * 2 time stamps (t0 + t1) c.f. paper
         device = images.device
@@ -109,21 +125,26 @@ class BTSWrapper(nn.Module):
                 for params in self.renderer.net.mlp_coarse.parameters(True):
                     params.requires_grad_(True)
 
-        if self.training:   frame_perm = torch.randperm(v)  
-        else:               frame_perm = torch.arange(v)    ## eval
+        if self.training:
+            frame_perm = torch.randperm(v)
+        else:
+            frame_perm = torch.arange(v)  ## eval
 
-        if self.fe_enc:     ## views that are encoded
-            encoder_perm = (torch.randperm(v - 1) + 1)[:self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
-            ids_encoder = [0]                               ## always starts sampling from mono cam
-            ids_encoder.extend(encoder_perm)                ## add more cam_views randomly incl. fe
-        else: ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)   
+        if self.fe_enc:  ## views that are encoded
+            encoder_perm = (torch.randperm(v - 1) + 1)[: self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
+            ids_encoder = [0]  ## always starts sampling from mono cam
+            ids_encoder.extend(encoder_perm)  ## add more cam_views randomly incl. fe
+        else:
+            ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if not self.training and self.ids_enc_viz_eval:       ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval               ## fixed during eval
+        if (
+            not self.training and self.ids_enc_viz_eval
+        ):  ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+            ids_encoder = self.ids_enc_viz_eval  ## fixed during eval
 
-        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
-        
+        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values  ## ?    ### tensor([0, 4])
+
         combine_ids = None
 
         if self.training:
@@ -131,8 +152,8 @@ class BTSWrapper(nn.Module):
                 ids_loss = [0]
                 ids_render = ids_render[ids_render != 0]
             elif self.frame_sample_mode == "not":
-                frame_perm = torch.randperm(v-1) + 1
-                ids_loss = torch.sort(frame_perm[[i for i in self.frames_render if i < v-1]]).values
+                frame_perm = torch.randperm(v - 1) + 1
+                ids_loss = torch.sort(frame_perm[[i for i in self.frames_render if i < v - 1]]).values
                 ids_render = [i for i in range(v) if i not in ids_loss]
             elif self.frame_sample_mode == "stereo":
                 if frame_perm[0] < v // 2:
@@ -144,7 +165,7 @@ class BTSWrapper(nn.Module):
             elif self.frame_sample_mode == "mono":
                 split_i = v // 2
                 if frame_perm[0] < v // 2:
-                    ids_loss = list(range(0, split_i, 2)) + list(range(split_i+1, v, 2))
+                    ids_loss = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
                     ids_render = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
@@ -156,7 +177,7 @@ class BTSWrapper(nn.Module):
                 ids_loss = []
                 ids_render = []
 
-                for cam in range(4):    ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
+                for cam in range(4):  ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
@@ -171,18 +192,21 @@ class BTSWrapper(nn.Module):
                 # Combine all frames half-left, center, half-right for efficiency reasons
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-                if self.training:   step_perm = torch.randperm(steps)
-                else:               step_perm = torch.arange(steps)     ## eval
-                step_perm =         step_perm.tolist()
+                if self.training:
+                    step_perm = torch.randperm(steps)
+                else:
+                    step_perm = torch.arange(steps)  ## eval
+                step_perm = step_perm.tolist()
 
                 ids_loss = sum([[i + j * steps for j in range(num_views)] for i in step_perm[:split]], [])
                 ids_render = sum([[i + j * steps for j in range(num_views)] for i in step_perm[split:]], [])
 
             elif self.frame_sample_mode == "default":
                 ids_loss = frame_perm[[i for i in range(v) if frame_perm[i] not in ids_render]]
-            else:   raise NotImplementedError
+            else:
+                raise NotImplementedError
 
-        else:   ## eval
+        else:  ## eval
             ids_loss = torch.arange(v)
             ids_render = [0]
 
@@ -195,21 +219,39 @@ class BTSWrapper(nn.Module):
                 ids_render = [0, steps, steps * 2]
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-        if self.loss_from_single_img:   ids_loss = ids_loss[:1]
+        if self.loss_from_single_img:
+            ids_loss = ids_loss[:1]
 
         ip = self.train_image_processor if self.training else self.val_image_processor
 
         images_ip = ip(images)
         if self.training and self.use_automasking:
             with profiler.record_function("trainer_automasking"):
-                reference_imgs = images_ip.permute(0, 1, 3, 4, 2).view(n, v, h, w, 1, c).expand(-1, -1, -1, -1, len(ids_render), -1) * .5
-                render_imgs = images_ip[:, ids_loss].permute(0, 3, 4, 1, 2).view(n, 1, h, w, len(ids_render), c).expand(-1, v, -1, -1, -1, -1) * .5
+                reference_imgs = (
+                    images_ip.permute(0, 1, 3, 4, 2).view(n, v, h, w, 1, c).expand(-1, -1, -1, -1, len(ids_render), -1)
+                    * 0.5
+                )
+                render_imgs = (
+                    images_ip[:, ids_loss]
+                    .permute(0, 3, 4, 1, 2)
+                    .view(n, 1, h, w, len(ids_render), c)
+                    .expand(-1, v, -1, -1, -1, -1)
+                    * 0.5
+                )
                 errors = compute_errors_l1ssim(reference_imgs, render_imgs).mean(-2).squeeze(-1).unsqueeze(2)
                 images_ip = torch.cat((images_ip, errors), dim=2)
 
-        with profiler.record_function("trainer_encode-grid"):   ## call encode method in MVBTS instance
-            self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])         ## return pass
-            self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_render, images_alt=images_ip, combine_ids=combine_ids)   ## models_bts.py
+        with profiler.record_function("trainer_encode-grid"):  ## call encode method in MVBTS instance
+            self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])  ## return pass
+            self.renderer.net.encode(
+                images,
+                projs,
+                poses,
+                ids_encoder=ids_encoder,
+                ids_render=ids_render,
+                images_alt=images_ip,
+                combine_ids=combine_ids,
+            )  ## models_bts.py
 
         sampler = self.train_sampler if self.training else self.val_sampler
 
@@ -273,12 +315,14 @@ class BTSWrapper(nn.Module):
                 data.update(self.compute_nvs_metrics(data))
 
             cam_incl_adjust = torch.tensor(
-                [[1.0000000, 0.0000000, 0.0000000, 0],
-                 [0.0000000, 0.9961947, -0.0871557, 0],
-                 [0.0000000, 0.0871557, 0.9961947, 0],
-                 [0.0000000, 000000000, 0.0000000, 1]
-                 ],
-                dtype=torch.float32).view(1, 4, 4)
+                [
+                    [1.0000000, 0.0000000, 0.0000000, 0],
+                    [0.0000000, 0.9961947, -0.0871557, 0],
+                    [0.0000000, 0.0871557, 0.9961947, 0],
+                    [0.0000000, 000000000, 0.0000000, 1],
+                ],
+                dtype=torch.float32,
+            ).view(1, 4, 4)
 
             # predict the profiles
             data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust)]
@@ -305,14 +349,14 @@ class BTSWrapper(nn.Module):
 
         thresh = torch.maximum((depth_gt / depth_pred), (depth_pred / depth_gt))
         a1 = (thresh < 1.25).to(torch.float).mean()
-        a2 = (thresh < 1.25 ** 2).to(torch.float).mean()
-        a3 = (thresh < 1.25 ** 3).to(torch.float).mean()
+        a2 = (thresh < 1.25**2).to(torch.float).mean()
+        a3 = (thresh < 1.25**3).to(torch.float).mean()
 
         rmse = (depth_gt - depth_pred) ** 2
-        rmse = rmse.mean() ** .5
+        rmse = rmse.mean() ** 0.5
 
         rmse_log = (torch.log(depth_gt) - torch.log(depth_pred)) ** 2
-        rmse_log = rmse_log.mean() ** .5
+        rmse_log = rmse_log.mean() ** 0.5
 
         abs_rel = torch.mean(torch.abs(depth_gt - depth_pred) / depth_gt)
 
@@ -325,7 +369,7 @@ class BTSWrapper(nn.Module):
             "rmse_log": rmse_log.view(1),
             "a1": a1.view(1),
             "a2": a2.view(1),
-            "a3": a3.view(1)
+            "a3": a3.view(1),
         }
         return metrics_dict
 
@@ -336,8 +380,8 @@ class BTSWrapper(nn.Module):
         # idx of stereo frame (the target frame is always the "stereo" frame).
         sf_id = data["rgb_gt"].shape[1] // 2
 
-        imgs_gt = data["rgb_gt"][:1, sf_id:sf_id+1]
-        imgs_pred = data["fine"][0]["rgb"][:1, sf_id:sf_id+1]
+        imgs_gt = data["rgb_gt"][:1, sf_id : sf_id + 1]
+        imgs_pred = data["fine"][0]["rgb"][:1, sf_id : sf_id + 1]
 
         imgs_gt = imgs_gt.squeeze(0).permute(0, 3, 1, 2)
         imgs_pred = imgs_pred.squeeze(0).squeeze(-2).permute(0, 3, 1, 2)
@@ -361,7 +405,7 @@ class BTSWrapper(nn.Module):
         metrics_dict = {
             "ssim": torch.tensor([ssim_score], device=imgs_gt.device),
             "psnr": torch.tensor([psnr_score], device=imgs_gt.device),
-            "lpips": torch.tensor([lpips_score], device=imgs_gt.device)
+            "lpips": torch.tensor([lpips_score], device=imgs_gt.device),
         }
         return metrics_dict
 
@@ -383,15 +427,19 @@ def get_dataflow(config, logger=None):
     vis_dataset = copy(test_dataset)
 
     # Change eval dataset to only use a single prediction and to return gt depth.
-    test_dataset.frame_count = 1 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 2
+    test_dataset.frame_count = (
+        1 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 2
+    )
     test_dataset._left_offset = 0
     test_dataset.return_stereo = mode == "nvs"
     test_dataset.return_depth = True
-    test_dataset.length = min(256, test_dataset.length)      ## ? default: 256
+    test_dataset.length = min(256, test_dataset.length)  ## ? default: 256
 
     # Change visualisation dataset
     vis_dataset.length = 1
-    vis_dataset._skip = 12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50  ## kitti image frame from sequence default: 50
+    vis_dataset._skip = (
+        12 if isinstance(train_dataset, KittiRawDataset) or isinstance(train_dataset, KittiOdometryDataset) else 50
+    )  ## kitti image frame from sequence default: 50
     vis_dataset.return_depth = True
 
     if idist.get_local_rank() == 0:
@@ -399,7 +447,9 @@ def get_dataflow(config, logger=None):
         idist.barrier()
 
     # Setup data loader also adapted to distributed config: nccl, gloo, xla-tpu
-    train_loader = idist.auto_dataloader(train_dataset, batch_size=config["batch_size"], num_workers=config["num_workers"], shuffle=True, drop_last=True)
+    train_loader = idist.auto_dataloader(
+        train_dataset, batch_size=config["batch_size"], num_workers=config["num_workers"], shuffle=True, drop_last=True
+    )
     test_loader = idist.auto_dataloader(test_dataset, batch_size=1, num_workers=config["num_workers"], shuffle=False)
     vis_loader = idist.auto_dataloader(vis_dataset, batch_size=1, num_workers=config["num_workers"], shuffle=False)
 
@@ -416,8 +466,31 @@ def get_metrics(config, device):
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "MVBTSNet")     ## default: get("arch", "BTSNet")
-    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"])         ## default: globals()[arch](config["model_conf"])
+    arch = config["model_conf"].get("arch", "MVBTSNet")  ## default: get("arch", "BTSNet")
+    encoder = make_backbone(config["model_conf"]["encoder"])
+    code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+
+    d_in = encoder.latent_size + code_xyz.d_out
+    # Make configurable for Semantics as well
+    sample_color = config["model_conf"].get("sample_color", True)
+    d_out = 1 if sample_color else 4
+
+    decoder_heads = {
+        head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
+    }
+
+    net = MVBTSNet(
+        config["model_conf"],
+        encoder,
+        code_xyz,
+        decoder_heads,
+        final_pred_head=config.get("final_prediction_head", None),
+        ren_nc=config["renderer"]["n_coarse"],
+    )
+
+    # net = globals()[arch](
+    #     config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]
+    # )  ## default: globals()[arch](config["model_conf"])
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
@@ -428,7 +501,9 @@ def initialize(config: dict, logger=None):
 
     model = idist.auto_model(model)
 
-    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
+    optimizer = optim.Adam(
+        model.parameters(), lr=config["learning_rate"]
+    )  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
     # optimizer = optim.Adam([{"encoder_decoder": model.[...encoder].parameters()}, {"final_decoder": model.transformer.parameters(), "lr": config["learning_rate"] / 10}], lr=config["learning_rate"])
     optimizer = idist.auto_optim(optimizer)
 
@@ -457,13 +532,13 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     z_near = data["z_near"]
     z_far = data["z_far"]
 
-    take_n = min(images.shape[0], 8) ## num eval viz images to be shown in tensorboard, default: 6
+    take_n = min(images.shape[0], 8)  ## num eval viz images to be shown in tensorboard, default: 6
 
     _, c, h, w = images.shape
     nv = recon_imgs.shape[0]
 
     images = images[:take_n]
-    images = images * .5 + .5
+    images = images * 0.5 + 0.5
 
     recon_imgs = recon_imgs.view(nv, h, w, -1, c)
     recon_imgs = recon_imgs[:take_n]
@@ -476,7 +551,9 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     recon_depths = [(1 / d[:take_n] - 1 / z_far) / (1 / z_near - 1 / z_far) for d in recon_depths]
     recon_depths = [color_tensor(d.squeeze(1).clamp(0, 1), cmap="plasma").permute(0, 3, 1, 2) for d in recon_depths]
 
-    depth_profile = depth_profile[:take_n][:, [h//4, h//2, 3*h//4], :, :].view(take_n*3, w, -1).permute(0, 2, 1)
+    depth_profile = (
+        depth_profile[:take_n][:, [h // 4, h // 2, 3 * h // 4], :, :].view(take_n * 3, w, -1).permute(0, 2, 1)
+    )
     depth_profile = depth_profile.clamp_min(0) / depth_profile.max()
     depth_profile = color_tensor(depth_profile, cmap="plasma").permute(0, 3, 1, 2)
 
@@ -496,12 +573,12 @@ def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
     invalids = color_tensor(invalids, cmap="plasma").permute(0, 3, 1, 2)
 
     # Write images
-    nrow = int(take_n ** .5)
+    nrow = int(take_n**0.5)
 
     # profile plotting
     profiles = torch.stack(data["profiles"], dim=0)
     profiles = color_tensor(profiles, cmap="magma", norm=True)
-    profiles_grid = make_grid(profiles).permute(2, 0, 1)    ## Bird-eye view
+    profiles_grid = make_grid(profiles).permute(2, 0, 1)  ## Bird-eye view
     ## TODO: provide GT LiDAR for bird-eye view for the comparison
     images_grid = make_grid(images, nrow=nrow)
     recon_imgs_grid = make_grid(recon_imgs, nrow=nrow)

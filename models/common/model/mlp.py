@@ -12,6 +12,7 @@ from typing import Optional, Any, Union, Callable
 from torch import Tensor
 
 import copy
+
 # from torch.nn.modules.transformer import *
 import torch.nn.modules.transformer as TTF
 
@@ -121,9 +122,7 @@ class ImplicitNet(nn.Module):
 
             if layer == self.combine_layer:
                 x = util.combine_interleaved(x, combine_inner_dims, self.combine_type)
-                x_init = util.combine_interleaved(
-                    x_init, combine_inner_dims, self.combine_type
-                )
+                x_init = util.combine_interleaved(x_init, combine_inner_dims, self.combine_type)
 
             if layer < self.combine_layer and layer in self.skip_in:
                 x = torch.cat([x, x_init], -1) / np.sqrt(2)
@@ -135,22 +134,29 @@ class ImplicitNet(nn.Module):
         return x
 
     @classmethod
-    def from_conf(cls, conf, d_in, **kwargs):
-        # PyHocon construction
-        return cls(
-            d_in,
-            conf.get_list("dims"),
-            skip_in=conf.get_list("skip_in"),
-            beta=conf.get_float("beta", 0.0),
-            dim_excludes_skip=conf.get_bool("dim_excludes_skip", False),
-            combine_layer=conf.get_int("combine_layer", 1000),
-            combine_type=conf.get_string("combine_type", "average"),  # average | max
-            **kwargs
-        )
-'''
+    def from_conf(cls, conf, d_in, d_out):
+        return cls(d_in=d_in, d_out=d_out, **conf)
+
+    # @classmethod
+    # def from_conf(cls, conf, d_in, **kwargs):
+    #     # PyHocon construction
+    #     return cls(
+    #         d_in,
+    #         conf.get_list("dims"),
+    #         skip_in=conf.get_list("skip_in"),
+    #         beta=conf.get_float("beta", 0.0),
+    #         dim_excludes_skip=conf.get_bool("dim_excludes_skip", False),
+    #         combine_layer=conf.get_int("combine_layer", 1000),
+    #         combine_type=conf.get_string("combine_type", "average"),  # average | max
+    #         **kwargs,
+    #     )
+
+
+"""
 GeoNeRF
 https://github.com/idiap/GeoNeRF/blob/e6249fdae5672853c6bbbd4ba380c4c166d02c95/model/self_attn_renderer.py#L60
-'''
+"""
+
 
 # Custom TransposeLayer to perform transpose operation
 class TransposeLayer(nn.Module):
@@ -160,6 +166,7 @@ class TransposeLayer(nn.Module):
     def forward(self, x):
         print("x_shape before transpose: ", x.shape)
         return x.transpose(1, 2)
+
 
 #
 # class CNN2AE(nn.Module):
@@ -181,10 +188,13 @@ class TransposeLayer(nn.Module):
 #         x = x.view(x.size(0), num_channels, self.desired_spatial_output)  # Reshape to (batch_size, num_channels, reduced_features)
 #         return x
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # Use GPU if available, else CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Use GPU if available, else CPU
 
-class CNN2AE(nn.Module):    ## convolute density sampled features along a ray from end of cam's frustum to the end. ( n_coarse==16 x att_feat==32 x (8x8) )
-    def __init__(self, num_channels:int=32, num_features:int=64):
+
+class CNN2AE(
+    nn.Module
+):  ## convolute density sampled features along a ray from end of cam's frustum to the end. ( n_coarse==16 x att_feat==32 x (8x8) )
+    def __init__(self, num_channels: int = 32, num_features: int = 64):
         super(CNN2AE, self).__init__()
         self.n_coarse = num_features
         self.conv1 = nn.Conv1d(num_channels, num_channels, kernel_size=3, stride=1, padding=1)
@@ -193,8 +203,10 @@ class CNN2AE(nn.Module):    ## convolute density sampled features along a ray fr
         # self.fc = nn.Linear(num_channels * num_features, num_features)  # Fully connected layer to further reduce dimension
         # self.fc = None  # We will initialize this later
 
-    def forward(self, x):   ## , desired_spatial_output):
-        assert (x.size(0) % self.n_coarse)==0, f"__given points should be dividable by n_coarse: {self.n_coarse},but points given: {x.size(0)}"
+    def forward(self, x):  ## , desired_spatial_output):
+        assert (
+            x.size(0) % self.n_coarse
+        ) == 0, f"__given points should be dividable by n_coarse: {self.n_coarse},but points given: {x.size(0)}"
         # x = x.to(device)  # Move the input data to the device
         # B_, C_, M_ = x.shape  # Get the new number of channels and points
         x = self.pool(F.relu(self.conv1(x)))  # Apply first conv layer and pool
@@ -211,14 +223,18 @@ class CNN2AE(nn.Module):    ## convolute density sampled features along a ray fr
 
 
 ## Auto-encoder network
-class ConvAutoEncoder(nn.Module):           ## purpose: to enforce the geometric generalization
-    def __init__(self, num_ch:int=32, S_:int=64): ## S:= Sequence length of the input tensor. i.e. nb_samples_per_ray
+class ConvAutoEncoder(nn.Module):  ## purpose: to enforce the geometric generalization
+    def __init__(
+        self, num_ch: int = 32, S_: int = 64
+    ):  ## S:= Sequence length of the input tensor. i.e. nb_samples_per_ray
         super(ConvAutoEncoder, self).__init__()
         # Encoder
         self.conv1 = nn.Sequential(
             nn.Conv1d(num_ch, num_ch * 2, 3, stride=1, padding=1),
             # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
-            nn.LayerNorm(S_, elementwise_affine=False),  ## RuntimeError: Given normalized_shape=[64], expected input with shape [*, 64], but got input of size[1, 64, 100000]
+            nn.LayerNorm(
+                S_, elementwise_affine=False
+            ),  ## RuntimeError: Given normalized_shape=[64], expected input with shape [*, 64], but got input of size[1, 64, 100000]
             nn.ELU(alpha=1.0, inplace=True),
             # TransposeLayer(),  # Use the custom TransposeLayer to transpose the output
             nn.MaxPool1d(2),
@@ -280,13 +296,14 @@ class ConvAutoEncoder(nn.Module):           ## purpose: to enforce the geometric
         return x
 
 
-'''
+"""
 Transformer encoder part from IBRNet network
 https://github.com/googleinterns/IBRNet/blob/master/ibrnet/mlp_network.py
-'''
+"""
+
 
 class ScaledDotProductAttention(nn.Module):
-    ''' Scaled Dot-Product Attention '''
+    """Scaled Dot-Product Attention"""
 
     def __init__(self, temperature, attn_dropout=0.1):
         super().__init__()
@@ -294,21 +311,26 @@ class ScaledDotProductAttention(nn.Module):
         # self.dropout = nn.Dropout(attn_dropout)
 
     def forward(self, q, k, v, mask=None):
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))  ### ?? [32768, 4, 7, 7]
 
-        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))    ### ?? [32768, 4, 7, 7]
-
-        if mask is not None:    ### [32768, 1, 7]
-            mask = mask.unsqueeze(-1)   ##
-            mask = mask.expand(-1, attn.shape[1], -1, attn.shape[-1])   ##  TODO: matrix should be investiated to validate the operator
-            mask = 1.0 - ((1.0 - mask) * (1.0 - mask.transpose(-2, -1)))    ### As being symmetric of the mask matrix => the info of masked info won't give result: 2 problems: 1) computation bottleneck demand, eval_batch_size=25000 decreasing (setup pipeline using smaller pipeline nerf.py)
-            attn = attn.masked_fill(mask == 1, -1e9)    ## masking should be done when the value of invalidity as boolean is 1 by making the value of element zero (numerical stability)
+        if mask is not None:  ### [32768, 1, 7]
+            mask = mask.unsqueeze(-1)  ##
+            mask = mask.expand(
+                -1, attn.shape[1], -1, attn.shape[-1]
+            )  ##  TODO: matrix should be investiated to validate the operator
+            mask = 1.0 - (
+                (1.0 - mask) * (1.0 - mask.transpose(-2, -1))
+            )  ### As being symmetric of the mask matrix => the info of masked info won't give result: 2 problems: 1) computation bottleneck demand, eval_batch_size=25000 decreasing (setup pipeline using smaller pipeline nerf.py)
+            attn = attn.masked_fill(
+                mask == 1, -1e9
+            )  ## masking should be done when the value of invalidity as boolean is 1 by making the value of element zero (numerical stability)
             # attn = attn * mask
-            '''
+            """
             def masked_fill(self, mask, value):
                 result = self.clone()  # Start with a copy of the original data
                 result[mask] = value   # Replace values where the mask is true
                 return result
-            '''
+            """
 
         attn = F.softmax(attn, dim=-1)
         # attn = self.dropout(F.softmax(attn, dim=-1))
@@ -318,17 +340,16 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
+    """A two-feed-forward-layer module"""
 
     def __init__(self, d_in, d_hid, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
-        self.w_2 = nn.Linear(d_hid, d_in) # position-wise
+        self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
+        self.w_2 = nn.Linear(d_hid, d_in)  # position-wise
         self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
         # self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-
         residual = x
 
         x = self.w_2(F.relu(self.w_1(x)))
@@ -341,13 +362,13 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class PoswiseFF_emb4enc(nn.Module):
-    ''' A two-feed-forward-layer module (tailored to encoder for DFT model's input) inspired code from Transformer's encoder '''
+    """A two-feed-forward-layer module (tailored to encoder for DFT model's input) inspired code from Transformer's encoder"""
 
     def __init__(self, d_in, d_hid, d_out, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
-        self.w_2 = nn.Linear(d_hid,  d_out ) # position-wise
-        self.w_match = nn.Linear(d_in,  d_out ) # position-wise
+        self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
+        self.w_2 = nn.Linear(d_hid, d_out)  # position-wise
+        self.w_match = nn.Linear(d_in, d_out)  # position-wise
         # self.post_layer_norm = nn.LayerNorm(d_out, eps=1e-6)
         self.pre_layer_norm = nn.LayerNorm(d_in, eps=1e-6)
         # self.dropout = nn.Dropout(dropout)
@@ -360,7 +381,9 @@ class PoswiseFF_emb4enc(nn.Module):
         x = self.pre_layer_norm(x)
 
         # Transform the (normalized) input
-        x = self.w_2(F.elu(self.w_1(x)))    ## default: ReLU | or F.leaky_relu, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
+        x = self.w_2(
+            F.elu(self.w_1(x))
+        )  ## default: ReLU | or F.leaky_relu, LeakyReLU used to handle dying gradients, espeically when dense outputs are expected, so that it wouldn't lose expressiveness for Transformer due to lack of info
         # x = self.dropout(x)
 
         # Post-layer normaliation
@@ -373,30 +396,56 @@ class PoswiseFF_emb4enc(nn.Module):
 
 
 class PreLNPositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
+    """A two-feed-forward-layer module"""
 
     def __init__(self, d_in, d_hid, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
-        self.w_2 = nn.Linear(d_hid, d_in) # position-wise
+        self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
+        self.w_2 = nn.Linear(d_hid, d_in)  # position-wise
         self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
         # self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-
         residual = x
 
         x = self.layer_norm(x)
 
-        x = self.w_2(F.leaky_relu(self.w_1(x)))       ## default: F.relu
+        x = self.w_2(F.leaky_relu(self.w_1(x)))  ## default: F.relu
         # x = self.dropout(x)
         x += residual
 
         return x
 
 
+def make_embedding_encoder(config, input_channels: int, output_channels: int) -> Optional[nn.Module]:
+    emb_enc_type = config.get("type", "none")
+    non_linearity = nn.ELU()  # make configurable
+    if emb_enc_type == "none":
+        return None
+    elif emb_enc_type == "pwf":
+        return PoswiseFF_emb4enc(input_channels, 2 * output_channels, output_channels)
+    elif emb_enc_type == "ff":
+        return nn.Sequential(
+            nn.Linear(input_channels, 2 * output_channels, bias=True),
+            non_linearity,
+            nn.Linear(2 * output_channels, output_channels, bias=True),
+        )  ## default: ReLU |  nn.LeakyReLU()
+    elif emb_enc_type == "ffh":
+        return nn.Sequential(nn.Linear(input_channels, output_channels, bias=True))  ## default: ReLU |  nn.LeakyReLU()
+    elif emb_enc_type == "hpwf":
+        return nn.Sequential(  ## == mlp.PositionwiseFeedForward
+            nn.Linear(input_channels, 2 * output_channels, bias=True),
+            non_linearity,
+            nn.LayerNorm(2 * output_channels, eps=1e-6),
+            nn.Linear(2 * output_channels, output_channels, bias=True),
+        )
+    else:
+        print("__unrecognized input for emb_enc, not using an embedding encoder.")
+        return None
+
+
 class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    """Multi-Head Attention module"""
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
         super().__init__()
@@ -410,13 +459,12 @@ class MultiHeadAttention(nn.Module):
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=d_k**0.5)
 
         # self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(self, q, k, v, mask=None):
-
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
         sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
@@ -432,7 +480,7 @@ class MultiHeadAttention(nn.Module):
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
         if mask is not None:
-            mask = mask.unsqueeze(1)   # For head axis broadcasting.
+            mask = mask.unsqueeze(1)  # For head axis broadcasting.
 
         q, attn = self.attention(q, k, v, mask=mask)
 
@@ -446,9 +494,10 @@ class MultiHeadAttention(nn.Module):
         q = self.layer_norm(q)
 
         return q, attn
-    
+
+
 class PreLNMultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    """Multi-Head Attention module"""
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
         super().__init__()
@@ -462,13 +511,12 @@ class PreLNMultiHeadAttention(nn.Module):
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=d_k**0.5)
 
         # self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(self, q, k, v, mask=None):
-
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
         sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
@@ -485,7 +533,7 @@ class PreLNMultiHeadAttention(nn.Module):
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
         if mask is not None:
-            mask = mask.unsqueeze(1)   # For head axis broadcasting.
+            mask = mask.unsqueeze(1)  # For head axis broadcasting.
 
         q, attn = self.attention(q, k, v, mask=mask)
 
@@ -500,7 +548,7 @@ class PreLNMultiHeadAttention(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    ''' Compose with two layers '''
+    """Compose with two layers"""
 
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, dropout=0, pre_ln: bool = False):
         super(EncoderLayer, self).__init__()
@@ -512,14 +560,15 @@ class EncoderLayer(nn.Module):
             self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, slf_attn_mask=None):
-        enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)
+        enc_output, enc_slf_attn = self.slf_attn(enc_input, enc_input, enc_input, mask=slf_attn_mask)
         enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 
 
-'''(modified) Transformer arch from Pytorch library
-to be compatible with nn.TransformerEncoder() as input arg'''
+"""(modified) Transformer arch from Pytorch library
+to be compatible with nn.TransformerEncoder() as input arg"""
+
+
 class TrEnLayer(nn.Module):
     r"""
     Args:
@@ -530,16 +579,19 @@ class TrEnLayer(nn.Module):
         (and convert back on output). This will improve the overall performance of
         TransformerEncoder when padding rate is high. Default: ``True`` (enabled).
     """
+
     def __init__(self, encoder_layer, num_layers, norm=None, enable_nested_tensor=True, mask_check=True):
         super(TrEnLayer, self).__init__()
         # self.layers = nn.ModuleList([deepcopy(encoder_layer) for _ in range(num_layers)])
-        self.layers = TTF._get_clones(encoder_layer, num_layers)    ## deep copy
+        self.layers = TTF._get_clones(encoder_layer, num_layers)  ## deep copy
         self.num_layers = num_layers
         self.norm = norm
         self.enable_nested_tensor = enable_nested_tensor
         self.mask_check = mask_check
 
-    def forward(self, src: Tensor, mask: Optional[Tensor]=None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+    def forward(
+        self, src: Tensor, mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None
+    ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -553,13 +605,12 @@ class TrEnLayer(nn.Module):
         if src_key_padding_mask is not None:
             _skpm_dtype = src_key_padding_mask.dtype
             if _skpm_dtype != torch.bool and not torch.is_floating_point(src_key_padding_mask):
-                raise AssertionError(
-                    "only bool and floating types of key_padding_mask are supported")
+                raise AssertionError("only bool and floating types of key_padding_mask are supported")
         output = src
         convert_to_nested = False
         first_layer = self.layers[0]
         src_key_padding_mask_for_layers = src_key_padding_mask
-        why_not_sparsity_fast_path = ''
+        why_not_sparsity_fast_path = ""
         str_first_layer = "self.layers[0]"
 
         # if not isinstance(first_layer, EncoderLayer):
@@ -629,7 +680,7 @@ class TrEnLayer(nn.Module):
             output = mod(output, slf_attn_mask=src_key_padding_mask_for_layers)[0]
 
         if convert_to_nested:
-            output = output.to_padded_tensor(0.)
+            output = output.to_padded_tensor(0.0)
 
         if self.norm is not None:
             output = self.norm(output)

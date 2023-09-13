@@ -3,10 +3,11 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch
 
-import models.common.model.Transformer_DF as DFT
+import models.common.model.multi_view_head as DFT
+
 
 class ScaledDotProductAttention(nn.Module):
-    ''' Scaled Dot-Product Attention '''
+    """Scaled Dot-Product Attention"""
 
     def __init__(self, temperature, attn_dropout=0.1):
         super().__init__()
@@ -14,7 +15,6 @@ class ScaledDotProductAttention(nn.Module):
         # self.dropout = nn.Dropout(attn_dropout)
 
     def forward(self, q, k, v, mask=None):
-
         attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
 
         if mask is not None:
@@ -29,17 +29,16 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
+    """A two-feed-forward-layer module"""
 
     def __init__(self, d_in, d_hid, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
-        self.w_2 = nn.Linear(d_hid, d_in) # position-wise
+        self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
+        self.w_2 = nn.Linear(d_hid, d_in)  # position-wise
         self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
         # self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-
         residual = x
 
         x = self.w_2(F.relu(self.w_1(x)))
@@ -50,8 +49,9 @@ class PositionwiseFeedForward(nn.Module):
 
         return x
 
+
 class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    """Multi-Head Attention module"""
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
         super().__init__()
@@ -65,13 +65,12 @@ class MultiHeadAttention(nn.Module):
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=d_k**0.5)
 
         # self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(self, q, k, v, mask=None):
-
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
         sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
@@ -87,7 +86,7 @@ class MultiHeadAttention(nn.Module):
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
         if mask is not None:
-            mask = mask.unsqueeze(1)   # For head axis broadcasting.
+            mask = mask.unsqueeze(1)  # For head axis broadcasting.
 
         q, attn = self.attention(q, k, v, mask=mask)
 
@@ -102,6 +101,7 @@ class MultiHeadAttention(nn.Module):
 
         return q, attn
 
+
 # default tensorflow initialization of linear layers
 def weights_init(m):
     if isinstance(m, nn.Linear):
@@ -112,9 +112,10 @@ def weights_init(m):
 
 @torch.jit.script
 def fused_mean_variance(x, weight):
-    mean = torch.sum(x*weight, dim=2, keepdim=True)
-    var = torch.sum(weight * (x - mean)**2, dim=2, keepdim=True)
+    mean = torch.sum(x * weight, dim=2, keepdim=True)
+    var = torch.sum(weight * (x - mean) ** 2, dim=2, keepdim=True)
     return mean, var
+
 
 #
 # class IBRNet(nn.Module):
@@ -240,63 +241,68 @@ def fused_mean_variance(x, weight):
 
 
 class IBRNetWithNeuRay(nn.Module):
-    def __init__(self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, att_feat=16, d_model = 103, rbs=2048, nhead=4, **kwargs):
+    def __init__(
+        self, neuray_in_dim=32, in_feat_ch=32, n_samples=64, att_feat=16, d_model=103, rbs=2048, nhead=4, **kwargs
+    ):
         super().__init__()
         # self.args = args
         self.anti_alias_pooling = False
         if self.anti_alias_pooling:
             self.s = nn.Parameter(torch.tensor(0.2), requires_grad=True)
-        activation_func = nn.ELU(inplace=True)  ## (+): Mean Outputs Closer to Zero: want activations with mean outputs closer to zero.        ## nn.LeakyReLU: (+): faster convergence, When the distribution of the negative values in your dataset is meaningful and shouldn't be discarded.
+        activation_func = nn.ELU(
+            inplace=True
+        )  ## (+): Mean Outputs Closer to Zero: want activations with mean outputs closer to zero.        ## nn.LeakyReLU: (+): faster convergence, When the distribution of the negative values in your dataset is meaningful and shouldn't be discarded.
         self.n_samples = n_samples
-        self.ray_dir_fc = nn.Sequential(nn.Linear(4, 16),           ## defualt: 4
-                                        activation_func,
-                                        nn.Linear(16, in_feat_ch),  ## default: in_feat_ch + 3
-                                        activation_func)
+        self.ray_dir_fc = nn.Sequential(
+            nn.Linear(4, 16),  ## defualt: 4
+            activation_func,
+            nn.Linear(16, in_feat_ch),  ## default: in_feat_ch + 3
+            activation_func,
+        )
 
-        self.base_fc = nn.Sequential(nn.Linear((in_feat_ch)*5 + neuray_in_dim, 64), ## default: ((in_feat_ch+3)*5+neuray_in_dim, 64)
-                                     activation_func,
-                                     nn.Linear(64, 32),
-                                     activation_func)
+        self.base_fc = nn.Sequential(
+            nn.Linear((in_feat_ch) * 5 + neuray_in_dim, 64),  ## default: ((in_feat_ch+3)*5+neuray_in_dim, 64)
+            activation_func,
+            nn.Linear(64, 32),
+            activation_func,
+        )
 
-        self.vis_fc = nn.Sequential(nn.Linear(32, 32),
-                                    activation_func,
-                                    nn.Linear(32, 33),
-                                    activation_func,
-                                    )
+        self.vis_fc = nn.Sequential(
+            nn.Linear(32, 32),
+            activation_func,
+            nn.Linear(32, 33),
+            activation_func,
+        )
 
-        self.vis_fc2 = nn.Sequential(nn.Linear(32, 32),
-                                     activation_func,
-                                     nn.Linear(32, 1),
-                                     nn.Sigmoid()
-                                     )
+        self.vis_fc2 = nn.Sequential(nn.Linear(32, 32), activation_func, nn.Linear(32, 1), nn.Sigmoid())
 
-        self.geometry_fc = nn.Sequential(nn.Linear(32*2+1, att_feat*2),               ## default: (32*2+1, 64)
-                                         activation_func,
-                                         nn.Linear(att_feat*2, att_feat),
-                                         activation_func)
+        self.geometry_fc = nn.Sequential(
+            nn.Linear(32 * 2 + 1, att_feat * 2),  ## default: (32*2+1, 64)
+            activation_func,
+            nn.Linear(att_feat * 2, att_feat),
+            activation_func,
+        )
 
         # self.ray_attention = MultiHeadAttention(nhead, att_feat, 4, 4)              ## default: (4, 16, 4, 4)
-        self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16),
-                                             activation_func,
-                                             nn.Linear(16, 1),
-                                             nn.ReLU())
+        self.out_geometry_fc = nn.Sequential(nn.Linear(16, 16), activation_func, nn.Linear(16, 1), nn.ReLU())
 
-        self.rgb_fc = nn.Sequential(nn.Linear(32+1+4, 16),
-                                    activation_func,
-                                    nn.Linear(16, 8),
-                                    activation_func,
-                                    nn.Linear(8, 1))
+        self.rgb_fc = nn.Sequential(
+            nn.Linear(32 + 1 + 4, 16), activation_func, nn.Linear(16, 8), activation_func, nn.Linear(8, 1)
+        )
 
         self.neuray_fc = nn.Sequential(
-            nn.Linear(neuray_in_dim, 8,),
+            nn.Linear(
+                neuray_in_dim,
+                8,
+            ),
             activation_func,
             nn.Linear(8, 1),
         )
 
         self.img_feat2low = nn.Sequential(
-            nn.Linear(rbs, rbs//4),     ## TODO: replace this hard coded with the flexible
+            nn.Linear(rbs, rbs // 4),  ## TODO: replace this hard coded with the flexible
             activation_func,
-            nn.Linear(rbs//4, d_model)
+            nn.Linear(rbs // 4, d_model),
         )
 
         # self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
@@ -322,14 +328,14 @@ class IBRNetWithNeuRay(nn.Module):
     #     return sinusoid_table
 
     def forward(self, rgb_feat, neuray_feat, ray_diff, mask):
-        '''                             ibrnet dim e.g. [6, 64, 8, 35]
+        """ibrnet dim e.g. [6, 64, 8, 35]
         :param rgb_feat:    rgbs and image features [n_rays, n_samples, n_views, n_feat] == img_feat
         :param neuray_feat: rgbs and image features [n_rays, n_samples, n_views, n_feat] == viz_feat
         :param ray_diff: ray direction difference   [n_rays, n_samples, n_views, 4], first 3 channels are directions, ## tensor encodes information about how rays in the novel view differ from rays in the source views
         last channel is inner product
         :param mask: mask for whether each projection is valid or not. [n_rays, n_samples, n_views, 1]
         :return: rgb and density output, [n_rays, n_samples, 4]
-        '''
+        """
 
         ## Assumption: rgb_feat already contains image feature + dir_feat / this can be implemented further
         num_views = rgb_feat.shape[2]
@@ -342,28 +348,36 @@ class IBRNetWithNeuRay(nn.Module):
             _, dot_prod = torch.split(ray_diff, [3, 1], dim=-1)
             exp_dot_prod = torch.exp(torch.abs(self.s) * (dot_prod - 1))
             weight = (exp_dot_prod - torch.min(exp_dot_prod, dim=2, keepdim=True)[0]) * mask
-            weight = weight / (torch.sum(weight, dim=2, keepdim=True) + 1e-8) # means it will trust the one more with more consistent view point
+            weight = weight / (
+                torch.sum(weight, dim=2, keepdim=True) + 1e-8
+            )  # means it will trust the one more with more consistent view point
         else:
             weight = mask / (torch.sum(mask, dim=2, keepdim=True) + 1e-8)
 
         # neuray layer 0 ## == feature aggregation networks (M) above pipeline from fig. 19
-        weight0 = torch.sigmoid(self.neuray_fc(neuray_feat)) * weight   # [rn,dn,rfn,f]
-        mean0, var0 = fused_mean_variance(rgb_feat, weight0)            # [n_rays, n_samples, 1, n_feat]    ## 2nd one
-        mean1, var1 = fused_mean_variance(rgb_feat, weight)             # [n_rays, n_samples, 1, n_feat]    ## 1st one
-        globalfeat = torch.cat([mean0, var0, mean1, var1], dim=-1)      # [n_rays, n_samples, 1, 2*n_feat]
+        weight0 = torch.sigmoid(self.neuray_fc(neuray_feat)) * weight  # [rn,dn,rfn,f]
+        mean0, var0 = fused_mean_variance(rgb_feat, weight0)  # [n_rays, n_samples, 1, n_feat]    ## 2nd one
+        mean1, var1 = fused_mean_variance(rgb_feat, weight)  # [n_rays, n_samples, 1, n_feat]    ## 1st one
+        globalfeat = torch.cat([mean0, var0, mean1, var1], dim=-1)  # [n_rays, n_samples, 1, 2*n_feat]
 
-        x = torch.cat([globalfeat.expand(-1, -1, num_views, -1), rgb_feat, neuray_feat], dim=-1)  # [n_rays, n_samples, n_views, 3*n_feat]
-        x = self.base_fc(x)                 ## after concat it gives input for net A
+        x = torch.cat(
+            [globalfeat.expand(-1, -1, num_views, -1), rgb_feat, neuray_feat], dim=-1
+        )  # [n_rays, n_samples, n_views, 3*n_feat]
+        x = self.base_fc(x)  ## after concat it gives input for net A
 
         x_vis = self.vis_fc(x * weight)
-        x_res, vis = torch.split(x_vis, [x_vis.shape[-1]-1, 1], dim=-1)
+        x_res, vis = torch.split(x_vis, [x_vis.shape[-1] - 1, 1], dim=-1)
         vis = F.sigmoid(vis) * mask
         x = x + x_res
         vis = self.vis_fc2(x * vis) * mask  ## above one from Network A from Fig. 19
-        weight = vis / (torch.sum(vis, dim=2, keepdim=True) + 1e-8)  ## normalized: weighed mean and var ## weight == buttom from net A [N, K, 32]
+        weight = vis / (
+            torch.sum(vis, dim=2, keepdim=True) + 1e-8
+        )  ## normalized: weighed mean and var ## weight == buttom from net A [N, K, 32]
 
         mean, var = fused_mean_variance(x, weight)
-        globalfeat = torch.cat([mean.squeeze(2), var.squeeze(2), weight.mean(dim=2)], dim=-1)  # [n_rays, n_samples, 32*2+1]
+        globalfeat = torch.cat(
+            [mean.squeeze(2), var.squeeze(2), weight.mean(dim=2)], dim=-1
+        )  # [n_rays, n_samples, 32*2+1]
         globalfeat = self.geometry_fc(globalfeat)  # [n_rays, n_samples, att_feat] ## MLP for input transformer
 
         num_valid_obs = torch.sum(mask, dim=2)
@@ -377,7 +391,7 @@ class IBRNetWithNeuRay(nn.Module):
         # sigma_out = sigma.masked_fill(num_valid_obs < 1, 0.)  # set the sigma of invalid point to zero
         # return sigma
 
-        return globalfeat, num_valid_obs   ### [M, 64, att_feat], [M, 64, 1]   ## Note: gfeat is already masked out above
+        return globalfeat, num_valid_obs  ### [M, 64, att_feat], [M, 64, 1]   ## Note: gfeat is already masked out above
 
         # rgb computation
         # x = torch.cat([x, vis, ray_diff], dim=-1)
