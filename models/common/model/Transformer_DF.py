@@ -84,7 +84,7 @@ class DensityFieldTransformer(nn.Module):
         # if self.AE: self.ConvAE = mlp.ConvAutoEncoder(self.att_feat, self.n_coarse)  ## [1, 2*self.att_feat, self.ts_] ## self.att_feat*2 ## self.ts_ ##(patch_size x ray_batch_size) self.att_feat, sampled_features.shape[0] or nv_+1 == 5 TODO: investigate more the model structure for validity in detail
 
         self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat, self.att_feat//2), nn.ELU(), nn.Linear(self.att_feat//2, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
-        # self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat, 1))  ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
+        # self.DF_pred_head = nn.Sequential(nn.Linear(self.att_feat, 1, bias=False))  ## Note: unbiased would make better representation c.f. NewS ## Note: ReLU or Sigmoid would be detrimental for gradient flow at zero center activation function
 
     def forward(self, sampled_features, invalid_features, gfeat=None, iv_gfeat=None):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
         ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view

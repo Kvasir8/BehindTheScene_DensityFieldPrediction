@@ -55,7 +55,7 @@ class MVBTSNet(torch.nn.Module):
         self.return_sample_depth = conf.get("return_sample_depth", False)
         self.sample_color = conf.get("sample_color", True)
 
-        d_in = self.encoder.latent_size + self.code_xyz.d_out               ### 64 + 39
+        d_in = self.encoder.latent_size + self.code_xyz.d_out               ### pos_enc: 64 + 39 == 103
         d_out = 1 if self.sample_color else 4
         ## If sample_color is set to False, then d_out is set to 4 to represent the RGBA color values
         ## (red, green, blue, alpha) of the reconstructed scene. If sample_color is set to True, then d_out is set to 1
@@ -344,7 +344,8 @@ class MVBTSNet(torch.nn.Module):
                 if torch.any(torch.isnan(sigma_DFT)):  print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
                 mlp_output = sigma_DFT
 
-            elif coarse or self.mlp_fine is None:
+            ## TODO: employ coarse2fine sampling strategy e.g. NewS' surface-based sampling strategy
+            elif coarse or self.mlp_fine is None:       ## initial coarse sampling from pred_c in L = sum(norm2(pred_c-GT) + norm2(pred_f-GT))
                 mlp_output = self.mlp_coarse(
                     mlp_input[..., 0, :],
                     combine_inner_dims=(n_pts,),
@@ -352,7 +353,7 @@ class MVBTSNet(torch.nn.Module):
                     dim_size=dim_size,
                 )
             else:
-                mlp_output = self.mlp_fine(
+                mlp_output = self.mlp_fine(             ## pred_f
                     mlp_input,
                     combine_inner_dims=(n_pts,),
                     combine_index=combine_index,

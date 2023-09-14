@@ -36,6 +36,7 @@ class BTSWrapper(nn.Module):
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
         self.fe_enc = config["fisheye_encoding"]
+        self.nry = config["NeuRay"]
         self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.z_near = config["z_near"]
@@ -109,7 +110,7 @@ class BTSWrapper(nn.Module):
                 for params in self.renderer.net.mlp_coarse.parameters(True):
                     params.requires_grad_(True)
 
-        if self.training:   frame_perm = torch.randperm(v)  
+        if self.training: frame_perm = torch.randperm(v)
         else:               frame_perm = torch.arange(v)    ## eval
 
         if self.fe_enc:     ## views that are encoded
@@ -122,18 +123,21 @@ class BTSWrapper(nn.Module):
         if not self.training and self.ids_enc_viz_eval:       ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
             ids_encoder = self.ids_enc_viz_eval               ## fixed during eval
 
-        ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## ?    ### tensor([0, 4])
-        
+        if self.nry:       ids_render = ids_encoder
+        elif not self.nry: ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values    ## randomly sampled for loss c.f. paper ### tensor([0, 4])
+        else: print("__unrecognized input for ids_render")
         combine_ids = None
 
         if self.training:
             if self.frame_sample_mode == "only":
                 ids_loss = [0]
                 ids_render = ids_render[ids_render != 0]
+
             elif self.frame_sample_mode == "not":
                 frame_perm = torch.randperm(v-1) + 1
                 ids_loss = torch.sort(frame_perm[[i for i in self.frames_render if i < v-1]]).values
                 ids_render = [i for i in range(v) if i not in ids_loss]
+
             elif self.frame_sample_mode == "stereo":
                 if frame_perm[0] < v // 2:
                     ids_loss = list(range(v // 2))
@@ -141,6 +145,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(v // 2, v))
                     ids_render = list(range(v // 2))
+
             elif self.frame_sample_mode == "mono":
                 split_i = v // 2
                 if frame_perm[0] < v // 2:
@@ -149,17 +154,29 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
+
             elif self.frame_sample_mode == "kitti360-mono":
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
 
-                ids_loss = []
-                ids_render = []
+                ids_loss, ids_render = [], []
 
                 for cam in range(4):    ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
-                    ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
+                    ids_loss   += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
+
+            elif self.frame_sample_mode == "kitti360-fe":     ## !
+                steps = v // 4
+                start_from = 0 if frame_perm[0] < v // 2 else 1
+
+                ids_loss, ids_render = [], []
+
+                for cam in range(v//2):    ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
+                    ids_loss   += [cam * steps + i for i in range(start_from, steps, 2)]
+                    ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
+                    start_from = 1 - start_from
+
             elif self.frame_sample_mode.startswith("waymo"):
                 num_views = int(self.frame_sample_mode.split("-")[-1])
                 steps = v // num_views

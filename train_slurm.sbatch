@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="ff_nmv8_att16_lay3_enc0_do0_Unfr_B1_Lr1e_4_BTS_Nry_woViedir_PredHead_Fxd"
+#SBATCH --job-name="ff_nmv4_att16_lay4_enc0_do0_Unfr_B1_lr5e5_BTS_Nry_woViedir_feFalse_unbiased"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
