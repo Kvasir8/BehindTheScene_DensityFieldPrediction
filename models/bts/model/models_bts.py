@@ -468,7 +468,7 @@ class MVBTSNet(torch.nn.Module):
         xyz = torch.cat(
             (xyz, ones), dim=-1
         )  # (B, 1, n_pts, 4) Concatenate the tensor of ones with the point cloud to create homogeneous coordinates
-        xyz_projected = (self.grid_f_poses_w2c[:, :nv_, :3, :]) @ xyz.permute(0, 1, 3, 2).permute(
+        xyz_projected = (self.grid_f_poses_w2c[:, :nv_, :3, :] @ xyz.permute(0, 1, 3, 2)).permute(
             0, 3, 1, 2
         )  # (B, n_pts, n_views, 3) Apply the camera poses to the point cloud to get the projected points and calculate the distance
         distance = torch.norm(xyz_projected, dim=-1, keepdim=True)  # (B, n_pts, n_views, 1)
@@ -542,94 +542,6 @@ class MVBTSNet(torch.nn.Module):
             }
 
             mlp_output = head_outputs[self.final_pred_head]
-
-            # if (
-            #     self.nry
-            # ):  # and not infer:  ## only training with given viewdirs + sampled_features, otherwise we rely on features extract from RGB image
-            #     B_, M_eval, nmv, feat = sampled_features.shape
-            #     viz_feat = sampled_features.reshape(
-            #         -1, self.n_coarse, nmv, feat
-            #     )  ### [n_rays, n_samples, n_views, n_feat]    ## Note: -1 == M / sb
-            #     img_feat = sampled_bottleneck_features.reshape(
-            #         -1, self.n_coarse, nmv, sampled_bottleneck_features.shape[-1]
-            #     )  ### [n_rays, n_samples, n_views, n_feat]    ## Note: -1 == M / sb
-            #     invalid_feat = invalid_features.reshape(-1, self.n_coarse, nmv, 1)
-
-            #     ## TODO: Analyze IBRNet how ray_diff used in viewdirs and change accordingly. As it's (naively done. This is not usual case to broadcast along num_views, which is not sure for valid implementation.
-            #     # if self.use_viewdirs
-
-            #     # ray_diff = viewdirs.reshape(-1, self.n_coarse, 1, 3).expand(-1, -1, nmv, -1)
-            #     train_poses = self.grid_f_poses_w2c[
-            #         0, :nmv, ...
-            #     ]  ## Note: assunme batch_size=1 for squeeze  # take translation part of [n_views, 4, 4]
-            #     query_pose = train_poses[nmv // 2, ...].unsqueeze(0)  ## take median of the camera as query
-            #     # train_poses = torch.cat((train_poses[:nmv//2], train_poses[nmv//2+1:])) ## removing query pose  ## TODO: exclude training poses
-
-            #     ray_diff = self.compute_angle(
-            #         xyz.reshape(-1, self.n_coarse, 3), query_pose, train_poses
-            #     )  # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
-            #     ray_diff = ray_diff.permute(
-            #         1, 2, 0, 3
-            #     )  # .reshape(-1, self.n_coarse, nmv, 4)     ### [n_rays, n_samples, n_views, 4]
-            #     # rgb_feat_sampled, ray_diff, mask = projector.compute(pts, ray_batch['camera'],
-            #     #                                              ray_batch['src_rgbs'],
-            #     #                                              ray_batch['src_cameras'],
-            #     #                                              featmaps=featmaps[1])
-
-            #     # self.img_feat = self.img_feat[-1].reshape(-1, self.n_coarse, nmv, feat)
-            #     # img_feat = viewdirs
-            #     # for vzf, rdff, invf in zip(ray_diff, )
-
-            #     globalfeat, num_valid_obs = self.nry(
-            #         rgb_feat=img_feat, neuray_feat=viz_feat, ray_diff=ray_diff, mask=invalid_feat
-            #     )
-            #     globalfeat = globalfeat.reshape(
-            #         B_, -1, globalfeat.shape[-1]
-            #     )  ## TODO: take invalid feature into account for NeuRay
-            #     num_valid_obs = num_valid_obs.reshape(B_, -1, num_valid_obs.shape[-1])
-            #     # gfeat_avg_pool, num_valid_obs = globalfeat.reshape(B_, -1, globalfeat.shape[-1]), num_valid_obs.reshape(B_, -1, 1)          ## TODO: take invalid feature into account for NeuRay
-            #     # mlp_input = F.avg_pool1d(globalfeat.transpose(1, 2), kernel_size=globalfeat.shape[-2]) ## pooling the last dim to aggregate the features to interpret global geometric info for readout token
-
-            # Run main NeRF network
-            # if (
-            #     self.DFT
-            # ):  ### dim(mlp_input):[sb, (n_coarse)*(8x8:=patch_size)*(ray_batch_size/path_size)] where  (ray_batch_size/path_size) == num patches (8x8) to sample for each batch B
-            #     # if not self.nry or infer:   ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
-            #     if (
-            #         not self.nry
-            #     ):  ## This was the condition for the case when viewdirs were unavailable, which we need pass inputs in different way.
-            #         sigma_DFT = self.DFT(mlp_input.flatten(0, 1), invalid_features.flatten(0, 1)).view(
-            #             mlp_input.shape[0], mlp_input.shape[1], 1
-            #         )
-            #     elif self.nry:
-            #         sigma_DFT = self.DFT(
-            #             mlp_input.flatten(0, 1),
-            #             invalid_features.flatten(0, 1),
-            #             gfeat=globalfeat.flatten(0, 1),
-            #             iv_gfeat=num_valid_obs.flatten(0, 1),
-            #         ).view(mlp_input.shape[0], mlp_input.shape[1], 1)
-            #     if torch.any(torch.isnan(sigma_DFT)):
-            #         print("sigma_DFT_nan_existed: ", torch.any(torch.isnan(sigma_DFT)))
-            #     mlp_output = sigma_DFT
-
-            # elif coarse or self.mlp_fine is None:
-            #     mlp_output = self.mlp_coarse(
-            #         mlp_input[..., 0, :],
-            #         combine_inner_dims=(n_pts,),
-            #         combine_index=combine_index,
-            #         dim_size=dim_size,
-            #     )
-            # else:
-            #     mlp_output = self.mlp_fine(
-            #         mlp_input,
-            #         combine_inner_dims=(n_pts,),
-            #         combine_index=combine_index,
-            #         dim_size=dim_size,
-            #     )
-
-            # if self.AE: mlp_output = mlp_output.reshape(n_, self.ts_conv , self._d_out)
-            # if self.AE: mlp_output = mlp_output.reshape(n_, -1, self._d_out)
-            # mlp_output = mlp_output.reshape(n_, n_pts, self._d_out)  # (n_, pts, c) -> (n_, n_pts, c)
 
             if self.sample_color:
                 sigma = mlp_output[

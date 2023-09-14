@@ -78,7 +78,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
     def __init__(
         self,
         n_points_per_ray: int,
-        neuray_in_dim: int = 32,
+        # neuray_in_dim: int = 32,
         in_feat_ch: int = 32,
         n_samples: int = 64,
         att_feat: int = 16,
@@ -106,7 +106,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
         )
 
         self.base_fc = nn.Sequential(
-            nn.Linear((in_feat_ch) * 5 + neuray_in_dim, 64),  ## default: ((in_feat_ch+3)*5+neuray_in_dim, 64)
+            nn.Linear((in_feat_ch) * 5 + att_feat, 64),  ## default: ((in_feat_ch+3)*5+neuray_in_dim, 64)
             activation_func,
             nn.Linear(64, 32),
             activation_func,
@@ -137,7 +137,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
 
         self.neuray_fc = nn.Sequential(
             nn.Linear(
-                neuray_in_dim,
+                att_feat,
                 8,
             ),
             activation_func,
@@ -147,7 +147,8 @@ class NeuRayIndependentToken(BaseIndependentToken):
         self.img_feat2low = nn.Sequential(
             nn.Linear(rbs, rbs // 4),  ## TODO: replace this hard coded with the flexible
             activation_func,
-            nn.Linear(rbs // 4, d_model),
+            # nn.Linear(rbs // 4, d_model),
+            nn.Linear(rbs // 4, in_feat_ch),
         )
 
         # self.pos_encoding = self.posenc(d_hid=16, n_samples=self.n_samples)
@@ -190,7 +191,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
         )  # (B*num_rays, point_per_ray, n_views)
 
         ## Assumption: rgb_feat already contains image feature + dir_feat / this can be implemented further
-        mask = 1 - invalid_features
+        mask = ~invalid_features.unsqueeze(-1)
         num_views = bottleneck_feats.shape[2]
         direction_feat = self.ray_dir_fc(ray_diff)
         # rgb_in = rgb_feat[..., :3]            ## no used in both original code and necessary code here
@@ -236,7 +237,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
         # num_valid_obs = torch.sum(mask, dim=2)
         # num_valid_obs = num_valid_obs > torch.mean(num_valid_obs, dtype=float)  ## making boolean
 
-        return globalfeat.flatten(0, 1)  # (B*num_rays*point_per_ray, C)
+        return globalfeat.flatten(0, 1).unsqueeze(-2)  # (B*num_rays*point_per_ray, 1, C)
         # return globalfeat, num_valid_obs
 
 
