@@ -134,7 +134,7 @@ class ResnetFC(nn.Module):
         on dim 1, at combine_layer
         """
         with profiler.record_function("resnetfc_infer"):
-            if self.view_number:
+            if self.view_number is not None:
                 zx = sampled_features[..., self.view_number, :]
             else:
                 zx = sampled_features
