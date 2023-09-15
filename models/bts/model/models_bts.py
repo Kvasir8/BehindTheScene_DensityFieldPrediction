@@ -123,7 +123,7 @@ class MVBTSNet(torch.nn.Module):
             do_flip = (torch.rand(1) > .5).item()
         else:do_flip = False
 
-        if do_flip:     images_encoder = torch.flip(images_encoder, dims=(-1, ))
+        if do_flip:     images_encoder = torch.flip(images_encoder, dims=(-1, ))        ## TODO: flip it
 
         image_latents_ms, img_feat_ms = self.encoder(images_encoder.view(n_ * nv_, c_, h_, w_))    ## Encoder of BTS's backbone model e.g. Monodepth2
 
