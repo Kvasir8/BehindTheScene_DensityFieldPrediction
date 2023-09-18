@@ -25,12 +25,12 @@ class _RenderWrapper(torch.nn.Module):
 
         outputs = self.renderer(
             self.net,
-            rays,       ### [B_, ray_batch_size, 8] : samples along a ray with 8 views (default: data_fc:= frame count=2) with batches
-            want_weights=want_weights and not self.simple_output,
-            want_alphas=want_alphas and not self.simple_output,
-            want_z_samps=want_z_samps and not self.simple_output,
-            want_rgb_samps=want_rgb_samps and not self.simple_output,
-            sample_from_dist=sample_from_dist
+            rays,                       ### [B_, ray_batch_size, 8] : samples along a ray with 8 views (default: data_fc:= frame count=2) with batches
+            want_weights = want_weights and not self.simple_output,
+            want_alphas = want_alphas and not self.simple_output,
+            want_z_samps = want_z_samps and not self.simple_output,
+            want_rgb_samps = want_rgb_samps and not self.simple_output,
+            sample_from_dist = sample_from_dist
         )
         if self.simple_output:
             if self.renderer.using_fine:

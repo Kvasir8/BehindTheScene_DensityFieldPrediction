@@ -108,9 +108,7 @@ class MultiViewHead(nn.Module):
             dim=1,
         )
 
-        transformed_features = self.attn_layers(padded_features, src_key_padding_mask=padded_invalid)[
-            :, 0, :
-        ]  # n_pts, C  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        transformed_features = self.attn_layers(padded_features, src_key_padding_mask=padded_invalid)[:, 0, :]  # [n_pts, C]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
         ## TODO: GeoNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
         density_field = self.density_head(transformed_features)

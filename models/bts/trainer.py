@@ -41,6 +41,7 @@ class BTSWrapper(nn.Module):
         self.fe_enc = config["fisheye_encoding"]
         self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
+        # self.pgt = config.get("", False)
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.ray_batch_size = config["ray_batch_size"]
@@ -96,8 +97,8 @@ class BTSWrapper(nn.Module):
         self._counter = 0
 
     @staticmethod
-    def get_loss_metric_names():
-        return ["loss", "loss_l2", "loss_mask", "loss_temporal"]
+    def get_loss_metric_names():    ## TODO: pseudo GT loss or Eikonal loss
+        return ["loss", "loss_l2", "loss_mask", "loss_temporal", "loss_pgt"]        ## default: ["loss", "loss_l2", "loss_mask", "loss_temporal"]
 
     def forward(self, data):
         data = dict(data)
@@ -219,8 +220,7 @@ class BTSWrapper(nn.Module):
                 ids_render = [0, steps, steps * 2]
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-        if self.loss_from_single_img:
-            ids_loss = ids_loss[:1]
+        if self.loss_from_single_img:   ids_loss = ids_loss[:1]
 
         ip = self.train_image_processor if self.training else self.val_image_processor
 
@@ -470,27 +470,23 @@ def initialize(config: dict, logger=None):
     encoder = make_backbone(config["model_conf"]["encoder"])
     code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
 
-    d_in = encoder.latent_size + code_xyz.d_out
+    d_in = encoder.latent_size + code_xyz.d_out         ### 103
+
     # Make configurable for Semantics as well
     sample_color = config["model_conf"].get("sample_color", True)
     d_out = 1 if sample_color else 4
 
-    decoder_heads = {
-        head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
-    }
+    decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
 
+    # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
     net = MVBTSNet(
         config["model_conf"],
         encoder,
         code_xyz,
         decoder_heads,
-        final_pred_head=config.get("final_prediction_head", None),
-        ren_nc=config["renderer"]["n_coarse"],
+        final_pred_head = config.get("final_prediction_head", None),
+        ren_nc = config["renderer"]["n_coarse"],
     )
-
-    # net = globals()[arch](
-    #     config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]
-    # )  ## default: globals()[arch](config["model_conf"])
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
@@ -501,9 +497,7 @@ def initialize(config: dict, logger=None):
 
     model = idist.auto_model(model)
 
-    optimizer = optim.Adam(
-        model.parameters(), lr=config["learning_rate"]
-    )  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
+    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
     # optimizer = optim.Adam([{"encoder_decoder": model.[...encoder].parameters()}, {"final_decoder": model.transformer.parameters(), "lr": config["learning_rate"] / 10}], lr=config["learning_rate"])
     optimizer = idist.auto_optim(optimizer)
 

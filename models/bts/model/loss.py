@@ -7,12 +7,23 @@ from torch import profiler
 from models.common.model.layers import ssim, geo
 
 
-def compute_errors_geocls(img0, img1, mask=None):   ## L_{geo} + L_{cls}
+# def compute_errors_geocls(img0, img1, mask=None):   ## L_{geo} + L_{cls}    c.f. SinNeRF
+#     n, pc, h, w, nv, c = img0.shape
+#     img1 = img1.expand(img0.shape)
+#     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
+#     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
+#     errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
+#     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
+#     if mask is not None: return errors, mask
+#     else: return errors
+
+def compute_errors_l1ssimpgt(img0, img1, mask=None):
     n, pc, h, w, nv, c = img0.shape
     img1 = img1.expand(img0.shape)
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
+    errors = .85 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
+    # errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
     if mask is not None: return errors, mask
     else: return errors
@@ -63,9 +74,12 @@ class ReconstructionLoss:   ## L_{ph}
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
-        elif self.criterion_str == "l1+ssim+geo+cls":
-            self.rgb_coarse_crit = compute_errors_geocls
-            self.rgb_fine_crit = compute_errors_geocls
+        elif self.criterion_str == "l1+ssim+pgt":   ## TODO: implement new loss
+            self.rgb_coarse_crit = compute_errors_l1ssimpgt
+            self.rgb_fine_crit = compute_errors_l1ssimpgt
+        # elif self.criterion_str == "l1+ssim+geo+cls":
+        #     self.rgb_coarse_crit = compute_errors_geocls
+        #     self.rgb_fine_crit = compute_errors_geocls
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
         self.ignore_invalid = self.invalid_policy is not None and self.invalid_policy != "none"
@@ -91,7 +105,7 @@ class ReconstructionLoss:   ## L_{ph}
 
     @staticmethod
     def get_loss_metric_names():
-        return ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg"]
+        return ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg", "loss_pgt"]   ## default: ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg"]
 
     def __call__(self, data):
         with profiler.record_function("loss_computation"):
@@ -99,6 +113,7 @@ class ReconstructionLoss:   ## L_{ph}
 
             loss_dict = {}
 
+            loss_pgt = 0
             loss_coarse_all = 0
             loss_fine_all = 0
             loss = 0
@@ -293,6 +308,7 @@ class ReconstructionLoss:   ## L_{ph}
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
 
+        loss_dict["loss_pgt"] = loss_pgt
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()

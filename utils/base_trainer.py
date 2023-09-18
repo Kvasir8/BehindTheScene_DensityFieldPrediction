@@ -66,10 +66,8 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     metrics_loss = {k: MeanMetric((lambda y: lambda x: x["loss_dict"][y])(k)) for k in criterion.get_loss_metric_names()}
 
     loss_during_validation = config.get("loss_during_validation", True)
-    if loss_during_validation:
-        eval_metrics = {**metrics, **metrics_loss}
-    else:
-        eval_metrics = metrics
+    if loss_during_validation:  eval_metrics = {**metrics, **metrics_loss}
+    else:                       eval_metrics = metrics
 
     # Create trainer for current task
     trainer = create_trainer(model, optimizer, criterion, lr_scheduler, train_loader.sampler if hasattr(train_loader, "sampler") else None, config, logger, metrics={})

@@ -23,7 +23,7 @@
         },
 
         {
-            "name": "launch: train.py",
+            "name": "launch_debug: train.py",
             "type": "python",
             "request": "launch",
             "program": "train.py",
