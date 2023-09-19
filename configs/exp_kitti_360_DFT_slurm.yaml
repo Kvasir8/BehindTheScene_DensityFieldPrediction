@@ -24,7 +24,7 @@ defaults:                       ### This code is for concept of proof and transf
 #     is_preprocessed: false
 
 ## For training
-name: "BaseExperiment_debug"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BaseExperiment_debug_mono_viz_inf"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -32,7 +32,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 10000
-visualize_every: 50          # default: 10       ## bigger is good for computational reduction
+visualize_every: 2500          # default: 10       ## bigger is good for computational reduction
 batch_size: 2                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -95,7 +95,7 @@ model_conf:
           name: "singleviewhead"
           args:
             n_blocks : 0
-            view_number: 0          ## ? why default: 1?
+            view_number: 1
             d_hidden : 64
             
     final_prediction_head: "multiviewhead"  # default: multiviewhead, this decides whether the final prediction head gives single or multiple prediction results. Note: This comes with pseudo GT loss
@@ -115,7 +115,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 512                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -138,7 +138,7 @@ scheduler:
     gamma: 0.1
 
 renderer:
-    n_coarse : 16                       # default: 64, num sampling on a ray
+    n_coarse : 64                       # default: 64, num sampling on a ray
     n_fine : 0
     n_fine_depth : 0
     depth_std : 1.0

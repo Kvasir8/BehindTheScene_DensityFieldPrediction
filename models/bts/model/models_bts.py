@@ -536,13 +536,15 @@ class MVBTSNet(torch.nn.Module):
                 invalid_colors = invalid_features.unsqueeze(-2)
                 nv_ = 1
 
-            mlp_outputs = [head_outputs[name] for name in head_outputs]
+            mlp_outputs = [head_outputs[name].detach() for name in head_outputs]
             
             loss_pgt = 0
             if pgt: 
-                nom_ = torch.tensor(mlp_outputs[0].shape).sum()
-                denom_ = torch.sqrt(torch.pow(mlp_outputs[0] - mlp_outputs[1], 2)).sum()  ## L2 norm
-                loss_pgt = nom_ / denom_    ## normalize
+                residual = mlp_outputs[0] - mlp_outputs[1]
+                numer = torch.sqrt(torch.pow(residual, 2).sum())  ## L2 norm
+                denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
+                # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]
+                loss_pgt = numer / denom_                   ## Min-Max Normalization
 
             if self.empty_empty:  ## method sets the sigma values of the invalid features to 0 for invalidity.
                 sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
