@@ -41,7 +41,7 @@ class BTSWrapper(nn.Module):
         self.fe_enc = config["fisheye_encoding"]
         self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
-        # self.pgt = config.get("", False)
+        self.loss_pgt = config.get("loss_pgt", False)
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.ray_batch_size = config["ray_batch_size"]
@@ -139,10 +139,8 @@ class BTSWrapper(nn.Module):
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (
-            not self.training and self.ids_enc_viz_eval
-        ):  ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval  ## fixed during eval
+        if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+            ids_encoder = self.ids_enc_viz_eval             ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values  ## ?    ### tensor([0, 4])
 
@@ -286,7 +284,7 @@ class BTSWrapper(nn.Module):
                 data["rays"] = render_dict["rays"]
         else:
             with profiler.record_function("trainer_render"):
-                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True)
+                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt)
                 ### [n:=batch_size, M_patches, cam_views:=8]    ## forward in _RenderWrapper
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])

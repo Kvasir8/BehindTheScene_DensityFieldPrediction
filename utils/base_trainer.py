@@ -359,12 +359,10 @@ def create_evaluator(model, metrics, criterion, config, tag="val"):
         else:
             loss_metrics = {}
 
-        return {
-            "output": data,
-            "loss_dict": loss_metrics,
-            "timings_dict": timing,
-            "metrics_dict": {}
-        }
+        return {"output": data,
+                "loss_dict": loss_metrics,
+                "timings_dict": timing,
+                "metrics_dict": {} }
 
     evaluator = Engine(evaluate_step)
 

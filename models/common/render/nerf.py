@@ -16,7 +16,7 @@ class _RenderWrapper(torch.nn.Module):
         self.renderer = renderer
         self.simple_output = simple_output
 
-    def forward(self, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None):    ## !
+    def forward(self, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False, sample_from_dist=None):    ## !
         if rays.shape[0] == 0:          ## batch_size == 0
             return (
                 torch.zeros(0, 3, device=rays.device),
@@ -30,6 +30,7 @@ class _RenderWrapper(torch.nn.Module):
             want_alphas = want_alphas and not self.simple_output,
             want_z_samps = want_z_samps and not self.simple_output,
             want_rgb_samps = want_rgb_samps and not self.simple_output,
+            want_pgt_loss = want_pgt_loss,
             sample_from_dist = sample_from_dist
         )
         if self.simple_output:
@@ -258,7 +259,7 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
+                    rgbs, invalid, sigmas, loss_pgt = model(pnts, coarse=coarse, viewdirs=dirs, pgt=model.loss_pgt)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
@@ -306,10 +307,10 @@ class NeRFRenderer(torch.nn.Module):
                 pix_alpha = weights.sum(dim=1)  # (B), pixel alpha
                 rgb_final = rgb_final + 1 - pix_alpha.unsqueeze(-1)  # (B, 3)
 
-            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs)
+            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs, loss_pgt)
 
     def forward(
-        self, model, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, sample_from_dist=None
+        self, model, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False, sample_from_dist=None
     ):
         """
         :model nerf model, should return (SB, B, (r, g, b, sigma))
@@ -345,7 +346,7 @@ class NeRFRenderer(torch.nn.Module):
 
             outputs = DotMap(
                 coarse=self._format_outputs(
-                    coarse_composite, superbatch_size, want_weights=want_weights, want_alphas=want_alphas, want_z_samps=want_z_samps, want_rgb_samps=want_rgb_samps
+                    coarse_composite, superbatch_size, want_weights=want_weights, want_alphas=want_alphas, want_z_samps=want_z_samps, want_rgb_samps=want_rgb_samps, want_pgt_loss=want_pgt_loss
                 ),
             )
 
@@ -371,9 +372,9 @@ class NeRFRenderer(torch.nn.Module):
             return outputs
 
     def _format_outputs(
-        self, rendered_outputs, superbatch_size, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False
+        self, rendered_outputs, superbatch_size, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False
     ):
-        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps = rendered_outputs
+        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps, loss_pgt = rendered_outputs
         n_smps = weights.shape[-1]
         out_d_rgb = rgb_final.shape[-1]
         out_d_i = invalid.shape[-1]
@@ -386,14 +387,11 @@ class NeRFRenderer(torch.nn.Module):
             z_samps = z_samps.reshape(superbatch_size, -1, n_smps)
             rgb_samps = rgb_samps.reshape(superbatch_size, -1, n_smps, out_d_rgb)
         ret_dict = DotMap(rgb=rgb_final, depth=depth, invalid=invalid)
-        if want_weights:
-            ret_dict.weights = weights
-        if want_alphas:
-            ret_dict.alphas = alphas
-        if want_z_samps:
-            ret_dict.z_samps = z_samps
-        if want_rgb_samps:
-            ret_dict.rgb_samps = rgb_samps
+        if want_weights:    ret_dict.weights   = weights
+        if want_alphas:     ret_dict.alphas    = alphas
+        if want_z_samps:    ret_dict.z_samps   = z_samps
+        if want_rgb_samps:  ret_dict.rgb_samps = rgb_samps
+        if want_pgt_loss:   ret_dict.loss_pgt  = loss_pgt
         return ret_dict
 
     def sched_step(self, steps=1):

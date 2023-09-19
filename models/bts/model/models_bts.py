@@ -47,6 +47,7 @@ class MVBTSNet(torch.nn.Module):
         self.use_viewdirs = conf.get("use_viewdirs", True)
 
         self.n_coarse = ren_nc
+        self.loss_pgt = conf.get("loss_pgt")
 
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
         self.learn_empty, self.empty_empty, self.inv_z = (
@@ -468,7 +469,7 @@ class MVBTSNet(torch.nn.Module):
 
     ## TODO: source view with cor. query cam pose
     def forward(    ## Inference
-        self, xyz, coarse=True, viewdirs=None, far=False, only_density=False
+        self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, pgt=False
     ):  ## , infer=None):  ## ? "far"  ## Note: this forward propagation can be used for both training and eval
         """
         Predict (r, g, b, sigma) at world space points xyz.
@@ -524,6 +525,7 @@ class MVBTSNet(torch.nn.Module):
 
             if self.sample_color:
                 sigma = mlp_output[..., :1]  ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
+                sigma = mlp_output[..., :1]  ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
                 sigma = F.softplus(sigma)
                 rgb, invalid_colors = self.sample_colors(xyz)  # (n, nv_, pts, 3)
             else:  ## RGB colors and invalid colors are computed directly from the mlp_output tensor. i.e. w/o calling sample_colors(xyz)
@@ -533,6 +535,14 @@ class MVBTSNet(torch.nn.Module):
                 rgb = F.sigmoid(rgb)
                 invalid_colors = invalid_features.unsqueeze(-2)
                 nv_ = 1
+
+            mlp_outputs = [head_outputs[name] for name in head_outputs]
+            
+            loss_pgt = 0
+            if pgt: 
+                nom_ = torch.tensor(mlp_outputs[0].shape).sum()
+                denom_ = torch.sqrt(torch.pow(mlp_outputs[0] - mlp_outputs[1], 2)).sum()  ## L2 norm
+                loss_pgt = nom_ / denom_    ## normalize
 
             if self.empty_empty:  ## method sets the sigma values of the invalid features to 0 for invalidity.
                 sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
@@ -551,5 +561,5 @@ class MVBTSNet(torch.nn.Module):
             else:  ## If only_density is True, the method only returns the volume density (sigma) without computing the RGB colors.
                 rgb = torch.zeros((n_, n_pts, nv_ * 3), device=sigma.device)
                 invalid = invalid_features.to(sigma.dtype)
-        return rgb, invalid, sigma, mlp_output      ## mlp_output for psd_loss, type(mlp_output) == list
+        return rgb, invalid, sigma, loss_pgt
         # return rgb, torch.prod(invalid, dim=-1), sigma

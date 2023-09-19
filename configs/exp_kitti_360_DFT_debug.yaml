@@ -103,7 +103,7 @@ model_conf:
 
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
-    ids_enc_offset_viz: None     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
+    ids_enc_offset_viz: false     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
     z_far: 80                           # default: 80m
@@ -120,6 +120,8 @@ model_conf:
 
     learn_empty: false
     code_mode: z
+
+    loss_pgt: true
 
 mode: "depth"   
 

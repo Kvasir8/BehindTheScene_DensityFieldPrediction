@@ -17,12 +17,12 @@ from models.common.model.layers import ssim, geo
 #     if mask is not None: return errors, mask
 #     else: return errors
 
-def compute_errors_l1ssimpgt(img0, img1, mask=None):
+def compute_errors_l1ssimpgt(img0, img1, loss_pgt, mask=None):
     n, pc, h, w, nv, c = img0.shape
     img1 = img1.expand(img0.shape)
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    errors = .85 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
+    errors = .7 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.15 * loss_pgt)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
     # errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
     if mask is not None: return errors, mask
@@ -113,7 +113,6 @@ class ReconstructionLoss:   ## L_{ph}
 
             loss_dict = {}
 
-            loss_pgt = 0
             loss_coarse_all = 0
             loss_fine_all = 0
             loss = 0
@@ -123,6 +122,8 @@ class ReconstructionLoss:   ## L_{ph}
             invalid_coarse = coarse_0["invalid"]
             invalid_fine = fine_0["invalid"]
 
+            loss_pgt = coarse_0["loss_pgt"]
+
             weights_coarse = coarse_0["weights"]
             weights_fine = fine_0["weights"]
 
@@ -130,10 +131,12 @@ class ReconstructionLoss:   ## L_{ph}
                 # Consider all rays invalid where there is at least one invalidly sampled color
                 invalid_coarse = torch.all(torch.any(invalid_coarse > .5, dim=-2), dim=-1).unsqueeze(-1)
                 invalid_fine = torch.all(torch.any(invalid_fine > .5, dim=-2), dim=-1).unsqueeze(-1)
+            
             elif self.invalid_policy == "weight_guided":
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
                 invalid_coarse = torch.all((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > .9, dim=-1, keepdim=True)
                 invalid_fine = torch.all((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > .9, dim=-1, keepdim=True)
+            
             elif self.invalid_policy == "weight_guided_diverse":
                 # We now also consider, whether there is enough variance in the ray colors to give a meaningful supervision signal.
                 rgb_samps_c = coarse_0["rgb_samps"]
@@ -144,9 +147,11 @@ class ReconstructionLoss:   ## L_{ph}
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
                 invalid_coarse = torch.all(((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > .9) | (ray_std_c < 0.01), dim=-1, keepdim=True)
                 invalid_fine = torch.all(((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > .9) | (ray_std_f < 0.01), dim=-1, keepdim=True)
+            
             elif self.invalid_policy == "none":
                 invalid_coarse = torch.zeros_like(torch.all(torch.any(invalid_coarse > .5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool)
                 invalid_fine = torch.zeros_like(torch.all(torch.any(invalid_fine > .5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool)
+            
             else:
                 raise NotImplementedError
 
@@ -179,7 +184,10 @@ class ReconstructionLoss:   ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)
+                if self.criterion_str == "l1+ssim+pgt":
+                    rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt, loss_pgt)
+                else:
+                    rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -196,7 +204,10 @@ class ReconstructionLoss:   ## L_{ph}
 
                 loss_coarse_all += rgb_loss.item() * self.lambda_coarse
                 if using_fine:
-                    fine_loss = self.rgb_fine_crit(rgb_fine, rgb_gt)
+                    if self.criterion_str == "l1+ssim+pgt":
+                        fine_loss = self.rgb_fine_crit(rgb_coarse, rgb_gt, loss_pgt)
+                    else:
+                        fine_loss = self.rgb_fine_crit(rgb_fine, rgb_gt)
                     fine_loss = fine_loss.amin(-2)
 
                     if self.use_automasking:
