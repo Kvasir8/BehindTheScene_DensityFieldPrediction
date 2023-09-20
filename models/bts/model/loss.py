@@ -23,7 +23,7 @@ def compute_errors_l1ssimpgt(img0, img1, loss_pgt, mask=None):
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     # errors = .75 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.1 * loss_pgt)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
-    errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.85 * loss_pgt)
+    errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.15 * loss_pgt)
     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
     if mask is not None: return errors, mask
     else: return errors

@@ -544,7 +544,7 @@ class MVBTSNet(torch.nn.Module):
                 numer = torch.sqrt(torch.pow(residual, 2).sum())  ## L2 norm
                 denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
                 # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]
-                loss_pgt = numer / denom_                   ## Min-Max Normalization
+                loss_pgt = float((numer / denom_).cpu())                   ## Min-Max Normalization
 
             if self.empty_empty:  ## method sets the sigma values of the invalid features to 0 for invalidity.
                 sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
