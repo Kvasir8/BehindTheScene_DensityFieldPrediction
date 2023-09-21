@@ -213,8 +213,8 @@ def render_profile(net, cam_incl_adjust):
             t = min((i + 1) * batch_size, l)
             q_pts_ = q_pts[:, f:t, :]
             # if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
-            if net.loss_pgt:    _, invalid_, sigmas_, loss_pgt_ = net.forward(q_pts_, pgt=True)      ## This gives error for viz when infer passed TODO: forward from models_bts.py : return rgb, invalid, sigma, loss_pgt
-            else:               _, invalid_, sigmas_ = net.forward(q_pts_)
+            # if net.loss_pgt:    _, invalid_, sigmas_, loss_pgt_ = net.forward(q_pts_, pgt=True)      ## This gives error for viz when infer passed TODO: forward from models_bts.py : return rgb, invalid, sigma, loss_pgt
+            _, invalid_, sigmas_ = net.forward(q_pts_)
             sigmas.append(sigmas_)
             invalid.append(invalid_)
         sigmas = torch.cat(sigmas, dim=1)
