@@ -259,7 +259,7 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas, loss_pgt = model(pnts, coarse=coarse, viewdirs=dirs, pgt=model.loss_pgt)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
+                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
@@ -307,7 +307,7 @@ class NeRFRenderer(torch.nn.Module):
                 pix_alpha = weights.sum(dim=1)  # (B), pixel alpha
                 rgb_final = rgb_final + 1 - pix_alpha.unsqueeze(-1)  # (B, 3)
 
-            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs, loss_pgt)
+            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs)
 
     def forward(
         self, model, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False, sample_from_dist=None
@@ -374,7 +374,7 @@ class NeRFRenderer(torch.nn.Module):
     def _format_outputs(
         self, rendered_outputs, superbatch_size, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False
     ):
-        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps, loss_pgt = rendered_outputs
+        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps = rendered_outputs
         n_smps = weights.shape[-1]
         out_d_rgb = rgb_final.shape[-1]
         out_d_i = invalid.shape[-1]

@@ -47,7 +47,7 @@ class MVBTSNet(torch.nn.Module):
         self.use_viewdirs = conf.get("use_viewdirs", True)
 
         self.n_coarse = ren_nc
-        self.loss_pgt = conf.get("loss_pgt")
+        # self.loss_pgt = conf.get("loss_pgt")
 
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
         self.learn_empty, self.empty_empty, self.inv_z = (
@@ -537,13 +537,12 @@ class MVBTSNet(torch.nn.Module):
 
             mlp_outputs = [head_outputs[name] for name in head_outputs]
             
-            loss_pgt = 0
-            if pgt: 
-                residual = mlp_outputs[0].detach() - mlp_outputs[1]          ### multiviewhead(GT) - singleviewhead(pred)
-                numer = torch.sqrt(torch.pow(residual, 2).sum())    ## L2 norm
-                denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
-                # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]
-                loss_pgt = float((numer / denom_).cpu())                   ## Min-Max Normalization
+            # if pgt: 
+            #     residual = mlp_outputs[0].detach() - mlp_outputs[1]          ### multiviewhead(GT) - singleviewhead(pred)
+            #     numer = torch.sqrt(torch.pow(residual, 2).sum())    ## L2 norm
+            #     denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
+            #     # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]
+            #     loss_pgt = float((numer / denom_).cpu())                   ## Min-Max Normalization
 
             if self.empty_empty:  ## method sets the sigma values of the invalid features to 0 for invalidity.
                 sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
@@ -562,5 +561,5 @@ class MVBTSNet(torch.nn.Module):
             else:  ## If only_density is True, the method only returns the volume density (sigma) without computing the RGB colors.
                 rgb = torch.zeros((n_, n_pts, nv_ * 3), device=sigma.device)
                 invalid = invalid_features.to(sigma.dtype)
-        return rgb, invalid, sigma, loss_pgt
+        return rgb, invalid, sigma
         # return rgb, torch.prod(invalid, dim=-1), sigma

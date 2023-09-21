@@ -23,34 +23,18 @@ def compute_errors_geocls(img0, img1, mask=None):  ## L_{geo} + L_{cls}
 
 
 def compute_errors_l1ssim(img0, img1, mask=None):
-    (
-        n,
-        pc,
-        h,
-        w,
-        nv,
-        c,
-    ) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
-    img1 = img1.expand(
-        img0.shape
-    )  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
+    (n,pc,h,w,nv,c,) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
+    img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(
-        -1, c, h, w
-    )  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
+    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
     errors = 0.85 * torch.mean(
         ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
     ) + 0.15 * torch.mean(
         torch.abs(img0 - img1), dim=1
     )  ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
-    errors = (
-        errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
-    )  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
+    errors = (errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1))  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
     if mask is not None:
-        return (
-            errors,
-            mask,
-        )  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
+        return (errors,mask,)  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
     else:
         return errors
 
@@ -90,12 +74,9 @@ class ReconstructionLoss:  ## L_{ph}
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
-        elif self.criterion_str == "l1+ssim+pgt":   ## TODO: implement new loss
-            self.rgb_coarse_crit = compute_errors_l1ssimpgt
-            self.rgb_fine_crit = compute_errors_l1ssimpgt
-        # elif self.criterion_str == "l1+ssim+geo+cls":
-        #     self.rgb_coarse_crit = compute_errors_geocls
-        #     self.rgb_fine_crit = compute_errors_geocls
+        elif self.criterion_str == "l1+ssim+geo+cls":
+            self.rgb_coarse_crit = compute_errors_geocls
+            self.rgb_fine_crit = compute_errors_geocls
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
         self.ignore_invalid = self.invalid_policy is not None and self.invalid_policy != "none"
@@ -104,7 +85,6 @@ class ReconstructionLoss:  ## L_{ph}
 
         self.use_automasking = use_automasking
 
-        # loss coefficients for training 2D image loss training
         self.lambda_entropy = config.get("lambda_entropy", 0)
         self.lambda_depth_reg = config.get("lambda_depth_reg", 0)
         self.lambda_alpha_reg = config.get("lambda_alpha_reg", 0)
@@ -112,7 +92,6 @@ class ReconstructionLoss:  ## L_{ph}
         self.lambda_edge_aware_smoothness = config.get("lambda_edge_aware_smoothness", 0)
         self.lambda_depth_smoothness = config.get("lambda_depth_smoothness", 0)
 
-        # For seperate objective function learning: 3D occupancy loss training
         self.lambda_pseudo_ground_truth = config.get("lambda_pseudo_ground_truth", 0)
         self.pseudo_ground_truth_teacher = config.get("pseudo_ground_truth_teacher", None)
         self.pseudo_ground_truth_students = config.get("pseudo_ground_truth_students", None)
@@ -127,7 +106,7 @@ class ReconstructionLoss:  ## L_{ph}
 
     @staticmethod
     def get_loss_metric_names():
-        return ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg", "loss_pgt"]   ## default: ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg"]
+        return ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg"]
 
     def __call__(self, data):
         with profiler.record_function("loss_computation"):
@@ -144,21 +123,23 @@ class ReconstructionLoss:  ## L_{ph}
             invalid_coarse = coarse_0["invalid"]
             invalid_fine = fine_0["invalid"]
 
-            loss_pgt = coarse_0["loss_pgt"]
-
             weights_coarse = coarse_0["weights"]
             weights_fine = fine_0["weights"]
 
             if self.invalid_policy == "strict":
                 # Consider all rays invalid where there is at least one invalidly sampled color
-                invalid_coarse = torch.all(torch.any(invalid_coarse > .5, dim=-2), dim=-1).unsqueeze(-1)
-                invalid_fine = torch.all(torch.any(invalid_fine > .5, dim=-2), dim=-1).unsqueeze(-1)
-            
+                invalid_coarse = torch.all(torch.any(invalid_coarse > 0.5, dim=-2), dim=-1).unsqueeze(-1)
+                invalid_fine = torch.all(torch.any(invalid_fine > 0.5, dim=-2), dim=-1).unsqueeze(-1)
             elif self.invalid_policy == "weight_guided":
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
-                invalid_coarse = torch.all((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > .9, dim=-1, keepdim=True)
-                invalid_fine = torch.all((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > .9, dim=-1, keepdim=True)
-            
+                invalid_coarse = torch.all(
+                    (invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > 0.9,
+                    dim=-1,
+                    keepdim=True,
+                )
+                invalid_fine = torch.all(
+                    (invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > 0.9, dim=-1, keepdim=True
+                )
             elif self.invalid_policy == "weight_guided_diverse":
                 # We now also consider, whether there is enough variance in the ray colors to give a meaningful supervision signal.
                 rgb_samps_c = coarse_0["rgb_samps"]
@@ -167,13 +148,24 @@ class ReconstructionLoss:  ## L_{ph}
                 ray_std_f = torch.std(rgb_samps_f, dim=-3).mean(-1)
 
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
-                invalid_coarse = torch.all(((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > .9) | (ray_std_c < 0.01), dim=-1, keepdim=True)
-                invalid_fine = torch.all(((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > .9) | (ray_std_f < 0.01), dim=-1, keepdim=True)
-            
+                invalid_coarse = torch.all(
+                    ((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > 0.9)
+                    | (ray_std_c < 0.01),
+                    dim=-1,
+                    keepdim=True,
+                )
+                invalid_fine = torch.all(
+                    ((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > 0.9) | (ray_std_f < 0.01),
+                    dim=-1,
+                    keepdim=True,
+                )
             elif self.invalid_policy == "none":
-                invalid_coarse = torch.zeros_like(torch.all(torch.any(invalid_coarse > .5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool)
-                invalid_fine = torch.zeros_like(torch.all(torch.any(invalid_fine > .5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool)
-            
+                invalid_coarse = torch.zeros_like(
+                    torch.all(torch.any(invalid_coarse > 0.5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool
+                )
+                invalid_fine = torch.zeros_like(
+                    torch.all(torch.any(invalid_fine > 0.5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool
+                )
             else:
                 raise NotImplementedError
 
@@ -207,10 +199,7 @@ class ReconstructionLoss:  ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                if self.criterion_str == "l1+ssim+pgt":
-                    rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt, loss_pgt)
-                else:
-                    rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)
+                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -227,10 +216,7 @@ class ReconstructionLoss:  ## L_{ph}
 
                 loss_coarse_all += rgb_loss.item() * self.lambda_coarse
                 if using_fine:
-                    if self.criterion_str == "l1+ssim+pgt":
-                        fine_loss = self.rgb_fine_crit(rgb_coarse, rgb_gt, loss_pgt)
-                    else:
-                        fine_loss = self.rgb_fine_crit(rgb_fine, rgb_gt)
+                    fine_loss = self.rgb_fine_crit(rgb_fine, rgb_gt)
                     fine_loss = fine_loss.amin(-2)
 
                     if self.use_automasking:
@@ -332,18 +318,20 @@ class ReconstructionLoss:  ## L_{ph}
 
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
-                ## Teacher vs Student loss
-                if (self.lambda_pseudo_ground_truth > 0
+
+                if (
+                    self.lambda_pseudo_ground_truth > 0
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
-                    ):
+                ):
                     teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     for student_name in self.pseudo_ground_truth_students:
-                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
+                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(     ## ? reduction
                             data["head_outputs"][student_name], teacher_density
                         )
+                        loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * .001   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
-                    loss += loss_pseudo_ground_truth
+                    loss += loss_pgt_normalized
 
             loss = loss / n_scales
 
@@ -359,7 +347,6 @@ class ReconstructionLoss:  ## L_{ph}
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
 
-        loss_dict["loss_pgt"] = loss_pgt
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()
@@ -367,7 +354,7 @@ class ReconstructionLoss:  ## L_{ph}
         loss_dict["loss_alpha_reg"] = loss_alpha_reg.item()
         loss_dict["loss_eas"] = loss_eas.item()
         loss_dict["loss_depth_smoothness"] = loss_depth_smoothness.item()
-        loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()     ## pgt
+        loss_dict["loss_pseudo_ground_truth"] = loss_pgt_normalized.item()
         loss_dict["loss_invalid_ratio"] = invalid_coarse.float().mean().item()
         loss_dict["loss"] = loss.item()
 
