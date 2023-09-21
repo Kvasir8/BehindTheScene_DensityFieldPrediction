@@ -20,6 +20,24 @@ from utils.metrics import MeanMetric
 from utils.projection_operations import distance_to_z
 
 
+from datasets.data_util import make_datasets
+from datasets.kitti_odom.kitti_odometry_dataset import KittiOdometryDataset
+from datasets.kitti_raw.kitti_raw_dataset import KittiRawDataset
+from models.common.backbones.backbone_util import make_backbone
+from models.common.model.code import PositionalEncoding
+from models.common.model.head_util import make_head
+from models.common.model.scheduler import make_scheduler
+from models.common.render import NeRFRenderer
+from models.bts.model.image_processor import make_image_processor, RGBProcessor
+from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
+from models.bts.model.models_bts import MVBTSNet  ## default: BTSNet
+from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
+from scripts.inference_setup import render_profile
+from utils.base_trainer import base_training
+from utils.metrics import MeanMetric
+from utils.plotting import color_tensor
+from utils.projection_operations import distance_to_z
+
 IDX = 0
 EPS = 1e-4
 
@@ -302,7 +320,7 @@ class BTSWrapper(nn.Module):
         for i_from in range(0, len(q_pts), self.query_batch_size):
             i_to = min(i_from + self.query_batch_size, len(q_pts))
             q_pts_ = q_pts[i_from:i_to]
-            _, _, densities_ = self.renderer.net(q_pts_.unsqueeze(0), only_density=True)
+            _, _, densities_ , _ = self.renderer.net(q_pts_.unsqueeze(0), only_density=True)
             densities.append(densities_.squeeze(0))
         densities = torch.cat(densities, dim=0).squeeze()
         is_occupied_pred = densities > self.occ_threshold
@@ -366,8 +384,28 @@ def get_metrics(config, device):
 
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "BTSNet")
+    encoder = make_backbone(config["model_conf"]["encoder"])
+    code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+
+    d_in = encoder.latent_size + code_xyz.d_out         ### 103
+
+    # Make configurable for Semantics as well
+    sample_color = config["model_conf"].get("sample_color", True)
+    d_out = 1 if sample_color else 4
+
+    decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
+
     # net = globals()[arch](config["model_conf"])
-    net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
+    # net = globals()[arch](config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"]) ## default: globals()[arch](config["model_conf"])
+    net = MVBTSNet(
+        config["model_conf"],
+        encoder,
+        code_xyz,
+        decoder_heads,
+        final_pred_head = config.get("final_prediction_head", None),
+        ren_nc = config["renderer"]["n_coarse"],
+    )
+    
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
 

@@ -540,8 +540,8 @@ class MVBTSNet(torch.nn.Module):
             
             loss_pgt = 0
             if pgt: 
-                residual = mlp_outputs[0] - mlp_outputs[1]
-                numer = torch.sqrt(torch.pow(residual, 2).sum())  ## L2 norm
+                residual = mlp_outputs[0] - mlp_outputs[1]          ### multiviewhead(GT) - singleviewhead(pred)
+                numer = torch.sqrt(torch.pow(residual, 2).sum())    ## L2 norm
                 denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
                 # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]
                 loss_pgt = float((numer / denom_).cpu())                   ## Min-Max Normalization

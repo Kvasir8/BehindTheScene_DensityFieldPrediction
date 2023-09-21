@@ -32,7 +32,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 10000
-visualize_every: 50          # default: 10       ## bigger is good for computational reduction
+visualize_every: 100          # default: 10       ## bigger is good for computational reduction
 batch_size: 2                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
