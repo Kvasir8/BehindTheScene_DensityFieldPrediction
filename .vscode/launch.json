@@ -5,6 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Training",
+            "type": "python",
+            "request": "launch",
+            "program": "./train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_360_base"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "launch: eval.py (occ)",
             "type": "python",
             "request": "launch",
@@ -21,7 +33,6 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-
         {
             "name": "launch: train.py",
             "type": "python",
@@ -39,23 +50,22 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-
         {
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",
             "request": "attach",
-            "connect": {  
-              "host": "node11", // replace this with remote machine name
-              "port": 42825                 // accessing to the allowed port from the remote machine
+            "connect": {
+                "host": "node11", // replace this with remote machine name
+                "port": 42825 // accessing to the allowed port from the remote machine
             }
-        //     "skipFiles": [
-        //         "<node_internals>/**"
-        //     ],
-        //     "program": "train.py",
-        //     "args": [
-        //         "-cn",
-        //     "exp_kitti_360_DFT_SL10"
-        // ],
+            //     "skipFiles": [
+            //         "<node_internals>/**"
+            //     ],
+            //     "program": "train.py",
+            //     "args": [
+            //         "-cn",
+            //     "exp_kitti_360_DFT_SL10"
+            // ],
             // "stopOnEntry": false,
             // "cwd": "${workspaceFolder}",
             // "justMyCode": true,
@@ -63,6 +73,6 @@
             // "env": {
             //     "PYTHONPATH": "../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
             // },
-        }
+        },
     ]
 }
