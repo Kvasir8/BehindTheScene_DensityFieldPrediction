@@ -525,7 +525,6 @@ class MVBTSNet(torch.nn.Module):
 
             if self.sample_color:
                 sigma = mlp_output[..., :1]  ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
-                sigma = mlp_output[..., :1]  ## TODO: vs multiview_signma c.f. 265 nerf.py for single_view vs multi_view_sigma
                 sigma = F.softplus(sigma)
                 rgb, invalid_colors = self.sample_colors(xyz)  # (n, nv_, pts, 3)
             else:  ## RGB colors and invalid colors are computed directly from the mlp_output tensor. i.e. w/o calling sample_colors(xyz)
@@ -536,11 +535,11 @@ class MVBTSNet(torch.nn.Module):
                 invalid_colors = invalid_features.unsqueeze(-2)
                 nv_ = 1
 
-            mlp_outputs = [head_outputs[name].detach() for name in head_outputs]
+            mlp_outputs = [head_outputs[name] for name in head_outputs]
             
             loss_pgt = 0
             if pgt: 
-                residual = mlp_outputs[0] - mlp_outputs[1]          ### multiviewhead(GT) - singleviewhead(pred)
+                residual = mlp_outputs[0].detach() - mlp_outputs[1]          ### multiviewhead(GT) - singleviewhead(pred)
                 numer = torch.sqrt(torch.pow(residual, 2).sum())    ## L2 norm
                 denom_ = torch.tensor(mlp_outputs[0].shape).sum()   ## to normalize with the constant
                 # denom_ = residual.max() - residual.min()    ## to normalize with the Min-Max range [0,1]

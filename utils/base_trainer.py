@@ -308,7 +308,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     for name, metric in metrics.items():
         metric.attach(trainer, name)
 
-    to_save = {"trainer": trainer, "model": model, "lr_scheduler": lr_scheduler}    ## , "optimizer": optimizer ## !optimizer to be removed? (to match our changed DFT netowrk) -> math gradient + model parameters
+    to_save = {"trainer": trainer, "model": model, "lr_scheduler": lr_scheduler}
 
     common.setup_common_training_handlers(
         trainer=trainer,
