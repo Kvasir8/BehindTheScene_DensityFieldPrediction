@@ -7,39 +7,55 @@ from torch import profiler
 from models.common.model.layers import ssim, geo
 
 
-# def compute_errors_geocls(img0, img1, mask=None):   ## L_{geo} + L_{cls}    c.f. SinNeRF
-#     n, pc, h, w, nv, c = img0.shape
-#     img1 = img1.expand(img0.shape)
-#     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-#     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-#     errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)
-#     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
-#     if mask is not None: return errors, mask
-#     else: return errors
-
-def compute_errors_l1ssimpgt(img0, img1, loss_pgt, mask=None):
+def compute_errors_geocls(img0, img1, mask=None):  ## L_{geo} + L_{cls}
     n, pc, h, w, nv, c = img0.shape
     img1 = img1.expand(img0.shape)
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
     img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    errors = .75 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.1 * loss_pgt)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
-    # errors = .85 * torch.mean(geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1) + (.1 * loss_pgt)
+    errors = 0.85 * torch.mean(
+        geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
+    ) + 0.15 * torch.mean(torch.abs(img0 - img1), dim=1)
     errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
-    if mask is not None: return errors, mask
-    else: return errors
+    if mask is not None:
+        return errors, mask
+    else:
+        return errors
+
 
 def compute_errors_l1ssim(img0, img1, mask=None):
-    n, pc, h, w, nv, c = img0.shape ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
-    img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
+    (
+        n,
+        pc,
+        h,
+        w,
+        nv,
+        c,
+    ) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
+    img1 = img1.expand(
+        img0.shape
+    )  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
-    errors = .85 * torch.mean(ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1) + .15 * torch.mean(torch.abs(img0 - img1), dim=1)   ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
-    errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
-    if mask is not None: return errors, mask    ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
-    else: return errors
+    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(
+        -1, c, h, w
+    )  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
+    errors = 0.85 * torch.mean(
+        ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
+    ) + 0.15 * torch.mean(
+        torch.abs(img0 - img1), dim=1
+    )  ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
+    errors = (
+        errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
+    )  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
+    if mask is not None:
+        return (
+            errors,
+            mask,
+        )  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
+    else:
+        return errors
 
 
-def edge_aware_smoothness(gt_img, depth, mask=None):    ## L_{eas}
+def edge_aware_smoothness(gt_img, depth, mask=None):  ## L_{eas}
     n, pc, h, w = depth.shape
     gt_img = gt_img.permute(0, 1, 4, 5, 2, 3).reshape(-1, 3, h, w)
     depth = 1 / depth.reshape(-1, 1, h, w).clamp(1e-3, 80)
@@ -56,12 +72,12 @@ def edge_aware_smoothness(gt_img, depth, mask=None):    ## L_{eas}
     d_dx *= torch.exp(-i_dx)
     d_dy *= torch.exp(-i_dy)
 
-    errors = F.pad(d_dx, pad=(0, 1), mode='constant', value=0) + F.pad(d_dy, pad=(0, 0, 0, 1), mode='constant', value=0)
+    errors = F.pad(d_dx, pad=(0, 1), mode="constant", value=0) + F.pad(d_dy, pad=(0, 0, 0, 1), mode="constant", value=0)
     errors = errors.view(n, pc, h, w)
     return errors
 
 
-class ReconstructionLoss:   ## L_{ph}
+class ReconstructionLoss:  ## L_{ph}
     def __init__(self, config, use_automasking=False) -> None:
         super().__init__()
         self.criterion_str = config.get("criterion", "l2")
@@ -88,6 +104,7 @@ class ReconstructionLoss:   ## L_{ph}
 
         self.use_automasking = use_automasking
 
+        # loss coefficients for training 2D image loss training
         self.lambda_entropy = config.get("lambda_entropy", 0)
         self.lambda_depth_reg = config.get("lambda_depth_reg", 0)
         self.lambda_alpha_reg = config.get("lambda_alpha_reg", 0)
@@ -95,10 +112,15 @@ class ReconstructionLoss:   ## L_{ph}
         self.lambda_edge_aware_smoothness = config.get("lambda_edge_aware_smoothness", 0)
         self.lambda_depth_smoothness = config.get("lambda_depth_smoothness", 0)
 
+        # For seperate objective function learning: 3D occupancy loss training
+        self.lambda_pseudo_ground_truth = config.get("lambda_pseudo_ground_truth", 0)
+        self.pseudo_ground_truth_teacher = config.get("pseudo_ground_truth_teacher", None)
+        self.pseudo_ground_truth_students = config.get("pseudo_ground_truth_students", None)
+
         self.median_thresholding = config.get("median_thresholding", False)
 
         self.alpha_reg_reduction = config.get("alpha_reg_reduction", "ray")
-        self.alpha_reg_fraction = config.get("alpha_reg_fraction", 1/8)
+        self.alpha_reg_fraction = config.get("alpha_reg_fraction", 1 / 8)
 
         if self.alpha_reg_reduction not in ("ray", "slice"):
             raise ValueError(f"Unknown reduction for alpha regularization: {self.alpha_reg_reduction}")
@@ -160,6 +182,7 @@ class ReconstructionLoss:   ## L_{ph}
             loss_surfaceness_reg = torch.tensor(0.0, device=invalid_fine.device)
             loss_eas = torch.tensor(0.0, device=invalid_fine.device)
             loss_depth_smoothness = torch.tensor(0.0, device=invalid_fine.device)
+            loss_pseudo_ground_truth = torch.tensor(0.0, device=invalid_fine.device)
 
             for scale in range(n_scales):
                 coarse = data["coarse"][scale]
@@ -232,8 +255,8 @@ class ReconstructionLoss:   ## L_{ph}
                     depths = coarse["depth"]
                     diffs_x = depths[:, :, 1:, :] - depths[:, :, :-1, :]
                     diffs_y = depths[:, :, :, 1:] - depths[:, :, :, :-1]
-                    loss_depth_reg_s = (diffs_x ** 2).mean() + (diffs_y ** 2).mean()
-                    loss_depth_reg += loss_depth_reg_s # * self.lambda_depth_reg
+                    loss_depth_reg_s = (diffs_x**2).mean() + (diffs_y**2).mean()
+                    loss_depth_reg += loss_depth_reg_s  # * self.lambda_depth_reg
                     loss += loss_depth_reg_s * self.lambda_depth_reg
 
                 if self.lambda_alpha_reg > 0:
@@ -255,7 +278,9 @@ class ReconstructionLoss:   ## L_{ph}
                     if self.alpha_reg_reduction == "ray":
                         loss_alpha_reg_s = (alpha_sum - min_cap).clamp_min(0)
                     elif self.alpha_reg_reduction == "slice":
-                        loss_alpha_reg_s = (alpha_sum.sum(dim=-1) - min_cap.sum(dim=-1)).clamp_min(0) / alpha_sum.shape[-1]
+                        loss_alpha_reg_s = (alpha_sum.sum(dim=-1) - min_cap.sum(dim=-1)).clamp_min(0) / alpha_sum.shape[
+                            -1
+                        ]
 
                     # alphas = alphas[..., :-n_smps//16]
                     # alpha_deltas = alphas[..., 1:] - alphas[..., :-1]
@@ -289,21 +314,36 @@ class ReconstructionLoss:   ## L_{ph}
                     loss_eas_s = edge_aware_smoothness(gt_img, depths)
 
                     if self.ignore_invalid:
-                        invalid_scale = torch.ceil(F.interpolate(invalid_coarse.squeeze(-1).to(torch.float32), size=(depths.shape[-2:])))
+                        invalid_scale = torch.ceil(
+                            F.interpolate(invalid_coarse.squeeze(-1).to(torch.float32), size=(depths.shape[-2:]))
+                        )
                         loss_eas_s = loss_eas_s * (1 - invalid_scale)
 
                     loss_eas_s = loss_eas_s.mean()
 
                     loss_eas += loss_eas_s
-                    loss += loss_eas_s * self.lambda_edge_aware_smoothness / (2 ** scale)
+                    loss += loss_eas_s * self.lambda_edge_aware_smoothness / (2**scale)
 
                 if self.lambda_depth_smoothness > 0:
                     depths = coarse["depth"]
-                    loss_depth_smoothness_s = ((depths[..., :-1, :] - depths[..., 1:, :]) ** 2).mean() + ((depths[..., :, :-1] - depths[..., :, 1:]) ** 2).mean()
+                    loss_depth_smoothness_s = ((depths[..., :-1, :] - depths[..., 1:, :]) ** 2).mean() + (
+                        (depths[..., :, :-1] - depths[..., :, 1:]) ** 2
+                    ).mean()
 
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
-
+                ## Teacher vs Student loss
+                if (self.lambda_pseudo_ground_truth > 0
+                    and self.pseudo_ground_truth_students is not None
+                    and self.pseudo_ground_truth_teacher is not None
+                    ):
+                    teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
+                    for student_name in self.pseudo_ground_truth_students:
+                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
+                            data["head_outputs"][student_name], teacher_density
+                        )
+                    # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
+                    loss += loss_pseudo_ground_truth
 
             loss = loss / n_scales
 
@@ -327,10 +367,12 @@ class ReconstructionLoss:   ## L_{ph}
         loss_dict["loss_alpha_reg"] = loss_alpha_reg.item()
         loss_dict["loss_eas"] = loss_eas.item()
         loss_dict["loss_depth_smoothness"] = loss_depth_smoothness.item()
+        loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()     ## pgt
         loss_dict["loss_invalid_ratio"] = invalid_coarse.float().mean().item()
         loss_dict["loss"] = loss.item()
 
         return loss, loss_dict
+
 
 """
 The BTSNet class is the primary class in the script, and it extends the torch.nn.Module class, making it a custom 
