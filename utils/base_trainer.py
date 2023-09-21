@@ -343,11 +343,11 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         data = to(data, device)
 
-        data["head_outputs"] = {name: [] for name, _ in model.renderer.net.heads.items()}
+        head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
 
         def hook_fn_forward_heads(name):
             def _hook_fn(module, input, output):
-                data["head_outputs"][name].append(output)
+                head_outputs[name].append(output)
 
             return _hook_fn
 
@@ -369,9 +369,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         # calculate the loss based on data["head_outputs"]
         # convert to tensors
 
-        data["head_outputs"] = {
-            name: torch.cat(predictions, dim=0) for name, predictions in data["head_outputs"].items()
-        }
+        data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
 
         timing["t_forward"] = time.time() - _start_time
 

@@ -110,7 +110,7 @@ model_conf:
             view_number: 0
             d_hidden : 64
     # final_prediction_head: "multiviewhead"
-    final_prediction_head: "singleviewhead"
+    final_prediction_head: "multiviewhead"
 
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
@@ -135,6 +135,10 @@ loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
+    lambda_pseudo_ground_truth: 1
+    pseudo_ground_truth_teacher: "multiviewhead"
+    pseudo_ground_truth_students:
+        - "singleviewhead"
 
 learning_rate: 5e-5                     # default: 1e-4
 
