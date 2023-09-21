@@ -20,8 +20,11 @@ from torch.cuda.amp import autocast, GradScaler
 from utils.array_operations import to
 from utils.metrics import MeanMetric
 
+
 def base_training(local_rank, config, get_dataflow, initialize, get_metrics, visualize):
-    rank = idist.get_rank()     ## rank of the current process within a group of processes: each process could handle a unique subset of the data, based on its rank
+    rank = (
+        idist.get_rank()
+    )  ## rank of the current process within a group of processes: each process could handle a unique subset of the data, based on its rank
     manual_seed(config["seed"] + rank)
     device = idist.device()
 
@@ -29,7 +32,9 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     log_basic_info(logger, config)
     output_path = config["output_path"]
-    if rank == 0:   ## could use rank to coordinate the exchange of information between processes: for instance, we might have all processes send their computed gradients to the process with rank 0, which would then compute the average gradient and send this back to the other processes.
+    if (
+        rank == 0
+    ):  ## could use rank to coordinate the exchange of information between processes: for instance, we might have all processes send their computed gradients to the process with rank 0, which would then compute the average gradient and send this back to the other processes.
         if config["stop_iteration"] is None:
             now = datetime.now().strftime("%Y%m%d-%H%M%S")
         else:
@@ -63,7 +68,9 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     # Let's now setup evaluator engine to perform model's validation and compute metrics
     metrics = get_metrics(config, device)
-    metrics_loss = {k: MeanMetric((lambda y: lambda x: x["loss_dict"][y])(k)) for k in criterion.get_loss_metric_names()}
+    metrics_loss = {
+        k: MeanMetric((lambda y: lambda x: x["loss_dict"][y])(k)) for k in criterion.get_loss_metric_names()
+    }
 
     loss_during_validation = config.get("loss_during_validation", True)
     if loss_during_validation:
@@ -72,14 +79,27 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
         eval_metrics = metrics
 
     # Create trainer for current task
-    trainer = create_trainer(model, optimizer, criterion, lr_scheduler, train_loader.sampler if hasattr(train_loader, "sampler") else None, config, logger, metrics={})
+    trainer = create_trainer(
+        model,
+        optimizer,
+        criterion,
+        lr_scheduler,
+        train_loader.sampler if hasattr(train_loader, "sampler") else None,
+        config,
+        logger,
+        metrics={},
+    )
 
     # We define two evaluators as they wont have exactly similar roles:
     # - `evaluator` will save the best model based on validation score
-    evaluator = create_evaluator(model, metrics=eval_metrics, criterion=criterion if loss_during_validation else None, config=config)
+    evaluator = create_evaluator(
+        model, metrics=eval_metrics, criterion=criterion if loss_during_validation else None, config=config
+    )
 
     if vis_loader is not None:
-        visualizer = create_evaluator(model, metrics=eval_metrics, criterion=criterion if loss_during_validation else None, config=config)
+        visualizer = create_evaluator(
+            model, metrics=eval_metrics, criterion=criterion if loss_during_validation else None, config=config
+        )
     else:
         visualizer = None
 
@@ -97,15 +117,23 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     vis_use_iters = config.get("vis_use_iters", False)
 
     if not eval_use_iters:
-        trainer.add_event_handler(Events.EPOCH_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation)
+        trainer.add_event_handler(
+            Events.EPOCH_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation
+        )
     else:
-        trainer.add_event_handler(Events.ITERATION_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation)
+        trainer.add_event_handler(
+            Events.ITERATION_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation
+        )
 
     if visualizer:
         if not vis_use_iters:
-            trainer.add_event_handler(Events.EPOCH_COMPLETED(every=config["visualize_every"]) | Events.COMPLETED, run_visualization)
+            trainer.add_event_handler(
+                Events.EPOCH_COMPLETED(every=config["visualize_every"]) | Events.COMPLETED, run_visualization
+            )
         else:
-            trainer.add_event_handler(Events.ITERATION_COMPLETED(every=config["visualize_every"]) | Events.COMPLETED, run_visualization)
+            trainer.add_event_handler(
+                Events.ITERATION_COMPLETED(every=config["visualize_every"]) | Events.COMPLETED, run_visualization
+            )
 
     if rank == 0:
         # Setup TensorBoard logging on trainer and evaluators. Logged values are:
@@ -136,12 +164,38 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
             visualizer.add_event_handler(Events.GET_BATCH_COMPLETED, visualizer_timer_data.end_get_batch)
 
         gst = lambda engine, event_name: trainer.state.epoch
-        gst_it_epoch = lambda engine, event_name: (trainer.state.epoch - 1) * engine.state.epoch_length + engine.state.iteration - 1
-        eval_gst_it_iters = lambda engine, event_name: (((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration) // config["validate_every"]) * engine.state.epoch_length + engine.state.iteration - 1
-        vis_gst_it_iters =  lambda engine, event_name: (((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration) // config["visualize_every"]) * engine.state.epoch_length + engine.state.iteration - 1
+        gst_it_epoch = (
+            lambda engine, event_name: (trainer.state.epoch - 1) * engine.state.epoch_length
+            + engine.state.iteration
+            - 1
+        )
+        eval_gst_it_iters = (
+            lambda engine, event_name: (
+                ((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration)
+                // config["validate_every"]
+            )
+            * engine.state.epoch_length
+            + engine.state.iteration
+            - 1
+        )
+        vis_gst_it_iters = (
+            lambda engine, event_name: (
+                ((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration)
+                // config["visualize_every"]
+            )
+            * engine.state.epoch_length
+            + engine.state.iteration
+            - 1
+        )
 
-        eval_gst_ep_iters = lambda engine, event_name: (((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration) // config["validate_every"])
-        vis_gst_ep_iters = lambda engine, event_name: (((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration) // config["visualize_every"])
+        eval_gst_ep_iters = lambda engine, event_name: (
+            ((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration)
+            // config["validate_every"]
+        )
+        vis_gst_ep_iters = lambda engine, event_name: (
+            ((trainer.state.epoch - 1) * trainer.state.epoch_length + trainer.state.iteration)
+            // config["visualize_every"]
+        )
 
         eval_gst_it = eval_gst_it_iters if eval_use_iters else gst_it_epoch
         vis_gst_it = vis_gst_it_iters if vis_use_iters else gst_it_epoch
@@ -150,10 +204,22 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
         vis_gst_ep = vis_gst_ep_iters if vis_use_iters else gst
 
         tb_logger = TensorboardLogger(log_dir=output_path)
-        tb_logger.attach(trainer, MetricLoggingHandler("train", optimizer), Events.ITERATION_COMPLETED(every=config.get("log_every_iters", 1)))
-        tb_logger.attach(evaluator, MetricLoggingHandler("val", log_loss=False, global_step_transform=eval_gst_ep), Events.EPOCH_COMPLETED)
+        tb_logger.attach(
+            trainer,
+            MetricLoggingHandler("train", optimizer),
+            Events.ITERATION_COMPLETED(every=config.get("log_every_iters", 1)),
+        )
+        tb_logger.attach(
+            evaluator,
+            MetricLoggingHandler("val", log_loss=False, global_step_transform=eval_gst_ep),
+            Events.EPOCH_COMPLETED,
+        )
         if visualizer:
-            tb_logger.attach(visualizer, MetricLoggingHandler("vis", log_loss=False, global_step_transform=vis_gst_ep), Events.EPOCH_COMPLETED)
+            tb_logger.attach(
+                visualizer,
+                MetricLoggingHandler("vis", log_loss=False, global_step_transform=vis_gst_ep),
+                Events.EPOCH_COMPLETED,
+            )
 
         # Plot config to tensorboard
         config_json = json.dumps(OmegaConf.to_container(config, resolve=True), indent=2)
@@ -169,17 +235,20 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
                 tb_logger.attach(
                     trainer,
                     VisualizationHandler(tag="training", visualizer=visualize),
-                    Events.ITERATION_COMPLETED(every=train_log_interval))
+                    Events.ITERATION_COMPLETED(every=train_log_interval),
+                )
             if val_log_interval > 0:
                 tb_logger.attach(
                     evaluator,
                     VisualizationHandler(tag="val", visualizer=visualize, global_step_transform=eval_gst_it),
-                    Events.ITERATION_COMPLETED(every=val_log_interval))
+                    Events.ITERATION_COMPLETED(every=val_log_interval),
+                )
             if visualizer and vis_log_interval > 0:
                 tb_logger.attach(
                     visualizer,
                     VisualizationHandler(tag="vis", visualizer=visualize, global_step_transform=vis_gst_it),
-                    Events.ITERATION_COMPLETED(every=vis_log_interval))
+                    Events.ITERATION_COMPLETED(every=vis_log_interval),
+                )
 
     if "save_best" in config:
         # Store 2 best models by validation accuracy starting from num_epochs / 2:
@@ -208,7 +277,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
             logger.info(f"Stop training on {trainer.state.iteration} iteration")
             trainer.terminate()
 
-    try:    ## train_loader == models.bts.trainer_overfit.DataloaderDummy object
+    try:  ## train_loader == models.bts.trainer_overfit.DataloaderDummy object
         trainer.run(train_loader, max_epochs=config["num_epochs"])
     except Exception as e:
         logger.exception("")
@@ -249,8 +318,7 @@ def log_basic_info(logger, config):
         logger.info("\n")
 
 
-def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, config, logger,  metrics={}):
-
+def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, config, logger, metrics={}):
     device = idist.device()
 
     # Setup Ignite trainer:
@@ -275,6 +343,18 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         data = to(data, device)
 
+        data["head_outputs"] = {name: [] for name, _ in model.renderer.net.heads.items()}
+
+        def hook_fn_forward_heads(name):
+            def _hook_fn(module, input, output):
+                data["head_outputs"][name].append(output)
+
+            return _hook_fn
+
+        for name, module in model.renderer.net.heads.items():
+            module.register_forward_hook(hook_fn_forward_heads(name))
+        # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
+
         timing["t_to_gpu"] = time.time() - _start_time
 
         model.train()
@@ -282,7 +362,16 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)          ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
+            data = model(
+                data
+            )  ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
+
+        # calculate the loss based on data["head_outputs"]
+        # convert to tensors
+
+        data["head_outputs"] = {
+            name: torch.cat(predictions, dim=0) for name, predictions in data["head_outputs"].items()
+        }
 
         timing["t_forward"] = time.time() - _start_time
 
@@ -297,12 +386,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         scaler.update()
         timing["t_backward"] = time.time() - _start_time
 
-        return {
-            "output": data,
-            "loss_dict": loss_metrics,
-            "timings_dict": timing,
-            "metrics_dict": {}
-        }
+        return {"output": data, "loss_dict": loss_metrics, "timings_dict": timing, "metrics_dict": {}}
 
     trainer = Engine(train_step)
     trainer.logger = logger
@@ -310,7 +394,11 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     for name, metric in metrics.items():
         metric.attach(trainer, name)
 
-    to_save = {"trainer": trainer, "model": model, "lr_scheduler": lr_scheduler}    ## , "optimizer": optimizer ## !optimizer to be removed? (to match our changed DFT netowrk) -> math gradient + model parameters
+    to_save = {
+        "trainer": trainer,
+        "model": model,
+        "lr_scheduler": lr_scheduler,
+    }  ## , "optimizer": optimizer ## !optimizer to be removed? (to match our changed DFT netowrk) -> math gradient + model parameters
 
     common.setup_common_training_handlers(
         trainer=trainer,
@@ -322,7 +410,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         output_names=None,
         with_pbars=False,
         clear_cuda_cache=False,
-        log_every_iters=config.get("log_every_iters", 100)
+        log_every_iters=config.get("log_every_iters", 100),
     )
 
     resume_from = config["resume_from"]
@@ -331,7 +419,9 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         assert checkpoint_fp.exists(), f"__Checkpoint '{checkpoint_fp.as_posix()}' is not found"
         logger.info(f"Resume from a checkpoint: {checkpoint_fp.as_posix()}")
         checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
-        Checkpoint.load_objects(to_load=to_save, checkpoint=checkpoint, strict = False) ## !strickt := matching parameters only done mis match ML != DFT
+        Checkpoint.load_objects(
+            to_load=to_save, checkpoint=checkpoint, strict=False
+        )  ## !strickt := matching parameters only done mis match ML != DFT
 
     return trainer
 
@@ -351,22 +441,19 @@ def create_evaluator(model, metrics, criterion, config, tag="val"):
         data = to(data, device)
 
         with autocast(enabled=with_amp):
-            data = model(data)                ### BTSWrapperOverfit
+            data = model(data)  ### BTSWrapperOverfit
 
         for name in metrics.keys():
-            data[name] = data[name].mean()    ## origin # if 'abs_rel' in data:   data[name] = data[name].mean()    ## key error handler as overfitting
+            data[name] = data[
+                name
+            ].mean()  ## origin # if 'abs_rel' in data:   data[name] = data[name].mean()    ## key error handler as overfitting
             ## data.keys() == ['imgs', 'projs', 'poses', 'depths', '3d_bboxes', 'segs', 't__get_item__', 'index', 'fine', 'coarse', 'rgb_gt', 'rays', 'z_near', 'z_far']
-        if criterion is not None:   ## !
+        if criterion is not None:  ## !
             loss, loss_metrics = criterion(data)
         else:
             loss_metrics = {}
 
-        return {
-            "output": data,
-            "loss_dict": loss_metrics,
-            "timings_dict": timing,
-            "metrics_dict": {}
-        }
+        return {"output": data, "loss_dict": loss_metrics, "timings_dict": timing, "metrics_dict": {}}
 
     evaluator = Engine(evaluate_step)
 
@@ -384,7 +471,9 @@ def get_save_handler(config):
 
 
 class MetricLoggingHandler(BaseHandler):
-    def __init__(self, tag, optimizer=None, log_loss=True, log_metrics=True, log_timings=True, global_step_transform=None):
+    def __init__(
+        self, tag, optimizer=None, log_loss=True, log_metrics=True, log_timings=True, global_step_transform=None
+    ):
         self.tag = tag
         self.optimizer = optimizer
         self.log_loss = log_loss
@@ -413,9 +502,7 @@ class MetricLoggingHandler(BaseHandler):
 
         # Optimizer parameters
         if self.optimizer is not None:
-            params = {
-                k: float(param_group["lr"]) for k, param_group in enumerate(self.optimizer.param_groups)
-            }
+            params = {k: float(param_group["lr"]) for k, param_group in enumerate(self.optimizer.param_groups)}
 
             for k, param in params.items():
                 writer.add_scalar(f"lr-{self.tag}/{k}", param, global_step)
@@ -497,7 +584,6 @@ class VisualizationHandler(BaseHandler):
         super(VisualizationHandler, self).__init__()
 
     def __call__(self, engine: Engine, logger: TensorboardLogger, event_name: Union[str, EventEnum]) -> None:
-
         if not isinstance(logger, TensorboardLogger):
             raise RuntimeError("Handler 'VisualizationHandler' works only with TensorboardLogger")
 
