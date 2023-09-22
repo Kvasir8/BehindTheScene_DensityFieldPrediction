@@ -332,28 +332,27 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     scaler = GradScaler(enabled=with_amp)
 
     def train_step(engine, data: dict):
-        if "t__get_item__" in data:
-            timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
-        else:
-            timing = {}
+        if "t__get_item__" in data:     timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
+        else:                           timing = {}
 
         _start_time = time.time()
 
         data = to(data, device)
 
-        # head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
-        # head_outputs = model.renderer.net.mlp_coarse
+        # if model.arch == "MVBTSNet":
+        if model.renderer.net.__class__.__name__ == "MVBTSNet":
+            head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+            # head_outputs = model.renderer.net.mlp_coarse
 
-        # def hook_fn_forward_heads(name):
-        #     def _hook_fn(module, input, output):
-        #         head_outputs[name].append(output)
+            def hook_fn_forward_heads(name):
+                def _hook_fn(module, input, output):
+                    head_outputs[name].append(output)
 
-        #     return _hook_fn
+                return _hook_fn
 
-        # for name, module in model.renderer.net.heads.items():
-        # for name, module in model.renderer.net.mlp_coarse:
-        #     module.register_forward_hook(hook_fn_forward_heads(name))
-        # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
+            for name, module in model.renderer.net.heads.items():
+                module.register_forward_hook(hook_fn_forward_heads(name))
+            # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
 
         timing["t_to_gpu"] = time.time() - _start_time
 
@@ -362,14 +361,13 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(
-                data
-            )  ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
+            data = model(data)  ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
 
-        # calculate the loss based on data["head_outputs"]
-        # convert to tensors
+        # if model.renderer.net.__class__.__name__ == "BTSNet":
 
-        # data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
+        # calculate the loss based on data["head_outputs"], convert to tensors
+        if model.renderer.net.__class__.__name__ == "MVBTSNet":
+            data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
 
         timing["t_forward"] = time.time() - _start_time
 

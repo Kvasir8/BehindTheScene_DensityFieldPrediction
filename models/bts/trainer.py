@@ -131,7 +131,7 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)  ## eval
 
-        if self.fe_enc:  ## views that are encoded
+        if self.fe_enc:         ## encoded views
             encoder_perm = (torch.randperm(v - 1) + 1)[: self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
             ids_encoder = [0]  ## always starts sampling from mono cam
             ids_encoder.extend(encoder_perm)  ## add more cam_views randomly incl. fe
@@ -139,7 +139,7 @@ class BTSWrapper(nn.Module):
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+        if (not self.training or self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
             ids_encoder = self.ids_enc_viz_eval             ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values  ## ?    ### tensor([0, 4])
@@ -282,7 +282,7 @@ class BTSWrapper(nn.Module):
                 data["coarse"].append(render_dict["coarse"])
                 data["rgb_gt"] = render_dict["rgb_gt"]
                 data["rays"] = render_dict["rays"]
-        else:
+        else:   ### self.prediction_mode == default
             with profiler.record_function("trainer_render"):
                 render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt)
                 ### [n:=batch_size, M_patches, cam_views:=8]    ## forward in _RenderWrapper
@@ -303,7 +303,7 @@ class BTSWrapper(nn.Module):
         data["z_near"] = torch.tensor(self.z_near, device=images.device)
         data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
-        if self.training is False:
+        if self.training is False:      ## for viz eval with Bird-eye view
             data["coarse"][0]["depth"] = distance_to_z(data["coarse"][0]["depth"], projs)
             data["fine"][0]["depth"] = distance_to_z(data["fine"][0]["depth"], projs)
 
@@ -466,15 +466,16 @@ def get_metrics(config, device):
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "MVBTSNet")  ## default: get("arch", "BTSNet")
 
+
     # Make configurable for Semantics as well
     sample_color = config["model_conf"].get("sample_color", True)
     d_out = 1 if sample_color else 4
 
-    if arch == "MVBTSnet":
+    if arch == "MVBTSNet":
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
         encoder = make_backbone(config["model_conf"]["encoder"])
-        decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
         d_in = encoder.latent_size + code_xyz.d_out         ### 103
+        decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
             config["model_conf"],
@@ -484,8 +485,12 @@ def initialize(config: dict, logger=None):
             final_pred_head = config.get("final_prediction_head", None),
             ren_nc = config["renderer"]["n_coarse"],
         )
-    else:
+    elif arch == "BTSNet":     ## For single view BTS model
         net = BTSNet(config["model_conf"])
+        encoder = make_backbone(config["model_conf"]["encoder"])
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+        d_in = encoder.latent_size + code_xyz.d_out         ### 103
+    else:   print("__unrecognized net instantiation in model initializaiton")
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
@@ -503,6 +508,7 @@ def initialize(config: dict, logger=None):
     lr_scheduler = make_scheduler(config.get("scheduler", {}), optimizer)
 
     criterion = ReconstructionLoss(config["loss"], config["model_conf"].get("use_automasking", False))
+
 
     return model, optimizer, criterion, lr_scheduler
 

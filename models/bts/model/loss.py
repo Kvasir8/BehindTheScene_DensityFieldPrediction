@@ -7,21 +7,6 @@ from torch import profiler
 from models.common.model.layers import ssim, geo
 
 
-def compute_errors_geocls(img0, img1, mask=None):  ## L_{geo} + L_{cls}
-    n, pc, h, w, nv, c = img0.shape
-    img1 = img1.expand(img0.shape)
-    img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    errors = 0.85 * torch.mean(
-        geo(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
-    ) + 0.15 * torch.mean(torch.abs(img0 - img1), dim=1)
-    errors = errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
-    if mask is not None:
-        return errors, mask
-    else:
-        return errors
-
-
 def compute_errors_l1ssim(img0, img1, mask=None):
     (n,pc,h,w,nv,c,) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
     img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
@@ -65,7 +50,6 @@ class ReconstructionLoss:  ## L_{ph}
     def __init__(self, config, use_automasking=False) -> None:
         super().__init__()
         self.criterion_str = config.get("criterion", "l2")
-        self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         if self.criterion_str == "l2":
             self.rgb_coarse_crit = torch.nn.MSELoss(reduction="none")
             self.rgb_fine_crit = torch.nn.MSELoss(reduction="none")
@@ -75,9 +59,10 @@ class ReconstructionLoss:  ## L_{ph}
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
-        elif self.criterion_str == "l1+ssim+geo+cls":
-            self.rgb_coarse_crit = compute_errors_geocls
-            self.rgb_fine_crit = compute_errors_geocls
+        elif self.criterion_str == "l1+ssim+pgt":
+            self.rgb_coarse_crit = compute_errors_l1ssim
+            self.rgb_fine_crit = compute_errors_l1ssim
+            self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
         self.ignore_invalid = self.invalid_policy is not None and self.invalid_policy != "none"
@@ -320,19 +305,19 @@ class ReconstructionLoss:  ## L_{ph}
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
 
-                if (
-                    self.lambda_pseudo_ground_truth > 0
+                if (self.criterion_str == "l1+ssim+pgt"                     ## compute the loss_pgt when it's activated
+                    and self.lambda_pseudo_ground_truth > 0
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
                 ):
                     teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     for student_name in self.pseudo_ground_truth_students:
-                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(     ## ? reduction
+                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
                             data["head_outputs"][student_name], teacher_density
-                        )
-                        loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
+                        ) / int((teacher_density.size()[0])) * self.lambda_pgt  ## Normalized: reason: its magnitude in updating computational graph during backpropagation affects the training of en- and decoder of BTS model.
+                        # loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
-                    loss += loss_pgt_normalized
+                    loss += loss_pseudo_ground_truth
 
             loss = loss / n_scales
 
@@ -347,7 +332,9 @@ class ReconstructionLoss:  ## L_{ph}
                 loss_ray_entropy = ray_entropy.mean()
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
-
+            
+        if self.criterion_str == "l1+ssim+pgt":
+            loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()
@@ -355,7 +342,6 @@ class ReconstructionLoss:  ## L_{ph}
         loss_dict["loss_alpha_reg"] = loss_alpha_reg.item()
         loss_dict["loss_eas"] = loss_eas.item()
         loss_dict["loss_depth_smoothness"] = loss_depth_smoothness.item()
-        # loss_dict["loss_pseudo_ground_truth"] = loss_pgt_normalized.item()
         loss_dict["loss_invalid_ratio"] = invalid_coarse.float().mean().item()
         loss_dict["loss"] = loss.item()
 

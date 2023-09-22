@@ -203,7 +203,8 @@ def render_profile(net, cam_incl_adjust):
     q_pts = q_pts.to(device).view(1, -1, 3)
 
     batch_size = 50000
-    # if net.n_coarse:   batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
+    if hasattr(net, "n_coarse"):   batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
+    # batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     if q_pts.shape[1] > batch_size:
         sigmas = []
         invalid = []
@@ -230,6 +231,5 @@ def render_profile(net, cam_incl_adjust):
     alphas_sum = torch.cumsum(alphas, dim=0)
     profile = (alphas_sum <= 8).float().sum(dim=0) / alphas.shape[0]
     return profile
-
 
 print("+++ Inference Setup Complete +++")

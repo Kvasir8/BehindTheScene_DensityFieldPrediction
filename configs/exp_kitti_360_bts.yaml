@@ -30,7 +30,7 @@ model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ 
 output_path: "out/mvbts/kitti_360/"
 
 
-num_epochs: 25
+num_epochs: 25                  ## Note: since the model runs from the BTS checkpoint whose epoch starts with 24, epoch should be greater than 24
 validate_every: 2
 visualize_every: 1         # default: 10       ## bigger is good for computational reduction
 batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
@@ -113,10 +113,10 @@ model_conf:
     code_mode: z
 
 loss:
-    criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
+    criterion: "l1+ssim"                # For single view BTS model: "l1+ssim"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    # lambda_pseudo_ground_truth: 1
+    lambda_pseudo_ground_truth: 1e-2
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"
