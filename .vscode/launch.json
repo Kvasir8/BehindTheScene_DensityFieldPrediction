@@ -51,6 +51,23 @@
             "justMyCode": true
         },
         {
+            "name": "svbts: launch_debug",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_360_bts"
+            ],
+            "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",
             "request": "attach",

@@ -355,7 +355,7 @@ class ReconstructionLoss:  ## L_{ph}
         loss_dict["loss_alpha_reg"] = loss_alpha_reg.item()
         loss_dict["loss_eas"] = loss_eas.item()
         loss_dict["loss_depth_smoothness"] = loss_depth_smoothness.item()
-        loss_dict["loss_pseudo_ground_truth"] = loss_pgt_normalized.item()
+        # loss_dict["loss_pseudo_ground_truth"] = loss_pgt_normalized.item()
         loss_dict["loss_invalid_ratio"] = invalid_coarse.float().mean().item()
         loss_dict["loss"] = loss.item()
 

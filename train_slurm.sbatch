@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="DFT_exp_pgt1e-3"
+#SBATCH --job-name="DFT_pgt1e-2_ff_nv4"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

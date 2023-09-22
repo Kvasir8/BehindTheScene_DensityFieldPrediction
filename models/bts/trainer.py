@@ -24,7 +24,7 @@ from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import MVBTSNet  ## default: BTSNet
+from models.bts.model.models_bts import MVBTSNet, BTSNet  ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from scripts.inference_setup import render_profile
 from utils.base_trainer import base_training
@@ -465,26 +465,27 @@ def get_metrics(config, device):
 
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "MVBTSNet")  ## default: get("arch", "BTSNet")
-    encoder = make_backbone(config["model_conf"]["encoder"])
-    code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
-
-    d_in = encoder.latent_size + code_xyz.d_out         ### 103
 
     # Make configurable for Semantics as well
     sample_color = config["model_conf"].get("sample_color", True)
     d_out = 1 if sample_color else 4
 
-    decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
-
+    if arch == "MVBTSnet":
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+        encoder = make_backbone(config["model_conf"]["encoder"])
+        decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
+        d_in = encoder.latent_size + code_xyz.d_out         ### 103
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
-    net = MVBTSNet(
-        config["model_conf"],
-        encoder,
-        code_xyz,
-        decoder_heads,
-        final_pred_head = config.get("final_prediction_head", None),
-        ren_nc = config["renderer"]["n_coarse"],
-    )
+        net = MVBTSNet(
+            config["model_conf"],
+            encoder,
+            code_xyz,
+            decoder_heads,
+            final_pred_head = config.get("final_prediction_head", None),
+            ren_nc = config["renderer"]["n_coarse"],
+        )
+    else:
+        net = BTSNet(config["model_conf"])
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
