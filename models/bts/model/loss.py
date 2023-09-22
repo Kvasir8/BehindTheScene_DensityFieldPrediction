@@ -65,6 +65,7 @@ class ReconstructionLoss:  ## L_{ph}
     def __init__(self, config, use_automasking=False) -> None:
         super().__init__()
         self.criterion_str = config.get("criterion", "l2")
+        self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         if self.criterion_str == "l2":
             self.rgb_coarse_crit = torch.nn.MSELoss(reduction="none")
             self.rgb_fine_crit = torch.nn.MSELoss(reduction="none")
@@ -329,7 +330,7 @@ class ReconstructionLoss:  ## L_{ph}
                         loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(     ## ? reduction
                             data["head_outputs"][student_name], teacher_density
                         )
-                        loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * .001   ## TODO: modify this hard coded loss coefficient
+                        loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
                     loss += loss_pgt_normalized
 
