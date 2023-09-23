@@ -24,7 +24,7 @@ defaults:                       ### This code is for concept of proof and transf
 #     is_preprocessed: false
 
 ## For training
-name: "DFT_pgt1e-2_ff_nv4"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "DFT_pgt1e-2_ff_encly2_nv4"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -137,7 +137,7 @@ loss:
     criterion: "l1+ssim+pgt"            ## # For single view BTS model: "l1+ssim" Note: MVBTSNet should be with pgt loss 
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    lambda_pseudo_ground_truth: 1e-2
+    lambda_pseudo_ground_truth: 1e-4        # default: 1e-3
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained

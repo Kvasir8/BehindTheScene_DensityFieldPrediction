@@ -328,9 +328,13 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     #    - RunningAverage` on `train_step` output
     #    - Two progress bars on epochs and optionally on iterations
 
+    hook_fw_handles = []
+    # for handle in hook_fw_handles:  handle.remove()   ## remove hooks for safety
     with_amp = config["with_amp"]
     scaler = GradScaler(enabled=with_amp)
 
+    head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+        
     def train_step(engine, data: dict):
         if "t__get_item__" in data:     timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
         else:                           timing = {}
@@ -341,17 +345,24 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         # if model.arch == "MVBTSNet":
         if model.renderer.net.__class__.__name__ == "MVBTSNet":
-            head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+            # head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
             # head_outputs = model.renderer.net.mlp_coarse
 
-            def hook_fn_forward_heads(name):
+            def hook_fn_forward_heads(name):     #, module=None):
                 def _hook_fn(module, input, output):
                     head_outputs[name].append(output)
-
                 return _hook_fn
-
+            
             for name, module in model.renderer.net.heads.items():
-                module.register_forward_hook(hook_fn_forward_heads(name))
+                if not module._forward_hooks:   ## or len(~) == 0 is equal syntax
+                    print(f"__Registering {name} forward hook")
+                    hook_handle = module.register_forward_hook(hook_fn_forward_heads(name))
+                    hook_fw_handles.append(hook_handle)
+                else:   ## TODO: Fill
+                    print("__Not registering but in for loop")
+                #     module.register_forward_hook(hook_fn_forward_heads(name))
+                #     hook_fn_forward_heads(name, module)
+                # hook_handle = module.register_forward_hook(hook_fn_forward_heads(name))
             # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
 
         timing["t_to_gpu"] = time.time() - _start_time
@@ -361,23 +372,28 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)  ## model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
+            data = model(data)  ## Forward pass: model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
 
         # if model.renderer.net.__class__.__name__ == "BTSNet":
 
         # calculate the loss based on data["head_outputs"], convert to tensors
         if model.renderer.net.__class__.__name__ == "MVBTSNet":
             data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
-
+            # data["head_outputs"]['singleviewhead'].retain_grad()    ## This lets the intermediate gradients from single view head to be retained, so that it backpropagates through the computational graph with gradients stored
+            # data["head_outputs"]['multiviewhead'].requires_grad = False    ## This lets the intermediate gradients from single view head to be retained, so that it backpropagates through the computational graph with gradients stored
+            # data["head_outputs"]['multiviewhead'].detach()    ## This lets the intermediate gradients from single view head to be retained, so that it backpropagates through the computational graph with gradients stored
+        
         timing["t_forward"] = time.time() - _start_time
 
         _start_time = time.time()
         loss, loss_metrics = criterion(data)
         timing["t_loss"] = time.time() - _start_time
 
+        # for handle in hook_fw_handles:  handle.remove()   ## remove hooks for safety
+        
         _start_time = time.time()
         optimizer.zero_grad()
-        scaler.scale(loss).backward()
+        scaler.scale(loss).backward()       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         scaler.step(optimizer)
         scaler.update()
         timing["t_backward"] = time.time() - _start_time
