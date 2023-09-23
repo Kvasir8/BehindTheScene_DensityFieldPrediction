@@ -310,19 +310,12 @@ class ReconstructionLoss:  ## L_{ph}
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
                 ):
-<<<<<<< HEAD
                     teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher]
                     # teacher_density.requires_grad = False
                     for student_name in self.pseudo_ground_truth_students:
                         loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
                             data["head_outputs"][student_name].view(-1,), teacher_density.view(-1,)
-=======
-                    teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()   ## freeze the teacher network when backpropagating
-                    for student_name in self.pseudo_ground_truth_students:
-                        loss_pseudo_ground_truth = torch.nn.MSELoss(reduction="mean")(
-                            data["head_outputs"][student_name], teacher_density
->>>>>>> ac345ac396323db02f98628e3d7324c8d5818bf4
                         ) / int((teacher_density.size()[0])) * self.lambda_pgt  ## Normalized: reason: its magnitude in updating computational graph during backpropagation affects the training of en- and decoder of BTS model.
                         # loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()

@@ -137,11 +137,7 @@ loss:
     criterion: "l1+ssim+pgt"            ## # For single view BTS model: "l1+ssim" Note: MVBTSNet should be with pgt loss 
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-<<<<<<< HEAD
-    lambda_pseudo_ground_truth: 1e-4
-=======
     lambda_pseudo_ground_truth: 1e-4        # default: 1e-3
->>>>>>> ac345ac396323db02f98628e3d7324c8d5818bf4
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained
