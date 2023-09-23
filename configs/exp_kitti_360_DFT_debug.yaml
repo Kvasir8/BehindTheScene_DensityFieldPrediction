@@ -32,7 +32,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 10000
-visualize_every: 10          # default: 10       ## bigger is good for computational reduction
+visualize_every: 100          # default: 10       ## bigger is good for computational reduction
 batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -52,7 +52,7 @@ data:
 #### below are the same for both eval and training
 
 renderer:
-    n_coarse : 16                       # default: 64, num sampling on a ray
+    n_coarse : 8                       # default: 64, num sampling on a ray
     n_fine : 0
     n_fine_depth : 0
     depth_std : 1.0
@@ -137,7 +137,7 @@ loss:
     criterion: "l1+ssim+pgt"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001     # default: 0.001
-    lambda_pseudo_ground_truth: 1e-3        # default: 1e-3
+    lambda_pseudo_ground_truth: 1e-4        # default: 1e-3
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained
