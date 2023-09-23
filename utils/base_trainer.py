@@ -331,6 +331,15 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     with_amp = config["with_amp"]
     scaler = GradScaler(enabled=with_amp)
 
+    if model.renderer.net.__class__.__name__ == "MVBTSNet":
+        head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+
+        def hook_fn_forward_heads(name):
+            def _hook_fn(module, input, output):
+                # head_outputs[name].append(output)
+                head_outputs[name] = output
+            return _hook_fn
+        
     def train_step(engine, data: dict):
         if "t__get_item__" in data:     timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
         else:                           timing = {}
@@ -339,19 +348,15 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         data = to(data, device)
 
-        # if model.arch == "MVBTSNet":
         if model.renderer.net.__class__.__name__ == "MVBTSNet":
-            head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
-            # head_outputs = model.renderer.net.mlp_coarse
-
-            def hook_fn_forward_heads(name):
-                def _hook_fn(module, input, output):
-                    head_outputs[name].append(output)
-
-                return _hook_fn
+        #     head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+        #     head_outputs = model.renderer.net.mlp_coarse
 
             for name, module in model.renderer.net.heads.items():
-                module.register_forward_hook(hook_fn_forward_heads(name))
+                if not module._forward_hooks:
+                    print(f"__Registering {name} fwd hook")
+                    module.register_forward_hook(hook_fn_forward_heads(name))
+                # else: print(f"__Not registering for {name}")
             # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
 
         timing["t_to_gpu"] = time.time() - _start_time
@@ -367,7 +372,8 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         # calculate the loss based on data["head_outputs"], convert to tensors
         if model.renderer.net.__class__.__name__ == "MVBTSNet":
-            data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
+            # data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
+            data["head_outputs"] = {name: predictions for name, predictions in head_outputs.items()}
 
         timing["t_forward"] = time.time() - _start_time
 
@@ -377,7 +383,8 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         _start_time = time.time()
         optimizer.zero_grad()
-        scaler.scale(loss).backward()
+        scaler.scale(loss).backward()       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
+        # scaler.scale(loss).backward(retain_graph=True)       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         scaler.step(optimizer)
         scaler.update()
         timing["t_backward"] = time.time() - _start_time
