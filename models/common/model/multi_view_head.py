@@ -101,7 +101,7 @@ class MultiViewHead(nn.Module):
 
         # padding
         padded_features = torch.concat(
-            [view_independent_feature, encoded_features], dim=1
+            [view_independent_feature, encoded_features], dim=1         ### ? dim(encoded_features) has only 1 token size?
         )  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
         padded_invalid = torch.concat(
             [torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],
@@ -121,7 +121,7 @@ class MultiViewHead(nn.Module):
         embedding_encoder = mlp.make_embedding_encoder(conf["embedding_encoder"], d_in, d_enc)
         attn_layers = make_attn_layers(conf["attn_layers"], d_enc)
         independent_token = make_independent_token(conf["independent_token"], d_enc)
-        probing_layer = nn.Sequential(nn.Linear(d_enc, d_enc // 2), nn.ELU(), nn.Linear(d_enc // 2, d_out))
+        probing_layer = nn.Sequential(nn.Linear(d_enc, d_enc // 2), nn.ELU(), nn.Linear(d_enc // 2, d_out))         ## This FFNet is how the final density field scalar element is inferred.
         return cls(
             embedding_encoder, independent_token, attn_layers, probing_layer, conf.get("dropout_views_rate", 0.0)
         )

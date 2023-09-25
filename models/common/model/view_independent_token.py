@@ -37,7 +37,7 @@ class FixedViewIndependentToken(BaseIndependentToken):
         self.readout_token = nn.Parameter(torch.rand(1, 1, attn_feat), requires_grad=True)
 
     def forward(self, view_dependent_tokens: torch.Tensor, **kwargs) -> torch.Tensor:
-        return self.readout_token.expand(view_dependent_tokens.shape[0], -1, -1)
+        return self.readout_token.expand(view_dependent_tokens.shape[0], -1, -1)            ### (n_pts, 1, 16)
 
 
 def weights_init(m):

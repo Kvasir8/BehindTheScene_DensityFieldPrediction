@@ -24,14 +24,18 @@ defaults:                       ### This code is for concept of proof and transf
 #     is_preprocessed: false
 
 ## For training
-name: "eval_viz_noOffset_DFT_pgt1e-2_ff_encly2_nv8"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+# DFT_ff_encly3_nv4_onlyFe_tmpOffset
+# DFT_ff_encly3_nv8_alltmpOffset
+# DFT_ff_encly3_nv8_onlyFe_tmpOffset
+# eval_viz_noOffset_DFT_ff_encly3_nv8
+name: "DFT_ff_encly3_nv8_onlyFe_tmpOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
 
 
 num_epochs: 200
-validate_every: 20000
+validate_every: 30000
 visualize_every: 5000          # default: 10       ## bigger is good for computational reduction
 batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
@@ -88,7 +92,7 @@ model_conf:
           args:
             embedding_encoder:
                 type: "ff"          ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
-                d_out: 16
+                d_out: 16           ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
@@ -114,8 +118,8 @@ model_conf:
             d_hidden : 64
     final_prediction_head: "multiviewhead"
 
-    fisheye_encoding: true              # sampling fisheye during training. BTS uses only mono as sampling. default: false
-    ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
+    fisheye_encoding: true      # randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: false
+    ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
     z_far: 80                           # default: 80m
@@ -136,8 +140,8 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    lambda_pseudo_ground_truth: 1e-4        # default: 1e-3
+    lambda_edge_aware_smoothness: 0.001     # default: 0.001
+    lambda_pseudo_ground_truth: 1e-4        # default: 1e-4
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained

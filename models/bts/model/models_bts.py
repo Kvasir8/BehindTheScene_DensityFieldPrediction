@@ -277,29 +277,20 @@ class MVBTSNet(torch.nn.Module):
         )  ## set x,y coordinates as grid feature
 
         if self.requires_bottleneck_feats:
-            self.grid_f_bottleneck_feats = self.grid_f_bottleneck_feats[
-                :, :nv_
-            ]  ## taking last layer of encoder to feed into NeuRay
+            self.grid_f_bottleneck_feats = self.grid_f_bottleneck_feats[:, :nv_]  ## taking last layer of encoder to feed into NeuRay
             sampled_bottleneck_feats = (
                 F.grid_sample(
                     self.grid_f_bottleneck_feats.view(n_ * nv_, self.grid_f_bottleneck_feats.shape[2], h_, w_),
                     xy.view(n_ * nv_, 1, -1, 2),
                     mode="bilinear",
                     padding_mode="border",
-                    align_corners=False,
-                )
-                .view(n_, nv_, self.grid_f_bottleneck_feats.shape[2], n_pts)
-                .permute(0, 3, 1, 2)
+                    align_corners=False,).view(n_, nv_, self.grid_f_bottleneck_feats.shape[2], n_pts).permute(0, 3, 1, 2)
             )
         else:
             sampled_bottleneck_feats = None  ### dim(sampled_features): (n_, nv_, n_pts, c_)
 
-        if (
-            self.learn_empty
-        ):  ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
-            sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[
-                invalid.expand(-1, -1, -1, c_)
-            ]  ## broadcasting and make it fit to feature map
+        if (self.learn_empty):  ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
+            sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c_)]  ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
         sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ### (n_, nv_, M, C1+C_pos_emb)
         return (
@@ -518,7 +509,8 @@ class MVBTSNet(torch.nn.Module):
                 )
 
             head_outputs = {
-                name: head(mlp_input, **kwargs).reshape(n_, n_pts, self._d_out) for name, head in self.heads.items()
+                # name: head(mlp_input, **kwargs).reshape(n_, n_pts, self._d_out) for name, head in self.heads.items()
+                name: head(mlp_input, **{**kwargs, "head_name": name}).reshape(n_, -1, self._d_out) for name, head in self.heads.items()
             }
             
             mlp_output = head_outputs[self.final_pred_head]

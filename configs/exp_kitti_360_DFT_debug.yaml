@@ -66,7 +66,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 2           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 6           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
 
     encoder:
@@ -114,7 +114,7 @@ model_conf:
             d_hidden : 64
     final_prediction_head: "multiviewhead"
 
-    fisheye_encoding: true      # randomly sampling fisheye during training. BTS uses only mono as sampling. default: false
+    fisheye_encoding: true      # randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: false
     ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
@@ -122,7 +122,7 @@ model_conf:
     inv_z: true
 
     n_frames_encoder: 1
-    n_frames_render: 2                  # num frame to render among v==8
+    n_frames_render: 2                  # num frame to render among given cameras at a frame: 4 x 2 => v==8
     frame_sample_mode: kitti360-mono
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
@@ -134,10 +134,10 @@ model_conf:
     code_mode: z
 
 loss:
-    criterion: "l1+ssim+pgt"                # option: "l1+ssim+geo+cls"
+    criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001     # default: 0.001
-    lambda_pseudo_ground_truth: 1e-4        # default: 1e-3
+    lambda_pseudo_ground_truth: 1e-4        # default: 1e-4
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained

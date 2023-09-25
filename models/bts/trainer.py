@@ -135,11 +135,12 @@ class BTSWrapper(nn.Module):
             encoder_perm = (torch.randperm(v - 1) + 1)[: self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
             ids_encoder = [0]  ## always starts sampling from mono cam
             ids_encoder.extend(encoder_perm)  ## add more cam_views randomly incl. fe
-        else:
+        elif not self.fe_enc:
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
+        else:   print("__unrecognized fe_enc")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (not self.training or self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+        if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
             ids_encoder = self.ids_enc_viz_eval             ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values  ## ?    ### tensor([0, 4])
@@ -173,8 +174,7 @@ class BTSWrapper(nn.Module):
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
 
-                ids_loss = []
-                ids_render = []
+                ids_loss, ids_render = [], []
 
                 for cam in range(4):  ## stereo cam sampled for each time     ## ! c.f. paper: N_{render}, N_{loss}
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
@@ -205,7 +205,7 @@ class BTSWrapper(nn.Module):
             else:
                 raise NotImplementedError
 
-        else:  ## eval
+        else:  ## eval (==not self.training)
             ids_loss = torch.arange(v)
             ids_render = [0]
 

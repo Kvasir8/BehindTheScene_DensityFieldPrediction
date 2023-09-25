@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="eval_viz_noOffset_DFT_pgt1e-2_ff_encly2_nv8"
+#SBATCH --job-name="DFT_ff_encly3_nv8_alltmpOffset"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
