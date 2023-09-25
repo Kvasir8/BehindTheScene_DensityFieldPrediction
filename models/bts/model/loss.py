@@ -59,9 +59,9 @@ class ReconstructionLoss:  ## L_{ph}
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
-        elif self.criterion_str == "l1+ssim+pgt":
-            self.rgb_coarse_crit = compute_errors_l1ssim
-            self.rgb_fine_crit = compute_errors_l1ssim
+        # elif self.criterion_str == "l1+ssim+":                ## TODO: add more losses
+        #     self.rgb_coarse_crit = compute_errors_l1ssim
+        #     self.rgb_fine_crit = compute_errors_l1ssim
             self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
@@ -305,8 +305,7 @@ class ReconstructionLoss:  ## L_{ph}
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
 
-                if (self.criterion_str == "l1+ssim+pgt"                     ## compute the loss_pgt when it's activated
-                    and self.lambda_pseudo_ground_truth > 0
+                if (self.lambda_pseudo_ground_truth > 0
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
                 ):
@@ -335,8 +334,8 @@ class ReconstructionLoss:  ## L_{ph}
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
             
-        if self.criterion_str == "l1+ssim+pgt":
-            loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
+        
+        loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()
