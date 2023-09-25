@@ -198,8 +198,8 @@ def make_datasets(config):
             return_segmentation=config.get("data_segmentation", False),
             keyframe_offset=config.get("keyframe_offset", 0),
             fisheye_rotation=config.get("fisheye_rotation", 0),
-            fisheye_offset=config.get("fisheye_offset", 1),
-            stereo_offset= config.get("stereo_offset", 1),       ## This is to set consistent evaluation with test and viz
+            fisheye_offset=config.get("fisheye_offset", [1])[0],
+            stereo_offset= config.get("stereo_offset", [1])[0],       ## This is to set consistent evaluation with test and viz
             dilation=config.get("dilation", 1),
             is_preprocessed=config.get("is_preprocessed", False)
         )
