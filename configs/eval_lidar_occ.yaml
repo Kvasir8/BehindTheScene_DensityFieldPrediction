@@ -26,7 +26,7 @@ data:
     is_preprocessed: false
 
 model_conf:
-    arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
+    arch: "MVBTSNet"            # !Note!: this should be the same architecture with the architecture trained with checkpt to eval. constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
     num_multiviews: 4           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss

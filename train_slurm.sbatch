@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="DFT_ff_encly2_nv4_onlyFe_tmpOffset"
+#SBATCH --job-name="UD_DFTNry_ff_encly2_nv8_allrandomOffset"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G

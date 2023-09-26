@@ -5,7 +5,7 @@ defaults:                       ### This code is for concept of proof and transf
 
 #### Simply comment one of them for usage. (Because we want the same configuration as the model was trained last time.)
 
-## For eval_lidar_occ.yaml
+# # For eval_lidar_occ.yaml
 # name: "eval_lidar_occ"
 # model: "bts_lidar"
 # # checkpoint: "out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/"  ## change whenever you want to evaluate the model
@@ -23,12 +23,12 @@ defaults:                       ### This code is for concept of proof and transf
 #     data_fc: 2                  ## default: 1. 2 => gives 8 views with 2 time stamps
 #     is_preprocessed: false
 
-## For training
+# # For training
 # DFT_ff_encly3_nv4_onlyFe_tmpOffset
 # DFT_ff_encly3_nv8_alltmpOffset
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
-name: "DFT_ff_encly2_nv4_onlyFe_tmpOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "UD_DFTNry_ff_encly2_nv8_allrandomOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -70,7 +70,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 4           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 8           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
 
     encoder:
@@ -105,7 +105,7 @@ model_conf:
                 n_layers: 2         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
-                    type: "fixed"       # fixed, data, neuray
+                    type: "neuray"       # fixed, data, neuray
             probing_layer:
 
             dropout_view_rate: 0
@@ -140,7 +140,7 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 0.001     # default: 0.001
+    lambda_edge_aware_smoothness: 1e-3     # default: 0.001
     lambda_pseudo_ground_truth: 1e-4        # default: 1e-4
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
