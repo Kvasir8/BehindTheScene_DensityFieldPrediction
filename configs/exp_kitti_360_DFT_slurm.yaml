@@ -28,7 +28,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFT_ff_encly3_nv8_alltmpOffset
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
-name: "DFT_ff_encly3_nv8_onlyFe_tmpOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "DFT_ff_encly2_nv4_onlyFe_tmpOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -70,7 +70,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 8           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 4           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
 
     encoder:
@@ -102,7 +102,7 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False
-                n_layers: 3         ## default: 3, num encoder layers from Transformer
+                n_layers: 2         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"       # fixed, data, neuray
@@ -114,7 +114,7 @@ model_conf:
           name: "singleviewhead"
           args:
             n_blocks : 0
-            view_number: 0
+            view_number: 0      # which encoder id we want to extract among feature maps
             d_hidden : 64
     final_prediction_head: "multiviewhead"
 

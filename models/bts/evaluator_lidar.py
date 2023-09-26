@@ -235,6 +235,9 @@ class BTSWrapper(nn.Module):
 
         self.renderer = renderer
 
+        self.renderer = renderer
+        self.encoder_ids = config.get("encoder_ids", [0])
+
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.query_batch_size = config.get("query_batch_size", 50000)
@@ -296,9 +299,10 @@ class BTSWrapper(nn.Module):
 
         rays, _ = self.sampler.sample(None, poses[:, :1, :, :], projs[:, :1, :, :])
 
-        ids_encoder = [0]
+        ## monocular cam
+        ids_encoder = self.encoder_ids
         self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
-        self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_encoder, images_alt=images * .5 + .5)
+        self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_encoder[:1], images_alt=images * .5 + .5)
         self.renderer.net.set_scale(0)
         render_dict = self.renderer(rays, want_weights=True, want_alphas=True)
         if "fine" not in render_dict:

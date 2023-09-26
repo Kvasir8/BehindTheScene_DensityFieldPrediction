@@ -110,7 +110,7 @@ model_conf:
           name: "singleviewhead"
           args:
             n_blocks : 0
-            view_number: 0
+            view_number: 0      # which encoder id we want to extract among feature maps
             d_hidden : 64
     final_prediction_head: "multiviewhead"
 
