@@ -77,10 +77,10 @@ model_conf:
 
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     encoder_ids: [0]                        ## monocular fixed case
-    encoder_ids: [0, 2]                     ## temporal mono case
-    encoder_ids: [0, 1]                     ## stereo fixed case
-    encoder_ids: [0, 1, 2, 3]               ## stereo temporal case
-    encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
+    # encoder_ids: [0, 2]                     ## temporal mono case
+    # encoder_ids: [0, 1]                     ## stereo fixed case
+    # encoder_ids: [0, 1, 2, 3]               ## stereo temporal case
+    # encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
     ids_enc_offset_viz: false     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
