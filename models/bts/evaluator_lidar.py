@@ -263,7 +263,7 @@ class BTSWrapper(nn.Module):
     def forward(self, data):
         data = dict(data)
         images = torch.stack(data["imgs"], dim=1)                           # n, v, c, h, w
-        poses = torch.stack(data["poses"], dim=1)                 # n, v, 4, 4 w2c
+        poses = torch.stack(data["poses"], dim=1)                           # n, v, 4, 4 w2c
         projs = torch.stack(data["projs"], dim=1)                           # n, v, 4, 4 (-1, 1)
         index = data["index"].item()
 
@@ -299,7 +299,15 @@ class BTSWrapper(nn.Module):
 
         rays, _ = self.sampler.sample(None, poses[:, :1, :, :], projs[:, :1, :, :])
 
-        ## monocular cam
+        ## Making possible view combination cases for evaluation
+        # enc2eval = [i for i in self.encoder_ids]
+        enc2eval = {
+            mono: [0]                        ## monocular fixed case
+            # mono_tmp: [0, 2]                     ## temporal mono case
+            stereo: [0, 1]                     ## stereo fixed case
+            # stereo_tmp: [0, 1, 2, 3]               ## stereo temporal case
+            encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
+        }
         ids_encoder = self.encoder_ids
         self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
         self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_encoder[:1], images_alt=images * .5 + .5)

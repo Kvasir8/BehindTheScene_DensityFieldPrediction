@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name="UD_DFTNry_ff_encly2_nv8_allrandomOffset"
+#SBATCH --job-name="do_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048"
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:48G
 #SBATCH --mem=32G
 #SBATCH --time=120:00:00

@@ -27,7 +27,6 @@ class MVBTSNet(torch.nn.Module):
         heads: Dict[str, nn.Module],
         final_pred_head: Optional[str] = None,
         ren_nc=None,
-        # B_=None,
     ):  ## dependency injection
         super().__init__()
         ## model constructor's complexity
@@ -59,11 +58,11 @@ class MVBTSNet(torch.nn.Module):
         if self.code_mode not in ["z", "distance"]:
             raise NotImplementedError(f"Unknown mode for positional encoding: {self.code_mode}")
 
+        ## For potential AE model (from GeoNeRF)
         ## config to compute total sample convoluted, ts_conv
-        self.ts_conv = (
-            (ren_nc // 4) * (conf.get("patch_size") * conf.get("patch_size")) * (conf.get("ray_batch_size") // ren_nc)
-        )
-        # TODO: maybe add again
+        # self.ts_conv = (
+        #     (ren_nc // 4) * (conf.get("patch_size") * conf.get("patch_size")) * (conf.get("ray_batch_size") // ren_nc)
+        # )
         # self.AE = conf.get("AE")
         # ts_ = batch_size * (self.n_coarse // 4) * self.patch_size self.patch_size * (ray_batch_size // self.n_coarse)
 

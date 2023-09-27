@@ -104,7 +104,8 @@ model_conf:
                     type: "fixed"  # fixed, data, neuray
             probing_layer:
 
-            dropout_view_rate: 0
+            dropout_view_rate: 0.5
+            dropout_multiviewhead: true
 
         - type: "resnet"
           name: "singleviewhead"
@@ -127,7 +128,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 256                 # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 512                 # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false

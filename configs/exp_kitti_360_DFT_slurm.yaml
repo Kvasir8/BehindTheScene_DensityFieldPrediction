@@ -28,7 +28,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFT_ff_encly3_nv8_alltmpOffset
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
-name: "UD_DFTNry_ff_encly2_nv8_allrandomOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "do_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -102,13 +102,14 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False
-                n_layers: 2         ## default: 3, num encoder layers from Transformer
+                n_layers: 3         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
-                    type: "neuray"       # fixed, data, neuray
+                    type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_view_rate: 0
+            dropout_view_rate: 0.5
+            dropout_multiviewhead: true
 
         - type: "resnet"
           name: "singleviewhead"

@@ -55,6 +55,7 @@ class MultiViewHead(nn.Module):
         attn_layers: nn.Module,
         density_head: nn.Module,
         do_: float = 0.0,
+        do_mvh: bool = False
     ):
         """Attention based feature aggregation module for multi-view density prediction.
 
@@ -64,6 +65,7 @@ class MultiViewHead(nn.Module):
             attn_layers (nn.Module, optional): attention layers of the module responsible for information sharing between the views. Defaults to nn.Module.
             density_head (nn.Module, optional): final network layers to predict the density from the view independent token. Defaults to nn.Module.
             do_ (float, optional): probability of dropping out a single view for training. Defaults to 0.0.
+            do_mvh (bool, optional): to decide whether the first view feature map should be droppout due to pgt_loss computation. Defaults to 0.0.
         """
 
         super(MultiViewHead, self).__init__()
@@ -74,6 +76,7 @@ class MultiViewHead(nn.Module):
         self.attn_layers = attn_layers
 
         self.dropout = nn.Dropout(do_)
+        self.do_mvh = do_mvh
 
         self.density_head = density_head
 
@@ -83,11 +86,16 @@ class MultiViewHead(nn.Module):
         assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
         # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
-
-        if self.dropout:
+        
+        if self.dropout != 0 and self.do_mvh:   ## dropping out except first view feature map due to pgt_loss computation
+            invalid_features = torch.concat(
+                [invalid_features[:,:2], 1 - self.dropout((1 - invalid_features[:,2:].float()))]
+                , dim=1 )
+        elif self.dropout != 0 and not self.do_mvh:
             invalid_features = 1 - self.dropout(
                 (1 - invalid_features.float())
-            )  ## TODO: after dropping out, the values of elements are 2 somehow why?? ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+            )  ## Note: after dropping out NeuRay, the values of elements are 2. ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        else: print(f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition")
 
         if self.emb_encoder is not None:
             encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(
@@ -101,14 +109,15 @@ class MultiViewHead(nn.Module):
 
         # padding
         padded_features = torch.concat(
-            [view_independent_feature, encoded_features], dim=1         ### ? dim(encoded_features) has only 1 token size?
-        )  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the column ## Note: needs to be fixed for nicer way
-        padded_invalid = torch.concat(
+            [view_independent_feature, encoded_features], dim=1
+        )  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the num_token dim. B*n_pts:=Batch size or number of data points being processed.
+        padded_invalid = torch.concat(  ## Note: view_independent_feature is 1st index in Tensor (:,0,:)
             [torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],
             dim=1,
         )
 
-        transformed_features = self.attn_layers(padded_features, src_key_padding_mask=padded_invalid)[:, 0, :]  # [n_pts, C]  ## first token refers to the readout token where it stores the feature information accumulated from the layers    # aggregated_features = self.attention(self.query.expand(transformed_features.shape[0], -1, -1), transformed_features, transformed_features, key_padding_mask=invalid_features)[0]
+        transformed_features = self.attn_layers(padded_features, src_key_padding_mask=padded_invalid)[:, 0, :]  # [n_pts, C] ##Note: remember the tensor shape is batch-first mode, sequence length is determined by the size of the first dimension of the input tensor
+        ## ## first token refers to the readout token where it stores the feature information accumulated from the layers    
         ## TODO: GeoNeRF: Identify readout token belongs to single ray: M should be divisable by nhead, so that it can feed into AE, Note: make sure sampled points are in valid in the mask. (camera frustum)
         ## !TODO: Q K^T V each element of which is a density field prediction for a corresponding 3D point.
         density_field = self.density_head(transformed_features)
@@ -123,5 +132,5 @@ class MultiViewHead(nn.Module):
         independent_token = make_independent_token(conf["independent_token"], d_enc)
         probing_layer = nn.Sequential(nn.Linear(d_enc, d_enc // 2), nn.ELU(), nn.Linear(d_enc // 2, d_out))         ## This FFNet is how the final density field scalar element is inferred.
         return cls(
-            embedding_encoder, independent_token, attn_layers, probing_layer, conf.get("dropout_views_rate", 0.0)
+            embedding_encoder, independent_token, attn_layers, probing_layer, conf.get("dropout_views_rate", 0.0), conf.get("dropout_multiviewhead", False)
         )

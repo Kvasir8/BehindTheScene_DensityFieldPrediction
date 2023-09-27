@@ -326,8 +326,7 @@ class BTSWrapper(nn.Module):
             data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust)]
             # data["segmentation_profiles"] = [render_segmentation_profile(self.renderer.net, cam_incl_adjust)]
 
-        if self.training:
-            self._counter += 1
+        if self.training:   self._counter += 1
 
         return data
 
