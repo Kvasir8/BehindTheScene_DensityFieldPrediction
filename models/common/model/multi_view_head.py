@@ -89,7 +89,7 @@ class MultiViewHead(nn.Module):
         
         if self.dropout != 0 and self.do_mvh:   ## dropping out except first view feature map due to pgt_loss computation
             invalid_features = torch.concat(
-                [invalid_features[:,:2], 1 - self.dropout((1 - invalid_features[:,2:].float()))]
+                [invalid_features[:,:1], 1 - self.dropout((1 - invalid_features[:,1:].float()))]
                 , dim=1 )
         elif self.dropout != 0 and not self.do_mvh:
             invalid_features = 1 - self.dropout(
