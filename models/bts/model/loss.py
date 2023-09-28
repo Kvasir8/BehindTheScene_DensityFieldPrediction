@@ -21,7 +21,7 @@ def compute_errors_l1ssim(img0, img1, mask=None):
     if mask is not None:
         return (errors,mask,)  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
     else:
-        return errors
+        return errors   ### (n, pc, h, w, nv, 1)
 
 
 def edge_aware_smoothness(gt_img, depth, mask=None):  ## L_{eas}
@@ -185,7 +185,7 @@ class ReconstructionLoss:  ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)
+                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt) ### (n, pc, h, w, nv, 1)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -222,6 +222,8 @@ class ReconstructionLoss:  ## L_{ph}
                     loss_dict["loss_rgb_fine"] = 0
 
                 loss += rgb_loss
+                print("mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
+                print("sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
 
                 if self.lambda_depth_reg > 0:
                     depths = coarse["depth"]
@@ -309,8 +311,8 @@ class ReconstructionLoss:  ## L_{ph}
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
                 ):
-                    teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
-                    # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher]
+                    teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].clone().detach()       ## if only detach(), it is in-place computaitonal graph frozen. This makes whole DFT model frozen, and not learnable during training. Thus, it needs to be frozen-cloned that is separately trained from pgt_loss computation. c.f. https://discuss.pytorch.org/t/difference-between-detach-clone-and-clone-detach/34173/3
+                    # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     # teacher_density.requires_grad = False
                     for student_name in self.pseudo_ground_truth_students:
                         loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
@@ -319,6 +321,10 @@ class ReconstructionLoss:  ## L_{ph}
                         # loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
                     loss += loss_pseudo_ground_truth
+
+                    print("pgt_mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
+                    print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
+                    print("pgt_teacher_req_grad", {teacher_density.requires_grad})
 
             loss = loss / n_scales
 

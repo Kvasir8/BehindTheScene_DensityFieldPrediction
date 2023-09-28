@@ -98,7 +98,7 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False
-                n_layers: 2         ## default: 3, num encoder layers from Transformer
+                n_layers: 3         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"  # fixed, data, neuray

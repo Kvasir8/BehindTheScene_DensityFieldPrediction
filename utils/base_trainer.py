@@ -328,7 +328,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     #    - RunningAverage` on `train_step` output
     #    - Two progress bars on epochs and optionally on iterations
 
-    hook_fw_handles = []
+    # hook_fwd_handles, hook_bwd_handles = []
     # for handle in hook_fw_handles:  handle.remove()   ## remove hooks for safety
     with_amp = config["with_amp"]
     scaler = GradScaler(enabled=with_amp)
@@ -342,6 +342,24 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
                 head_outputs[name] = output
             return _hook_fn
         
+        # def hook_fn_backward_heads(m, i, o):
+        # print(m)
+        # print("------------Input Grad------------")
+
+        # for grad in i:
+        #     try:
+        #     print(grad.shape)
+        #     except AttributeError: 
+        #     print ("None found for Gradient")
+
+        # print("------------Output Grad------------")
+        # for grad in o:  
+        #     try:
+        #     print(grad.shape)
+        #     except AttributeError: 
+        #     print ("None found for Gradient")
+        # print("\n")
+
     def train_step(engine, data: dict):
         if "t__get_item__" in data:     timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
         else:                           timing = {}
@@ -358,6 +376,10 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
                 if not module._forward_hooks:
                     print(f"__Registering {name} fwd hook")
                     module.register_forward_hook(hook_fn_forward_heads(name))
+                if not module._backward_hooks:
+                    print(f"__Registering {name} bwd hook")
+                    # module.register_backward_hook(hook_fn_forward_heads(module, gin, gout))
+                    module.register_backward_hook(lambda module, gin, gout: print(gout[0].mean()))
                 # else: print(f"__Not registering for {name}")
             # model.renderer.net.heads.multiviewhead.register_forward_hook(hook_fn_forward_heads)
 
@@ -390,7 +412,10 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         scaler.scale(loss).backward()       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         # scaler.scale(loss).backward(retain_graph=True)       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         scaler.step(optimizer)
+        init_state = {param.clone() for param in model.renderer.net.heads.multiviewhead.attn_layers.layers[0].linear1.parameters()}
         scaler.update()
+        cmp_state = {param for param in model.renderer.net.heads.multiviewhead.attn_layers.layers[0].linear1.parameters()}
+        print("cmp", init_state == cmp_state)
         timing["t_backward"] = time.time() - _start_time
 
         return {"output": data, "loss_dict": loss_metrics, "timings_dict": timing, "metrics_dict": {}}

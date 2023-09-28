@@ -38,7 +38,7 @@ class BTSWrapper(nn.Module):
         super().__init__()
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
-        self.fe_enc = config["fisheye_encoding"]
+        self.enc_style = config["encoding_style"]
         self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.loss_pgt = config.get("loss_pgt", False)
@@ -131,13 +131,15 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)  ## eval
 
-        if self.fe_enc:         ## encoded views
+        if self.enc_style == "random":         ## encoded views
             encoder_perm = (torch.randperm(v - 1) + 1)[: self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
             ids_encoder = [0]  ## always starts sampling from mono cam
             ids_encoder.extend(encoder_perm)  ## add more cam_views randomly incl. fe
-        elif not self.fe_enc:
+        elif self.enc_style == "default":
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
-        else:   print("__unrecognized fe_enc")
+        elif self.enc_style == "test":
+            ids_encoder = [0]
+        else:   print(f"__unrecognized enc_style: {self.enc_style}")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
         if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
@@ -489,7 +491,7 @@ def initialize(config: dict, logger=None):
         encoder = make_backbone(config["model_conf"]["encoder"])
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
         d_in = encoder.latent_size + code_xyz.d_out         ### 103
-    else:   print("__unrecognized net instantiation in model initializaiton")
+    else:   print(f"__unrecognized net: {arch} instantiation in model")
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
