@@ -21,7 +21,7 @@ def compute_errors_l1ssim(img0, img1, mask=None):
     if mask is not None:
         return (errors,mask,)  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
     else:
-        return errors   ### (n, pc, h, w, nv, 1)
+        return errors   ### (n, pc, h, w, nv+1, 1)
 
 
 def edge_aware_smoothness(gt_img, depth, mask=None):  ## L_{eas}
@@ -176,7 +176,7 @@ class ReconstructionLoss:  ## L_{ph}
                     rgb_fine = rgb_fine[..., :-1]
                     rgb_gt = rgb_gt[..., :-1]
 
-                rgb_coarse = rgb_coarse
+                rgb_coarse = rgb_coarse                             ### (n, pc, h, w, nv+1, 3)
                 rgb_fine = rgb_fine
                 rgb_gt = rgb_gt.unsqueeze(-2)
 
@@ -185,7 +185,7 @@ class ReconstructionLoss:  ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt) ### (n, pc, h, w, nv, 1)
+                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt) ### (n, pc, h, w, nv+1, 1)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -222,8 +222,7 @@ class ReconstructionLoss:  ## L_{ph}
                     loss_dict["loss_rgb_fine"] = 0
 
                 loss += rgb_loss
-                print("mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
-                print("sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
+                # print(f"mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad} \n sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
 
                 if self.lambda_depth_reg > 0:
                     depths = coarse["depth"]
@@ -322,9 +321,9 @@ class ReconstructionLoss:  ## L_{ph}
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
                     loss += loss_pseudo_ground_truth
 
-                    print("pgt_mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
-                    print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
-                    print("pgt_teacher_req_grad", {teacher_density.requires_grad})
+                    # print("pgt_mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
+                    # print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
+                    # print("pgt_teacher_req_grad", {teacher_density.requires_grad})
 
             loss = loss / n_scales
 

@@ -36,15 +36,16 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 def make_attn_layers(config, ndim: int) -> nn.Module:
     num_layers = config.get("n_layers", 3)
     n_heads = config.get("n_heads", 4)
-    if config.get("IBRAttn", False):
+    use_built_in = config.get("IBRAttn", True)
+    if use_built_in:
         transformer_enlayer = mlp.EncoderLayer(ndim, ndim, n_heads, ndim, ndim)
         return mlp.TrEnLayer(
             transformer_enlayer, num_layers
         )  ## TODO: replace MHA module with IBRNet network and complete integretable encoder part of transformer
-    else:
+    elif not use_built_in:
         transformer_enlayer = TransformerEncoderLayer(ndim, n_heads, dim_feedforward=ndim, batch_first=True)
         return TransformerEncoder(transformer_enlayer, num_layers)
-
+    else: print(f"__unrecognized use_built_in: {use_built_in}")
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class MultiViewHead(nn.Module):
@@ -87,14 +88,15 @@ class MultiViewHead(nn.Module):
         assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
         # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
         
-        if self.dropout != 0 and self.do_mvh:   ## dropping out except first view feature map due to pgt_loss computation
+        if self.dropout.p != 0 and self.do_mvh:   ## dropping out except first view feature map due to pgt_loss computation
             invalid_features = torch.concat(
                 [invalid_features[:,:1], 1 - self.dropout((1 - invalid_features[:,1:].float()))]
                 , dim=1 )
-        elif self.dropout != 0 and not self.do_mvh:
+        elif self.dropout.p != 0 and not self.do_mvh:
             invalid_features = 1 - self.dropout(
                 (1 - invalid_features.float())
             )  ## Note: after dropping out NeuRay, the values of elements are 2. ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        elif self.dropout.p == 0 and not self.do_mvh: pass
         else: print(f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition")
 
         if self.emb_encoder is not None:

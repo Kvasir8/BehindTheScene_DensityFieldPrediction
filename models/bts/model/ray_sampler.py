@@ -122,14 +122,13 @@ class PatchRaySampler(RaySampler):
         assert (ray_batch_size % (self.patch_size_x * self.patch_size_y)) == 0
         self._patch_count = self.ray_batch_size // (self.patch_size_x * self.patch_size_y)
 
-    def sample(self, images, poses, projs):
+    def sample(self, images, poses, projs):     ### dim(images) == 4 (ids_loss 4 randomly sampled)
         n, v, c, h, w = images.shape
         device = images.device
 
         images = images.permute(0, 1, 3, 4, 2)
 
-        all_rgb_gt = []
-        all_rays = []
+        all_rgb_gt, all_rays = [], []
 
         for n_ in range(n):
             focals = projs[n_, :, [0, 1], [0, 1]]

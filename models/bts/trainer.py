@@ -38,7 +38,7 @@ class BTSWrapper(nn.Module):
         super().__init__()
         self.nv_ = config["num_multiviews"]
         self.renderer = renderer
-        self.enc_style = config["encoding_style"]
+        self.enc_style = config.get("encoding_style", "default")
         self.ids_enc_viz_eval = config.get("ids_enc_offset_viz", [0])
         # self.dropout = nn.Dropout1d(config["dropout_views_rate"])
         self.loss_pgt = config.get("loss_pgt", False)
@@ -172,6 +172,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
+            
             elif self.frame_sample_mode == "kitti360-mono":
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
@@ -182,6 +183,10 @@ class BTSWrapper(nn.Module):
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
+                
+                if self.enc_style == "test":
+                    ids_encoder = ids_loss[:self.nv_]
+            
             elif self.frame_sample_mode.startswith("waymo"):
                 num_views = int(self.frame_sample_mode.split("-")[-1])
                 steps = v // num_views
@@ -256,7 +261,7 @@ class BTSWrapper(nn.Module):
         sampler = self.train_sampler if self.training else self.val_sampler
 
         with profiler.record_function("trainer_sample-rays"):
-            all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss], poses[:, ids_loss], projs[:, ids_loss])
+            all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss], poses[:, ids_loss], projs[:, ids_loss])   ## !
 
         data["fine"], data["coarse"] = [], []
         # if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)

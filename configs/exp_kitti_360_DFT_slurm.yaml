@@ -29,7 +29,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
-name: "DFT_test_to_see_DFT_works"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "hotfix_DFTunfr_do01_DFTfixed_ff_encstyle_random_enly1_nv8_att52_nh13_feOffset_pgt_lr1e4_rbs2048"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -71,7 +71,7 @@ model_conf:
     arch: "MVBTSNet"                    # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 1                   # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 8                   # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true                  # to aggregate multi-views, set true. c.f. IBRNet
 
     encoder:
@@ -93,7 +93,7 @@ model_conf:
           args:
             embedding_encoder:
                 type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
-                d_out: 16               ## input dimension of encoder layer of Transformer
+                d_out: 52               ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
@@ -102,15 +102,15 @@ model_conf:
             #     args:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
-                IBRAttn: False
+                IBRAttn: True           ## default: True // Note: with built-in Pytorch, it never learns. TODO: find the reason why transformers don't work properly with built-in one.
                 n_layers: 1             ## default: 3, num encoder layers from Transformer
-                n_heads: 4
+                n_heads: 13
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_view_rate: 0
-            dropout_multiviewhead: false
+            dropout_view_rate: 0.1
+            dropout_multiviewhead: true
 
         - type: "resnet"
           name: "singleviewhead"
@@ -121,7 +121,7 @@ model_conf:
 
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "test"              # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: default
+    encoding_style: "random"              # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: default
     ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
@@ -144,7 +144,7 @@ loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 1e-3  # default: 0.001
-    lambda_pseudo_ground_truth: 0       # default: 1e-4
+    lambda_pseudo_ground_truth: 1e-4       # default: 1e-4
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained

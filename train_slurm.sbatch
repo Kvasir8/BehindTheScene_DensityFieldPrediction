@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048"
+#SBATCH --job-name="hotfix_DFTunfr_do01_DFTfixed_ff_encstyle_random_enly1_nv8_att52_nh13_feOffset_pgt_lr1e4_rbs2048"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:48G
