@@ -440,7 +440,7 @@ def make_embedding_encoder(config, input_channels: int, output_channels: int) ->
             nn.Linear(2 * output_channels, output_channels, bias=True),
         )
     else:
-        print("__unrecognized input for emb_enc, not using an embedding encoder.")
+        raise NotImplementedError("__unrecognized input for emb_enc, not using an embedding encoder.")
         return None
 
 

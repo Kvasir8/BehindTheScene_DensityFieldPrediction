@@ -27,11 +27,13 @@ class MVBTSNet(torch.nn.Module):
         heads: Dict[str, nn.Module],
         final_pred_head: Optional[str] = None,
         ren_nc=None,
+        code_token=None
     ):  ## dependency injection
         super().__init__()
         ## model constructor's complexity
         self.encoder = encoder
         self.code_xyz = code_xyz
+        self.code_token = code_token
         self.heads = nn.ModuleDict(heads)
         if final_pred_head: self.final_pred_head = final_pred_head
         else:               self.final_pred_head = list(self.heads.keys())[0]       ### ['multiviewhead', 'singleviewhead'][0]
@@ -55,7 +57,7 @@ class MVBTSNet(torch.nn.Module):
             conf.get("inv_z", True),
         )
         self.color_interpolation, self.code_mode = conf.get("color_interpolation", "bilinear"), conf.get("code_mode", "z")
-        if self.code_mode not in ["z", "distance"]:
+        if self.code_mode not in ["z", "distance", "z_feat"]:
             raise NotImplementedError(f"Unknown mode for positional encoding: {self.code_mode}")
 
         ## For potential AE model (from GeoNeRF)
@@ -189,8 +191,11 @@ class MVBTSNet(torch.nn.Module):
         self.grid_c_poses_w2c = poses_w2c_render
         self.grid_c_combine = comb_render
 
+        self.grid_t_pos = ids_encoder   ## positional embedding for token's order
+
     def sample_features(
         self, xyz, use_single_featuremap=True
+        # self, xyz, grid_t_pos, use_single_featuremap=True
     ):  ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
         (
             n_,
@@ -229,9 +234,7 @@ class MVBTSNet(torch.nn.Module):
             | (xy[:, :, :, 1:2] > 1)
         )
         """given a vector p = (x, y, z) this is the difference of normalizing either:z ||p|| = sqrt(x^2 + y^2 + z^2). So you either give the network (x, y, z_normalized) or (x, y, ||p||_normalized) as input. It is just different parameterizations of the same point."""
-        if (
-            self.code_mode == "z"
-        ):  ## Depending on the code mode, normalize the depth value or distance value to the [-1, 1] range and concatenate with the xy coordinates
+        if (self.code_mode == "z"):  ## Depending on the code mode, normalize the depth value or distance value to the [-1, 1] range and concatenate with the xy coordinates
             # Get z into [-1, 1] range  ## Normalizing the z coordinates leads to a consistent positional encoding of the viewing information. In line 172 the viewing information (xyz_projected) is given to a positional encoder before it is appended to the overall feature vector
             if self.inv_z:
                 z_ = (1 / z_.clamp_min(EPS) - 1 / self.d_max) / (1 / self.d_min - 1 / self.d_max)
@@ -239,28 +242,32 @@ class MVBTSNet(torch.nn.Module):
                 z_ = (z_ - self.d_min) / (self.d_max - self.d_min)
             z_ = 2 * z_ - 1
             xyz_projected = torch.cat((xy, z_), dim=-1)  ## concatenates the normalized x, y, and z coordinates
+        
+        elif self.code_mode == "z_feat":
+            if self.inv_z:      distance = (1 / distance.clamp_min(EPS) - 1 / self.d_max) / (1 / self.d_min - 1 / self.d_max)
+            else:               distance = (distance - self.d_min) / (self.d_max - self.d_min)
+            distance = 2 * distance - 1
+
+            feat_map_pos_enc = torch.randn(distance.shape).to(distance.device)
+            for i in range(distance.shape[1]): feat_map_pos_enc[:,i,:,:] = feat_map_pos_enc[:,i,:,:] + self.grid_t_pos[i]
+            feat_map_pos_enc = nn.Parameter(feat_map_pos_enc)
+
+            xyz_projected = torch.cat( (xy, distance, feat_map_pos_enc), dim=-1 )  ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
+        
         elif self.code_mode == "distance":
             if self.inv_z:
                 distance = (1 / distance.clamp_min(EPS) - 1 / self.d_max) / (1 / self.d_min - 1 / self.d_max)
             else:
                 distance = (distance - self.d_min) / (self.d_max - self.d_min)
             distance = 2 * distance - 1
-            xyz_projected = torch.cat(
-                (xy, distance), dim=-1
-            )  ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
-        xyz_code = (
-            self.code_xyz(xyz_projected.view(n_ * nv_ * n_pts, -1)).view(n_, nv_, n_pts, -1).permute(0, 2, 1, 3)
-        )  ## ! positional encoding dimension to check (concatenate)
+            xyz_projected = torch.cat( (xy, distance), dim=-1 )  ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
+        xyz_code = self.code_xyz(xyz_projected.view(n_ * nv_ * n_pts, -1)).view(n_, nv_, n_pts, -1).permute(0, 2, 1, 3)  ## ! positional encoding dimension to check (concatenate)
 
         feature_map = self.grid_f_features[self._scale][:, :nv_]
 
         # These samples are from different scales
-        if (
-            self.learn_empty
-        ):  ## "empty space" can refer to areas in a scene where there is no object, or it could also refer to areas that are not observed or are beyond the range of the sensor. This allows the model to have a distinct learned representation for "empty" space, which can be beneficial in tasks like 3D reconstruction where understanding both the objects in a scene and the empty space between them is important.
-            empty_feature_expanded = self.empty_feature.view(1, 1, 1, c_).expand(
-                n_, nv_, n_pts, c_
-            )  ## trainable parameter, initialized with random features
+        if self.learn_empty:  ## "empty space" can refer to areas in a scene where there is no object, or it could also refer to areas that are not observed or are beyond the range of the sensor. This allows the model to have a distinct learned representation for "empty" space, which can be beneficial in tasks like 3D reconstruction where understanding both the objects in a scene and the empty space between them is important.
+            empty_feature_expanded = self.empty_feature.view(1, 1, 1, c_).expand(n_, nv_, n_pts, c_)  ## trainable parameter, initialized with random features
         ## feature_map (2, 4, 64, 128, 128): n_ = 2, nv_ = 4 views, c_ = 64 channels in the feature map, and the height and width of the feature map are h = 128 and w = 128
         ## !TODO: for multiviews for F.grid_sample : xy.view(n_ * nv_, 1, -1, 2) To debug how xy looks like in order to integrate for multiview (by looking over doc in Pytorch regarding how to sample all frames)
         sampled_features = (
@@ -270,9 +277,8 @@ class MVBTSNet(torch.nn.Module):
                 mode="bilinear",
                 padding_mode="border",
                 align_corners=False,
-            )
-            .view(n_, nv_, c_, n_pts)
-            .permute(0, 3, 1, 2)
+            ).view(n_, nv_, c_, n_pts)
+             .permute(0, 3, 1, 2)
         )  ## set x,y coordinates as grid feature
 
         if self.requires_bottleneck_feats:
@@ -291,7 +297,10 @@ class MVBTSNet(torch.nn.Module):
         if (self.learn_empty):  ## Replace invalid features in the sampled features tensor with the corresponding features from the expanded empty feature
             sampled_features[invalid.expand(-1, -1, -1, c_)] = empty_feature_expanded[invalid.expand(-1, -1, -1, c_)]  ## broadcasting and make it fit to feature map
         ## dim(xyz): (B,M), M:=#_pts.
+
         sampled_features = torch.cat((sampled_features, xyz_code), dim=-1)  ### (n_, nv_, M, C1+C_pos_emb)
+        # sampled_features = torch.cat((sampled_features, xyz_code, token_pos_enc), dim=-1)  ### (n_, nv_, M, C1+C_pos_emb)
+
         return (
             sampled_features,
             invalid[..., 0].permute(0, 2, 1),
@@ -481,6 +490,7 @@ class MVBTSNet(torch.nn.Module):
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
             sampled_features, invalid_features, sampled_bottleneck_features = self.sample_features(
+                # xyz, self.grid_t_pos, use_single_featuremap=False
                 xyz, use_single_featuremap=False
             )  # (B, n_pts, n_views, C), (B, n_pts, n_views), (B, n_pts, n_views, C_bottleneck)
             # sampled_features = sampled_features.reshape(n * n_pts, -1)  ## n_pts := number of points per "ray"
@@ -539,6 +549,7 @@ class MVBTSNet(torch.nn.Module):
                 sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
             # TODO: Think about this!
             # Since we don't train the colors directly, lets use softplus instead of relu
+
             """Combine RGB colors and invalid colors"""
             if not only_density:
                 _, _, _, c_ = rgb.shape

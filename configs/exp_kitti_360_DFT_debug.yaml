@@ -68,6 +68,8 @@ model_conf:
     prediction_mode: default
     num_multiviews: 3           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
+    
+    # camera_positional_encoding: true
 
     encoder:
         type: "monodepth2"
@@ -97,15 +99,15 @@ model_conf:
             #     args:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
-                IBRAttn: True      ## default: False
+                IBRAttn: False      ## default: False
                 n_layers: 2         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"  # fixed, data, neuray
             probing_layer:
 
-            dropout_view_rate: 0
-            dropout_multiviewhead: false
+            dropout_views_rate: 0.1
+            dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
           name: "singleviewhead"
@@ -115,7 +117,7 @@ model_conf:
             d_hidden : 64
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "test"           # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: default
+    encoding_style: "default"           # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: default
     ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
@@ -132,13 +134,13 @@ model_conf:
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
-    code_mode: z
+    code_mode: z_feat                        # default: z, z | distance | z_cam: additional cam_feature_map_positional_encoding
 
 loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 1e-3     # default: 0.001
-    lambda_pseudo_ground_truth: 1e-4        # default: 1e-4
+    lambda_pseudo_ground_truth: 1e-4        # default: 1e-4, set 0 to disable
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"          ## making list type with an string element contained

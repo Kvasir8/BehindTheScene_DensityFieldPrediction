@@ -36,7 +36,7 @@ the accumulated density field for each pixel. The output shape is (batch_size, n
 def make_attn_layers(config, ndim: int) -> nn.Module:
     num_layers = config.get("n_layers", 3)
     n_heads = config.get("n_heads", 4)
-    use_built_in = config.get("IBRAttn", True)
+    use_built_in = config.get("IBRAttn", False)
     if use_built_in:
         transformer_enlayer = mlp.EncoderLayer(ndim, ndim, n_heads, ndim, ndim)
         return mlp.TrEnLayer(
@@ -45,7 +45,7 @@ def make_attn_layers(config, ndim: int) -> nn.Module:
     elif not use_built_in:
         transformer_enlayer = TransformerEncoderLayer(ndim, n_heads, dim_feedforward=ndim, batch_first=True)
         return TransformerEncoder(transformer_enlayer, num_layers)
-    else: print(f"__unrecognized use_built_in: {use_built_in}")
+    else: raise NotImplementedError(f"__unrecognized use_built_in: {use_built_in}")
 
 ## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
 class MultiViewHead(nn.Module):
@@ -97,12 +97,10 @@ class MultiViewHead(nn.Module):
                 (1 - invalid_features.float())
             )  ## Note: after dropping out NeuRay, the values of elements are 2. ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
         elif self.dropout.p == 0 and not self.do_mvh: pass
-        else: print(f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition")
+        else: raise NotImplementedError(f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition")
 
         if self.emb_encoder is not None:
-            encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(
-                sampled_features.shape[:-1] + (-1,)
-            )  ### [M*n==100000, nv_==6, 32]   ## Embedding to Transformer arch.
+            encoded_features = self.emb_encoder(sampled_features.flatten(0, -2)).reshape(sampled_features.shape[:-1] + (-1,))  ### [M*n==100000, nv_==6, 32]   ## Embedding to Transformer arch.
         else:
             encoded_features = sampled_features.flatten(0, -2).reshape(sampled_features.shape[:-1] + (-1,))
 

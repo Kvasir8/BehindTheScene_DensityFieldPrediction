@@ -29,7 +29,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
-name: "hotfix_DFTunfr_do01_DFTfixed_ff_encstyle_random_enly1_nv8_att52_nh13_feOffset_pgt_lr1e4_rbs2048"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "longrun_DFTunfr_do01_DFTfixed_ff_encstyle_default_enly6_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs6144"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -37,7 +37,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 50000                   # default: 30000
-visualize_every: 5000                   # default: 10       ## bigger is good for computational reduction
+visualize_every: 2000                   # default: 10       ## bigger is good for computational reduction
 batch_size: 1                           # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -74,6 +74,8 @@ model_conf:
     num_multiviews: 8                   # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true                  # to aggregate multi-views, set true. c.f. IBRNet
 
+    camera_positional_encoding: false   # positional encoding between available camera's indices
+
     encoder:
         type: "monodepth2"
         freeze: false                   # freezing encoder to train the transformer
@@ -81,7 +83,7 @@ model_conf:
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
         d_out: 64                       # c.f. paper D.1. output channel dimension 64 as hparam for the best result
-
+        
     code:
         num_freqs: 6
         freq_factor: 1.5
@@ -93,7 +95,7 @@ model_conf:
           args:
             embedding_encoder:
                 type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
-                d_out: 52               ## input dimension of encoder layer of Transformer
+                d_out: 16               ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
@@ -102,15 +104,15 @@ model_conf:
             #     args:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
-                IBRAttn: True           ## default: True // Note: with built-in Pytorch, it never learns. TODO: find the reason why transformers don't work properly with built-in one.
-                n_layers: 1             ## default: 3, num encoder layers from Transformer
-                n_heads: 13
+                IBRAttn: False           ## default: False // Note: large memory consumption with customized transformer. built-in Pytorch is efficient.
+                n_layers: 6             ## default: 3, num encoder layers from Transformer
+                n_heads: 4
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_view_rate: 0.1
-            dropout_multiviewhead: true
+            dropout_views_rate: 0.1
+            dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
           name: "singleviewhead"
@@ -121,7 +123,7 @@ model_conf:
 
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "random"              # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: default
+    encoding_style: "default"              # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
     ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
@@ -134,7 +136,7 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 6144                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
@@ -144,7 +146,7 @@ loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 1e-3  # default: 0.001
-    lambda_pseudo_ground_truth: 1e-4       # default: 1e-4
+    lambda_pseudo_ground_truth: 1e-4       # default: 1e-4, set 0 to disable
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained

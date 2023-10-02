@@ -139,7 +139,7 @@ class BTSWrapper(nn.Module):
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
         elif self.enc_style == "test":
             ids_encoder = [0]
-        else:   print(f"__unrecognized enc_style: {self.enc_style}")
+        else:   raise NotImplementedError(f"__unrecognized enc_style: {self.enc_style}")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
         if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
@@ -184,8 +184,7 @@ class BTSWrapper(nn.Module):
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
                 
-                if self.enc_style == "test":
-                    ids_encoder = ids_loss[:self.nv_]
+                if self.enc_style == "test":    ids_encoder = ids_loss[:self.nv_]
             
             elif self.frame_sample_mode.startswith("waymo"):
                 num_views = int(self.frame_sample_mode.split("-")[-1])
@@ -478,9 +477,11 @@ def initialize(config: dict, logger=None):
     d_out = 1 if sample_color else 4
 
     if arch == "MVBTSNet":
-        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+        if config["model_conf"]["code_mode"] == "z_feat": cam_pos = 1
+        else: cam_pos = 0
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3+cam_pos)
         encoder = make_backbone(config["model_conf"]["encoder"])
-        d_in = encoder.latent_size + code_xyz.d_out         ### 103
+        d_in = encoder.latent_size + code_xyz.d_out         ### 103 | 116
         decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
@@ -496,7 +497,7 @@ def initialize(config: dict, logger=None):
         encoder = make_backbone(config["model_conf"]["encoder"])
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
         d_in = encoder.latent_size + code_xyz.d_out         ### 103
-    else:   print(f"__unrecognized net: {arch} instantiation in model")
+    else:   raise NotImplementedError(f"__unrecognized net: {arch} instantiation in model")
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
