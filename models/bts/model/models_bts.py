@@ -42,7 +42,7 @@ class MVBTSNet(torch.nn.Module):
 
         for _, head in self.heads.items():
             if hasattr(head, "require_bottleneck_feats"):
-                if head.require_bottleneck_feats:           ## bottleneck == prediction from encoder part
+                if head.require_bottleneck_feats:           ## True, when type: "NeuRayIndependentToken"
                     self.requires_bottleneck_feats = True
                     break
         self.use_viewdirs = conf.get("use_viewdirs", True)
@@ -58,7 +58,7 @@ class MVBTSNet(torch.nn.Module):
         )
         self.color_interpolation, self.code_mode = conf.get("color_interpolation", "bilinear"), conf.get("code_mode", "z")
         if self.code_mode not in ["z", "distance", "z_feat"]:
-            raise NotImplementedError(f"Unknown mode for positional encoding: {self.code_mode}")
+            raise NotImplementedError(f"__Unknown mode for positional encoding: {self.code_mode}")
 
         ## For potential AE model (from GeoNeRF)
         ## config to compute total sample convoluted, ts_conv
@@ -512,10 +512,13 @@ class MVBTSNet(torch.nn.Module):
                 ray_diff = self.compute_ray_diff(xyz, viewdirs)  # (B, n_pts, n_views, 4)
                 kwargs.update(
                     {
-                        "bottleneck_feats": sampled_bottleneck_features.flatten(0, 1),  # (B * n_pts, n_views, C_bottleneck)
+                        "bottleneck_feats": sampled_bottleneck_features.flatten(0, 1).detach(),  # (B * n_pts, n_views, C_bottleneck) ## default: without detach()
                         "ray_diff":         ray_diff.flatten(0, 1),  # (B * n_pts, n_views, 4)
                     }
                 )
+            elif self.use_viewdirs:
+                ray_diff = self.compute_ray_diff(xyz, viewdirs)
+                kwargs.update({"ray_diff": ray_diff.flatten(0, 1),})
 
             head_outputs = {
                 # name: head(mlp_input, **kwargs).reshape(n_, n_pts, self._d_out) for name, head in self.heads.items()

@@ -14,7 +14,7 @@ def make_independent_token(conf, attn_feat):
     elif token_type == "NeuRayIndependentToken":
         return NeuRayIndependentToken(att_feat=attn_feat, **conf["args"])
     else:
-        raise NotImplementedError("Unsupported Token type")
+        raise NotImplementedError("__Unsupported Token type")
 
 
 class BaseIndependentToken(nn.Module):
@@ -55,23 +55,44 @@ def fused_mean_variance(x, weight):
 
 
 class DataViewIndependentToken(BaseIndependentToken):
-    def __init__(self, attn_feat: int) -> None:
+    def __init__(self, 
+                 attn_feat: int = 16,
+                 **kwargs
+                 ) -> None:
         super().__init__(attn_feat)
         self.require_bottleneck_feats = False
 
         self.eps = 1.0e-9
-        self.layer = nn.Linear(2 * attn_feat, attn_feat, bias=True)
+        # self.layer = nn.Linear(2 * attn_feat, attn_feat, bias=True)
+        self.layer = nn.Linear(attn_feat+2, attn_feat, bias=True)
 
+        ## view dir computation
+        activation_func = nn.ELU(inplace=True)
+        self.ray_dir_fc = nn.Sequential(
+            nn.Linear(4, 16),  ## defualt: 4
+            activation_func,
+            nn.Linear(16, attn_feat),  ## default: in_feat_ch + 3
+            activation_func,)
+        
     # def forward(self, view_dependent_tokens: torch.Tensor, invalid_mask: torch.Tensor) -> torch.Tensor:
-    def forward(self, view_dependent_tokens: torch.Tensor, **kwargs) -> torch.Tensor:
-        mask = 1 - kwargs["invalid_mask"]
+    def forward(self, view_dependent_tokens: torch.Tensor, invalid_features, ray_diff, **kwargs) -> torch.Tensor:
+        # mask = 1 - kwargs["invalid_mask"]
+        # mask = 1 - kwargs["invalid_features"]
+        # mask = 1 - invalid_features
+        mask = ~invalid_features.unsqueeze(-1)
         # mask = 1 - invalid_mask
+
+        ## view dir fusion
+        direction_feat = self.ray_dir_fc(ray_diff)
+        view_dependent_tokens += direction_feat
+
         weights = mask / (torch.sum(mask, dim=2, keepdim=True) + 1e-8)
         mean, var = fused_mean_variance(view_dependent_tokens, weights)
         # num_valid_tokens = torch.sum((1 - invalid_mask), dim=-1, keepdim=True) + self.eps
         # mean = torch.sum(view_dependent_tokens * (1 - invalid_mask).unsqueeze(-1), dim=-2) / num_valid_tokens
         # var = torch.sum((view_dependent_tokens - mean)**2 * (1 - invalid_mask).unsqueeze(-1), dim=-2) / num_valid_tokens
-        return nn.ELU()(self.layer(torch.cat([mean, var], dim=-1)))
+        return nn.ELU()(self.layer(torch.cat([view_dependent_tokens, mean, var], dim=-1)))
+        # return nn.ELU()(self.layer(torch.cat([mean, var], dim=-1)))
 
 
 class NeuRayIndependentToken(BaseIndependentToken):
@@ -180,7 +201,7 @@ class NeuRayIndependentToken(BaseIndependentToken):
         view_dependent_tokens = view_dependent_tokens.reshape(
             (-1, self.n_points_per_ray) + view_dependent_tokens.shape[-2:]
         )  # (B*num_rays, point_per_ray, n_views, C)
-        bottleneck_feats = bottleneck_feats.reshape(
+        bottleneck_feats = bottleneck_feats.reshape(      
             (-1, self.n_points_per_ray) + bottleneck_feats.shape[-2:]
         )  # (B*num_rays, point_per_ray, n_views, C_bottleneck)
         ray_diff = ray_diff.reshape(

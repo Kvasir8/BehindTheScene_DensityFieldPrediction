@@ -29,7 +29,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFT_ff_encly3_nv8_onlyFe_tmpOffset
 # eval_viz_noOffset_DFT_ff_encly3_nv8
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
-name: "longrun_DFTunfr_do01_DFTfixed_ff_encstyle_default_enly6_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs6144"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "fixed_nry_tkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 # output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 output_path: "out/mvbts/kitti_360/"
@@ -37,7 +37,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 50000                   # default: 30000
-visualize_every: 2000                   # default: 10       ## bigger is good for computational reduction
+visualize_every: 5000                   # default: 10       ## bigger is good for computational reduction
 batch_size: 1                           # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -85,7 +85,7 @@ model_conf:
         d_out: 64                       # c.f. paper D.1. output channel dimension 64 as hparam for the best result
         
     code:
-        num_freqs: 6
+        num_freqs: 6                    # 6 exponentially increasing frequencies c.f. NeRF
         freq_factor: 1.5
         include_input: true
 
@@ -96,19 +96,19 @@ model_conf:
             embedding_encoder:
                 type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
                 d_out: 16               ## input dimension of encoder layer of Transformer
-            independent_token:
-                type: "FixedViewIndependentToken"
-                args: None
             # independent_token:
-            #     type: "NeuRayIndependentToken"
-            #     args:
-            #         n_points_per_ray: 64 # same as renderer.n_coarse
+            #     type: "FixedViewIndependentToken" # "DataViewIndependentToken" | "FixedViewIndependentToken"
+            #     args: None
+            independent_token:
+                type: "NeuRayIndependentToken"  
+                args:
+                    n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False           ## default: False // Note: large memory consumption with customized transformer. built-in Pytorch is efficient.
-                n_layers: 6             ## default: 3, num encoder layers from Transformer
+                n_layers: 4             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
-                    type: "fixed"       # default: fixed,  fixed | data | neuray
+                    type: "neuray"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
             dropout_views_rate: 0.1
@@ -136,20 +136,20 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 6144                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
-    code_mode: z
+    code_mode: z_feat                   # default: z, z | distance | z_feat: additional cam_feature_map_positional_encoding
 
 loss:
     criterion: "l1+ssim"                # photometric loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 1e-3  # default: 0.001
-    lambda_pseudo_ground_truth: 1e-4       # default: 1e-4, set 0 to disable
+    lambda_pseudo_ground_truth: 1e-4    # default: 1e-4, set 0 to disable
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
-        - "singleviewhead"              ## making list type with an string element contained
+        - "singleviewhead"              # making list type with an string element contained
 
 learning_rate: 5e-5                     # default: 1e-4
 

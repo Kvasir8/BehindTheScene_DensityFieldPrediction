@@ -521,7 +521,7 @@ def initialize(config: dict, logger=None):
 
 
 def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
-    print("__Visualizing...")
+    print(f"__Visualizing step:{step}")
 
     data = engine.state.output["output"]
     writer = logger.writer
