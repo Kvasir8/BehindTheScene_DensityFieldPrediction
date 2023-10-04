@@ -42,7 +42,7 @@ class MVBTSNet(torch.nn.Module):
 
         for _, head in self.heads.items():
             if hasattr(head, "require_bottleneck_feats"):
-                if head.require_bottleneck_feats:           ## True, when type: "NeuRayIndependentToken"
+                if head.require_bottleneck_feats and (head.independent_token_net.__class__.__name__ == "NeuRayIndependentToken"):           ## For read out token type: "NeuRayIndependentToken"
                     self.requires_bottleneck_feats = True
                     break
         self.use_viewdirs = conf.get("use_viewdirs", True)

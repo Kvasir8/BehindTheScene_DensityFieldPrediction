@@ -32,9 +32,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     log_basic_info(logger, config)
     output_path = config["output_path"]
-    if (
-        rank == 0
-    ):  ## could use rank to coordinate the exchange of information between processes: for instance, we might have all processes send their computed gradients to the process with rank 0, which would then compute the average gradient and send this back to the other processes.
+    if rank == 0: 
         if config["stop_iteration"] is None:
             now = datetime.now().strftime("%Y%m%d-%H%M%S")
         else:
@@ -331,6 +329,8 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
     # hook_fwd_handles, hook_bwd_handles = []
     # for handle in hook_fw_handles:  handle.remove()   ## remove hooks for safety
     with_amp = config["with_amp"]
+    requires_pgt = config["loss"]["lambda_pseudo_ground_truth"]
+
     scaler = GradScaler(enabled=with_amp)
 
     if model.renderer.net.__class__.__name__ == "MVBTSNet":
@@ -350,7 +350,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         data = to(data, device)
 
-        if model.renderer.net.__class__.__name__ == "MVBTSNet":
+        if (model.renderer.net.__class__.__name__ == "MVBTSNet") and (requires_pgt != 0):
         #     head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
         #     head_outputs = model.renderer.net.mlp_coarse
 

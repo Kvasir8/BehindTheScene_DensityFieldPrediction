@@ -10,6 +10,7 @@ model: "bts_lidar"
 checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/BaseExperiment_debug_backend-None-1_20230919-173035"  ## change whenever you want to evaluate the model
 # /usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/training_checkpoint_174000.pt
 # /usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/att32_nmv5_lay3_enc0_Unfr_Lr5e_5_BTS_Nry_backend-None-1_20230830-022311/training_checkpoint_324500.pt
+output_path: "out/mvbts/kitti_360/"
 
 log_every: 10
 batch_size: 4
@@ -78,15 +79,15 @@ model_conf:
     fisheye_encoding: true      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     
     ## camera will evaluate the possible cases up until the defined indices.
-    # encoder_ids: [0]                        ## monocular fixed case
+    encoder_ids: [0]                        ## monocular fixed case
     # encoder_ids: [0, 2]                     ## temporal mono case
     # encoder_ids: [0, 1]                     ## stereo fixed case
     # encoder_ids: [0, 1, 2, 3]               ## stereo temporal case
     # encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
-    encoder_ids: full       ## mono | stereo | temporal
+    # encoder_ids: full       ## mono | stereo | temporal
 
-    use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
-    ids_enc_offset_viz: false     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
+    use_viewdirs: false          # to aggregate multi-views, set true. c.f. IBRNet
+    # ids_enc_offset_viz: false     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3
     z_far: 80                           # default: 80m

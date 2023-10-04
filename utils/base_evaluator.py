@@ -11,8 +11,9 @@ from torch.cuda.amp import autocast
 
 from utils.array_operations import to
 
+from ignite.contrib.handlers.tensorboard_logger import *
 
-def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics):
+def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, logger = None, visualize = None):
     rank = idist.get_rank()
     manual_seed(config["seed"] + rank)
     device = idist.device()
@@ -39,7 +40,8 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics):
             config["cuda device name"] = torch.cuda.get_device_name(local_rank)
 
     # Setup dataflow, model, optimizer, criterion
-    test_loader = get_dataflow(config)
+    # test_loader = get_dataflow(config)
+    test_loader = get_dataflow(config, logger)
 
     if hasattr(test_loader, "dataset"):
         logger.info(f"Dataset length: Test: {len(test_loader.dataset)}")
@@ -65,9 +67,15 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics):
 
     # We define two evaluators as they wont have exactly similar roles:
     # - `evaluator` will save the best model based on validation score
-    evaluator = create_evaluator(model, metrics=metrics, config=config)
+    evaluator = create_evaluator(model, metrics=metrics, config=config, logger=logger)
+
+
+    # # Create Tensorboard logger
+    # tb_logger = TensorboardLogger(log_dir="/tmp/tb_logs")
+
 
     evaluator.add_event_handler(Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics))
+    # evaluator.add_event_handler(Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics), tensorboard_metrics_logging(tb_logger, metrics, config["log_every"]))
 
     try:
         state = evaluator.run(test_loader, max_epochs=1)
@@ -104,6 +112,12 @@ def log_basic_info(logger, config):
         logger.info("\n")
 
 
+# # Attach the logger to your evaluator
+# def tensorboard_metrics_logging(engine, logger, metrics, log_interval):
+#     if engine.state.iteration % log_interval == 0:
+#         for name, value in metrics.items():
+#             logger.writer.add_scalar(name, value.compute(), engine.state.iteration)
+
 def log_metrics_current(logger, metrics):
     def f(engine):
         out_str = "\n" + "\t".join([f"{v.compute():.3f}".ljust(8) for v in metrics.values()])
@@ -117,7 +131,8 @@ def log_metrics(logger, elapsed, tag, metrics):
     logger.info(f"\nEvaluation time (seconds): {elapsed:.2f} - {tag} metrics:\n {metrics_output}")
 
 
-def create_evaluator(model, metrics, config, tag="val"):
+# def create_evaluator(model, metrics, config, tag="val"):
+def create_evaluator(model, metrics, config, logger=None, tag="val"):
     with_amp = config["with_amp"]
     device = idist.device()
 
@@ -144,6 +159,7 @@ def create_evaluator(model, metrics, config, tag="val"):
         }
 
     evaluator = Engine(evaluate_step)
+    evaluator.logger = logger   ##
 
     for name, metric in metrics.items():
         metric.attach(evaluator, name)

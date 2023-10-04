@@ -38,6 +38,9 @@ from utils.metrics import MeanMetric
 from utils.plotting import color_tensor
 from utils.projection_operations import distance_to_z
 
+from torch import profiler
+from torchvision.utils import make_grid
+
 IDX = 0
 EPS = 1e-4
 
@@ -301,13 +304,14 @@ class BTSWrapper(nn.Module):
 
         ## Making possible view combination cases for evaluation
         # enc2eval = [i for i in self.encoder_ids]
-        enc2eval = {
-            mono: [0]                        ## monocular fixed case
-            # mono_tmp: [0, 2]                     ## temporal mono case
-            stereo: [0, 1]                     ## stereo fixed case
-            # stereo_tmp: [0, 1, 2, 3]               ## stereo temporal case
-            encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
-        }
+        # enc2eval = {
+        #     mono: [0]                        ## monocular fixed case
+        #     # mono_tmp: [0, 2]                     ## temporal mono case
+        #     stereo: [0, 1]                     ## stereo fixed case
+        #     # stereo_tmp: [0, 1, 2, 3]               ## stereo temporal case
+        #     encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
+        # }
+
         ids_encoder = self.encoder_ids
         self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
         self.renderer.net.encode(images, projs, poses, ids_encoder=ids_encoder, ids_render=ids_encoder[:1], images_alt=images * .5 + .5)
@@ -332,7 +336,7 @@ class BTSWrapper(nn.Module):
         for i_from in range(0, len(q_pts), self.query_batch_size):
             i_to = min(i_from + self.query_batch_size, len(q_pts))
             q_pts_ = q_pts[i_from:i_to]
-            _, _, densities_ , _ = self.renderer.net(q_pts_.unsqueeze(0), only_density=True)
+            _, _, densities_= self.renderer.net(q_pts_.unsqueeze(0), only_density=True)
             densities.append(densities_.squeeze(0))
         densities = torch.cat(densities, dim=0).squeeze()
         is_occupied_pred = densities > self.occ_threshold
@@ -355,8 +359,8 @@ class BTSWrapper(nn.Module):
         total_ie = ((~is_occupied) & (~is_visible)).float().sum().item()
 
         ie_acc = (is_occupied_pred == is_occupied)[(~is_visible)].float().mean().item()
-        ie_prec = (~is_occupied)[(~is_occupied_pred) & (~is_visible)].float().mean()
-        ie_rec = (~is_occupied_pred)[(~is_occupied) & (~is_visible)].float().mean()
+        ie_prec = (~is_occupied)[(~is_occupied_pred) & (~is_visible)].float().mean().item() ## ? why without .item()?
+        ie_rec = (~is_occupied_pred)[(~is_occupied) & (~is_visible)].float().mean().item()
         total_no_nop_nv = ((~is_occupied) & (~is_occupied_pred))[(~is_visible) & (~is_occupied)].float().sum()
 
         data["o_acc"] = is_occupied_acc
@@ -372,16 +376,36 @@ class BTSWrapper(nn.Module):
         data["z_near"] = torch.tensor(self.z_near, device=images.device)
         data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
+        ## updating for viz and eval metrics in Tensorboard
+        data.update(self.compute_occ_metrics(data))
         globals()["IDX"] += 1
 
         return data
 
 
+    def compute_occ_metrics(self, data):
+        metrics_dict = {
+        "o_acc" : data["o_acc"],
+        "o_rec" : data["o_rec"],
+        "o_prec" : data["o_prec"],
+        "ie_acc" : data["ie_acc"],
+        "ie_rec" : data["ie_rec"],
+        "ie_prec" : data["ie_prec"],
+        "ie_r" : data["ie_r"],
+        "t_ie" : data["t_ie"],
+        "t_no_nop_nv" : data["t_no_nop_nv"],
+        }
+
+        return metrics_dict
+
+
 def evaluation(local_rank, config):
-    return base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics)
+    return base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, visualize)
+    # return base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics)
 
 
-def get_dataflow(config):
+# def get_dataflow(config, logger=None):
+def get_dataflow(config, logger=None):
     test_dataset = make_test_dataset(config["data"])
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=config["num_workers"], shuffle=False, drop_last=False)
 
@@ -395,7 +419,7 @@ def get_metrics(config, device):
 
 
 def initialize(config: dict, logger=None):
-    arch = config["model_conf"].get("arch", "BTSNet")
+    # arch = config["model_conf"].get("arch", "BTSNet")
     encoder = make_backbone(config["model_conf"]["encoder"])
     code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
 
@@ -429,6 +453,89 @@ def initialize(config: dict, logger=None):
 
     return model
 
-
+## TODO: viz metrics loss graph + figures at the end of evaluation step
 def visualize(engine: Engine, logger: TensorboardLogger, step: int, tag: str):
-    pass
+    print(f"__Visualizing step:{step}")
+
+    data = engine.state.output['output']
+    writer = logger.writer
+
+    images = torch.stack(data["imgs"], dim=1).detach()[0]
+    recon_imgs = data["fine"][0]["rgb"].detach()[0]
+    recon_depths = [f["depth"].detach()[0] for f in data["fine"]]
+
+    # depth_profile = data["coarse"][0]["weights"].detach()[0]
+    depth_profile = data["coarse"][0]["alphas"].detach()[0]
+    alphas = data["coarse"][0]["alphas"].detach()[0]
+    invalids = data["coarse"][0]["invalid"].detach()[0]
+
+    z_near = data["z_near"]
+    z_far = data["z_far"]
+
+    take_n = min(images.shape[0], 8)  ## num eval viz images to be shown in tensorboard, default: 6
+
+    _, c, h, w = images.shape
+    nv = recon_imgs.shape[0]
+
+    images = images[:take_n]
+    images = images * 0.5 + 0.5
+
+    recon_imgs = recon_imgs.view(nv, h, w, -1, c)
+    recon_imgs = recon_imgs[:take_n]
+    # Aggregate recon_imgs by taking the mean
+    recon_imgs = recon_imgs.mean(dim=-2).permute(0, 3, 1, 2)
+
+    recon_mse = (((images - recon_imgs) ** 2) / 2).mean(dim=1).clamp(0, 1)
+    recon_mse = color_tensor(recon_mse, cmap="plasma").permute(0, 3, 1, 2)
+
+    recon_depths = [(1 / d[:take_n] - 1 / z_far) / (1 / z_near - 1 / z_far) for d in recon_depths]
+    recon_depths = [color_tensor(d.squeeze(1).clamp(0, 1), cmap="plasma").permute(0, 3, 1, 2) for d in recon_depths]
+
+    depth_profile = (
+        depth_profile[:take_n][:, [h // 4, h // 2, 3 * h // 4], :, :].view(take_n * 3, w, -1).permute(0, 2, 1)
+    )
+    depth_profile = depth_profile.clamp_min(0) / depth_profile.max()
+    depth_profile = color_tensor(depth_profile, cmap="plasma").permute(0, 3, 1, 2)
+
+    alphas = alphas[:take_n]
+
+    alphas += 1e-5
+
+    ray_density = alphas / alphas.sum(dim=-1, keepdim=True)
+    ray_entropy = -(ray_density * torch.log(ray_density)).sum(-1) / (math.log2(alphas.shape[-1]))
+    ray_entropy = color_tensor(ray_entropy, cmap="plasma").permute(0, 3, 1, 2)
+
+    alpha_sum = (alphas.sum(dim=-1) / alphas.shape[-1]).clamp(-1)
+    alpha_sum = color_tensor(alpha_sum, cmap="plasma").permute(0, 3, 1, 2)
+
+    invalids = invalids[:take_n]
+    invalids = invalids.mean(-2).mean(-1)
+    invalids = color_tensor(invalids, cmap="plasma").permute(0, 3, 1, 2)
+
+    # Write images
+    nrow = int(take_n**0.5)
+
+    # profile plotting
+    profiles = torch.stack(data["profiles"], dim=0)
+    profiles = color_tensor(profiles, cmap="magma", norm=True)
+    profiles_grid = make_grid(profiles).permute(2, 0, 1)  ## Bird-eye view
+    # TODO: provide GT LiDAR for bird-eye view for the comparison
+    images_grid = make_grid(images, nrow=nrow)
+    recon_imgs_grid = make_grid(recon_imgs, nrow=nrow)
+    recon_depths_grid = [make_grid(d, nrow=nrow) for d in recon_depths]
+    depth_profile_grid = make_grid(depth_profile, nrow=nrow)
+    ray_entropy_grid = make_grid(ray_entropy, nrow=nrow)
+    alpha_sum_grid = make_grid(alpha_sum, nrow=nrow)
+    recon_mse_grid = make_grid(recon_mse, nrow=nrow)
+    invalids_grid = make_grid(invalids, nrow=nrow)
+
+    writer.add_image(f"{tag}/profiles", profiles_grid.cpu(), global_step=step)  ## Bird-eye view
+    writer.add_image(f"{tag}/input_im", images_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/recon_im", recon_imgs_grid.cpu(), global_step=step)
+    for i, d in enumerate(recon_depths_grid):
+        writer.add_image(f"{tag}/recon_depth_{i}", d.cpu(), global_step=step)
+    writer.add_image(f"{tag}/depth_profile", depth_profile_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/ray_entropy", ray_entropy_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/alpha_sum", alpha_sum_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/recon_mse", recon_mse_grid.cpu(), global_step=step)
+    writer.add_image(f"{tag}/invalids", invalids_grid.cpu(), global_step=step)

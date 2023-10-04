@@ -16,6 +16,7 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+
         {
             "name": "launch: eval.py (occ)",
             "type": "python",
@@ -33,6 +34,7 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
+
         {
             "name": "launch_debug: train.py",
             "type": "python",
@@ -67,6 +69,7 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
+        
         {
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",

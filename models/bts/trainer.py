@@ -481,7 +481,7 @@ def initialize(config: dict, logger=None):
         else: cam_pos = 0
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3+cam_pos)
         encoder = make_backbone(config["model_conf"]["encoder"])
-        d_in = encoder.latent_size + code_xyz.d_out         ### 103 | 116
+        d_in = encoder.latent_size + code_xyz.d_out         ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
         decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
