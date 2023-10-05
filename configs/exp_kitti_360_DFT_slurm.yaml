@@ -85,7 +85,7 @@ model_conf:
         d_out: 64                       # c.f. paper D.1. output channel dimension 64 as hparam for the best result
         
     code:
-        num_freqs: 6                    # 6 exponentially increasing frequencies c.f. NeRF
+        num_freqs: 6
         freq_factor: 1.5
         include_input: true
 
@@ -97,19 +97,19 @@ model_conf:
             embedding_encoder:
                 type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
                 d_out: 16               ## input dimension of encoder layer of Transformer
-            # independent_token:
-            #     type: "FixedViewIndependentToken" # "DataViewIndependentToken" | "FixedViewIndependentToken"
-            #     args: None
             independent_token:
-                type: "NeuRayIndependentToken"  
-                args:
-                    n_points_per_ray: 64 # same as renderer.n_coarse
+                type: "FixedViewIndependentToken"
+                args: None
+            # independent_token:
+            #     type: "NeuRayIndependentToken"
+            #     args:
+            #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False           ## default: False // Note: large memory consumption with customized transformer. built-in Pytorch is efficient.
                 n_layers: 2             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
-                    type: "neuray"       # default: fixed,  fixed | data | neuray
+                    type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
             dropout_views_rate: 0.1
@@ -137,11 +137,11 @@ model_conf:
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 6144                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
 
     learn_empty: false
-    code_mode: z_feat                   # default: z, z | distance | z_feat: additional cam_feature_map_positional_encoding
+    code_mode: z
 
 loss:
     criterion: "l1+ssim"                # photometric loss
@@ -150,7 +150,7 @@ loss:
     lambda_pseudo_ground_truth: 0    # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
-        - "singleviewhead"              # making list type with an string element contained
+        - "singleviewhead"              ## making list type with an string element contained
 
 learning_rate: 5e-5                     # default: 1e-4
 

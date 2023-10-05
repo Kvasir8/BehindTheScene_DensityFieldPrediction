@@ -91,19 +91,19 @@ model_conf:
             embedding_encoder:
                 type: "ff"          ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
                 d_out: 16           ## input dimension of encoder layer of Transformer
-            # independent_token:
-            #     type: "DataViewIndependentToken" ## DataViewIndependentToken, FixedViewIndependentToken
-            #     args: None
             independent_token:
-                type: "NeuRayIndependentToken"
-                args:
-                    n_points_per_ray: 64 # same as renderer.n_coarse
+                type: "FixedViewIndependentToken"
+                args: None
+            # independent_token:
+            #     type: "NeuRayIndependentToken"
+            #     args:
+            #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: False      ## default: False
-                n_layers: 1         ## default: 3, num encoder layers from Transformer
+                n_layers: 2         ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
-                    type: "neuray"  # fixed, data, neuray
+                    type: "fixed"  # fixed, data, neuray
             probing_layer:
 
             dropout_views_rate: 0.1
