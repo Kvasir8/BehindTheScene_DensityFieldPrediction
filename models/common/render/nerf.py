@@ -236,6 +236,7 @@ class NeRFRenderer(torch.nn.Module):
             points = points.reshape(-1, 3)  # (B*K, 3)
             if hasattr(model, "use_viewdirs"): use_viewdirs = model.use_viewdirs
             else:   use_viewdirs = None
+            viewdirs_all = []
             rgbs_all, invalid_all, sigmas_all = [], [], []
 
             if sb > 0:
@@ -263,6 +264,8 @@ class NeRFRenderer(torch.nn.Module):
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
+
+                    viewdirs_all.append(dirs)
             else:
                 for pnts in split_points:
                     rgbs, invalid, sigmas = model(pnts, coarse=coarse)
@@ -277,9 +280,13 @@ class NeRFRenderer(torch.nn.Module):
             invalid = torch.cat(invalid_all, dim=eval_batch_dim)
             sigmas = torch.cat(sigmas_all, dim=eval_batch_dim)
 
+            # viewdirs = torch.cat(viewdirs_all, dim=eval_batch_dim)      ## TODO: unverified
+
             rgbs = rgbs.reshape(B, K, -1)  # (B, K, 4 or 5)
             invalid = invalid.reshape(B, K, -1)
             sigmas = sigmas.reshape(B, K)
+
+            # viewdirs = viewdirs.reshape(B, K, -1)
 
             if self.training and self.noise_std > 0.0:
                 sigmas = sigmas + torch.randn_like(sigmas) * self.noise_std
@@ -307,6 +314,7 @@ class NeRFRenderer(torch.nn.Module):
                 pix_alpha = weights.sum(dim=1)  # (B), pixel alpha
                 rgb_final = rgb_final + 1 - pix_alpha.unsqueeze(-1)  # (B, 3)
 
+            # return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs, viewdirs)
             return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs)
 
     def forward(
@@ -375,6 +383,7 @@ class NeRFRenderer(torch.nn.Module):
         self, rendered_outputs, superbatch_size, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False
     ):
         weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps = rendered_outputs
+        # weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps, _ = rendered_outputs
         n_smps = weights.shape[-1]
         out_d_rgb = rgb_final.shape[-1]
         out_d_i = invalid.shape[-1]
@@ -392,6 +401,7 @@ class NeRFRenderer(torch.nn.Module):
         if want_z_samps:    ret_dict.z_samps   = z_samps
         if want_rgb_samps:  ret_dict.rgb_samps = rgb_samps
         if want_pgt_loss:   ret_dict.loss_pgt  = loss_pgt
+    
         return ret_dict
 
     def sched_step(self, steps=1):

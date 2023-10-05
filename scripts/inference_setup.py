@@ -198,7 +198,7 @@ def render_poses(renderer, ray_sampler, poses, projs, black_invalid=False):
     return frame, depth
 
 ## viz_inference
-def render_profile(net, cam_incl_adjust):
+def render_profile(net, cam_incl_adjust, viewdirs = None):
     q_pts = get_pts(OUT_RES.X_RANGE, OUT_RES.Y_RANGE, OUT_RES.Z_RANGE, OUT_RES.P_RES_ZX[1], OUT_RES.P_RES_Y, OUT_RES.P_RES_ZX[0], cam_incl_adjust=cam_incl_adjust)
     q_pts = q_pts.to(device).view(1, -1, 3)
 
@@ -206,8 +206,7 @@ def render_profile(net, cam_incl_adjust):
     if hasattr(net, "n_coarse"):   batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     # batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     if q_pts.shape[1] > batch_size:
-        sigmas = []
-        invalid = []
+        sigmas, invalid = [], []
         l = q_pts.shape[1]
         for i in range(math.ceil(l / batch_size)):
             f = i * batch_size
@@ -215,7 +214,7 @@ def render_profile(net, cam_incl_adjust):
             q_pts_ = q_pts[:, f:t, :]
             # if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
             # if net.loss_pgt:    _, invalid_, sigmas_, loss_pgt_ = net.forward(q_pts_, pgt=True)      ## This gives error for viz when infer passed TODO: forward from models_bts.py : return rgb, invalid, sigma, loss_pgt
-            _, invalid_, sigmas_ = net.forward(q_pts_)
+            _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs=viewdirs)    ## default, note: viewdirs is for neuray
             sigmas.append(sigmas_)
             invalid.append(invalid_)
         sigmas = torch.cat(sigmas, dim=1)

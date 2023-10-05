@@ -329,6 +329,7 @@ class BTSWrapper(nn.Module):
             ).view(1, 4, 4)
 
             # predict the profiles
+            # data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust, viewdirs = data["fine"][0]["viewdirs"])]
             data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust)]
             # data["segmentation_profiles"] = [render_segmentation_profile(self.renderer.net, cam_incl_adjust)]
 
@@ -471,7 +472,6 @@ def get_metrics(config, device):
 def initialize(config: dict, logger=None):
     arch = config["model_conf"].get("arch", "MVBTSNet")  ## default: get("arch", "BTSNet")
 
-
     # Make configurable for Semantics as well
     sample_color = config["model_conf"].get("sample_color", True)
     d_out = 1 if sample_color else 4
@@ -483,6 +483,11 @@ def initialize(config: dict, logger=None):
         encoder = make_backbone(config["model_conf"]["encoder"])
         d_in = encoder.latent_size + code_xyz.d_out         ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
         decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
+        
+        if config["model_conf"]["decoder_heads"][0]["freeze"]: ## Freezing the MVhead for knowledge distillation
+            for param in decoder_heads["multiviewhead"].parameters():   param.requires_grad = False
+            print("__frozen the MVhead for knowledge distillation.")
+
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
             config["model_conf"],

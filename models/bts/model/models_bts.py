@@ -48,6 +48,7 @@ class MVBTSNet(torch.nn.Module):
         self.use_viewdirs = conf.get("use_viewdirs", True)
 
         self.n_coarse = ren_nc
+        # self.decoder_heads_conf = conf.get("decoder_heads")
         # self.loss_pgt = conf.get("loss_pgt")
 
         self.d_min, self.d_max = conf.get("z_near"), conf.get("z_far")
@@ -521,6 +522,8 @@ class MVBTSNet(torch.nn.Module):
                 # name: head(mlp_input, **kwargs).reshape(n_, n_pts, self._d_out) for name, head in self.heads.items()
                 name: head(mlp_input, **{**kwargs, "head_name": name}).reshape(n_, -1, self._d_out) for name, head in self.heads.items()
             }
+
+            # if self.decoder_heads_conf["freeze"]: head_outputs["multiviewhead"].requires_grad = False  ## This is already done in MVhead initialization network: knowledge distillation
             
             mlp_output = head_outputs[self.final_pred_head]
 

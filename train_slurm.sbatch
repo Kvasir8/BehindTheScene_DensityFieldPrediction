@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="nry_posemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B4"
+#SBATCH --job-name="KD_FT_from_longrun_B4_lr3e"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:48G
