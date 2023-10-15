@@ -29,7 +29,6 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     device = idist.device()
 
     # logger = setup_logger(name=config["name"])    ## default
-    ## DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B2_lr5e5
     model_conf = config["model_conf"]
     enc = model_conf["encoder"]
     dec_h = model_conf["decoder_heads"][0]
@@ -37,6 +36,9 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     dec_emb = dec_args["embedding_encoder"]
     attn_layers = dec_args["attn_layers"]
     readout_token = attn_layers["readout_token"]
+    data_fisheye = config["data"]["data_fisheye"]
+    data_stereo = config["data"]["data_stereo"]
+    frame_sample_mode = model_conf["frame_sample_mode"]
 
     lr_ = config["learning_rate"]
     bs_ = config["batch_size"]
@@ -56,7 +58,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     readout_token_type = readout_token["type"]
 
-    model_name = "Fr" + str(frz)[:1] + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
+    model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
     + "_decIBR" + str(dec_IBR)[:1] + "_nly" + str(dec_nly) + "_nh" + str(dec_nh) + "_readoutType" + readout_token_type \
     + "_lr" + str(lr_) + "_bs" + str(bs_) + "_rbs" + str(rbs) + "_ztype_" + z_mode + "_trainType_" + config["name"]
     logger = setup_logger(model_name)
@@ -69,7 +71,9 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
         else:
             now = f"stop-on-{config['stop_iteration']}"
 
-        folder_name = f"{config['name']}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
+        # folder_name = f"{config['name']}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
+        folder_name = f"{model_name}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
+
         output_path = Path(output_path) / folder_name
         if not output_path.exists():
             output_path.mkdir(parents=True)

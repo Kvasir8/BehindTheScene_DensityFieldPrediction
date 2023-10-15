@@ -153,10 +153,12 @@ class BTSWrapper(nn.Module):
             if self.frame_sample_mode == "only":
                 ids_loss = [0]
                 ids_render = ids_render[ids_render != 0]
+            
             elif self.frame_sample_mode == "not":
                 frame_perm = torch.randperm(v - 1) + 1
                 ids_loss = torch.sort(frame_perm[[i for i in self.frames_render if i < v - 1]]).values
                 ids_render = [i for i in range(v) if i not in ids_loss]
+            
             elif self.frame_sample_mode == "stereo":
                 if frame_perm[0] < v // 2:
                     ids_loss = list(range(v // 2))
@@ -164,6 +166,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(v // 2, v))
                     ids_render = list(range(v // 2))
+            
             elif self.frame_sample_mode == "mono":
                 split_i = v // 2
                 if frame_perm[0] < v // 2:
@@ -487,7 +490,7 @@ def initialize(config: dict, logger=None):
         if config["model_conf"]["decoder_heads"][0]["freeze"]: ## Freezing the MVhead for knowledge distillation
             for param in decoder_heads["multiviewhead"].parameters():   param.requires_grad = False
             print("__frozen the MVhead for knowledge distillation.")
-        else: print("__no freezing heads.")
+        else: print("__No freezing heads during training.")
 
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
