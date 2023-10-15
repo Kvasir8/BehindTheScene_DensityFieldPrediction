@@ -7,7 +7,7 @@ from torch import profiler
 from models.common.model.layers import ssim, geo
 
 
-def compute_errors_l1ssim(img0, img1, mask=None):
+def compute_errors_l1ssim(img0, img1, mask=None):   ## (img0 == pred, img1 == GT)
     (n,pc,h,w,nv,c,) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
     img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)

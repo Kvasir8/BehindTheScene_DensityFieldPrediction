@@ -16,6 +16,10 @@ from utils.array_operations import map_fn, unsqueezer
 from utils.plotting import color_tensor
 
 
+## BTS paper, Fig 4: Occupancy Estimation for Kitti-raw:
+#  /storage/group/dataset_mirrors/01_incoming/kitti_data/2011_09_26/2011_09_26_drive_0005_sync/image_02/data/0000000003.jpg
+
+
 def main():
     parser = ArgumentParser("Generate density field from single image.")
     parser.add_argument("--img", "-i", required=True, help="Path to the image.")

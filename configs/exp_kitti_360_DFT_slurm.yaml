@@ -31,7 +31,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "KD_FT_from_longrun_B4_lr3e-5"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "_slurm"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
@@ -39,17 +39,17 @@ output_path: "out/mvbts/kitti_360/"
 num_epochs: 200
 validate_every: 100000                   # default: 50000    for batch_size: 1
 visualize_every: 500                   # default: 5000       ## bigger is good for computational reduction
-batch_size: 4                           # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
+batch_size: 2                           # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel                     # The model that has the smallest absolute relative error will be saved.
     sign: -1                            # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 #resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/Pos_att64_lay4_enc0_Unfr_B1_Lr5e_5_BTS_Nry_backend-None-1_20230830-220650/training_checkpoint_155000.pt"
 
-## knowlege distillation
-resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+## knowlege distillation (Note: make same configuration from checkpoint)
+# resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
 
 data:
     data_fc: 2
@@ -75,14 +75,14 @@ model_conf:
     arch: "MVBTSNet"                    # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 3                   # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 8                   # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: false                  # use with Neuray to aggregate multi-views, set true. c.f. IBRNet, PixelNeRF
 
     # camera_positional_encoding: true   # positional encoding between available camera's indices
 
     encoder:
         type: "monodepth2"
-        freeze: false                   # freezing encoder to train the transformer     // by unfreezing, to train the en- and decoder
+        freeze: false                   # freezing en- and decoder network to verify if training the transformer works     // by unfreezing, to train the en- and decoder
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -96,11 +96,11 @@ model_conf:
     decoder_heads:
         - type: "MultiViewHead"
           name: "multiviewhead"
-          freeze: true                 # For knowledge-distillation learning for singleview head
+          freeze: false                 # True For knowledge-distillation learning for singleview head
           args:
             embedding_encoder:
-                type: "pwf"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
-                d_out: 32               ## input dimension of encoder layer of Transformer
+                type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
+                d_out: 16               ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
@@ -109,15 +109,15 @@ model_conf:
             #     args:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
-                IBRAttn: False           ## default: False // Note: large memory consumption with customized transformer. built-in Pytorch is efficient.
-                n_layers: 2             ## default: 3, num encoder layers from Transformer
+                IBRAttn: True           ## default: False // Note: customized IBRAttn tends to decrease the loss faster than built-in, but large memory consumption with customized transformer. built-in Pytorch is efficient.
+                n_layers: 4             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_views_rate: 0       # set 0 for disable and for knowledge-distillation
-            dropout_multiviewhead: false # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
+            dropout_views_rate: 0.1       # set 0 for disable and for knowledge-distillation
+            dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
           name: "singleviewhead"
@@ -148,7 +148,7 @@ model_conf:
     code_mode: z                        # default: z, z | distance | z_feat: additional cam_feature_map_positional_encoding, Note: z_feat is unverified
 
 loss:
-    criterion: "l1+ssim"                # photometric loss
+    criterion: "l1+ssim"                # photometric reconstruction loss
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 1e-3  # default: 0.001
     lambda_pseudo_ground_truth: 0    # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
@@ -156,7 +156,7 @@ loss:
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 3e-5                     # default: 1e-4
+learning_rate: 5e-5                     # default: 1e-4
 
 scheduler:
     type: step

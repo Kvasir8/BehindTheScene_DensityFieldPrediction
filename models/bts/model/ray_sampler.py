@@ -122,7 +122,7 @@ class PatchRaySampler(RaySampler):
         assert (ray_batch_size % (self.patch_size_x * self.patch_size_y)) == 0
         self._patch_count = self.ray_batch_size // (self.patch_size_x * self.patch_size_y)
 
-    def sample(self, images, poses, projs):     ### dim(images) == 4 (ids_loss 4 randomly sampled)
+    def sample(self, images, poses, projs):     ### dim(images) == nv (ids_loss nv randomly sampled)
         n, v, c, h, w = images.shape
         device = images.device
 

@@ -47,7 +47,7 @@ def make_attn_layers(config, ndim: int) -> nn.Module:
         return TransformerEncoder(transformer_enlayer, num_layers)
     else: raise NotImplementedError(f"__unrecognized use_built_in: {use_built_in}")
 
-## remark: hyper-params. e.g. 'nhead' could be tuned e.g. random- or grid search for future tuning strategy: hparams has less params in overfitting, and it should be normally trained when it comes to training normally e.g. dim_feedforward=2048. Hence it's required to make setting of overfitting param and normal setting param
+
 class MultiViewHead(nn.Module):
     def __init__(
         self,

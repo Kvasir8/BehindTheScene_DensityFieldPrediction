@@ -7,7 +7,11 @@ name: "eval_lidar_occ"
 model: "bts_lidar"
 #checkpoint: "out/kitti_360/enc0_chkpt_unfr_lr1e-6_BTS_DFT_nry_backend-None-1_20230824-232011/"  ## change whenever you want to evaluate the model
 # checkpoint: "out/kitti_360/att32_nmv5_lay3_enc0_Unfr_Lr5e_5_BTS_Nry_backend-None-1_20230830-022311"  ## change whenever you want to evaluate the model
-checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/BaseExperiment_debug_backend-None-1_20230919-173035"  ## change whenever you want to evaluate the model
+# checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/BaseExperiment_debug_backend-None-1_20230919-173035"  ## change whenever you want to evaluate the model
+
+checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/KD_FT_from_longrun_B4_lr3e-5_backend-None-1_20231005-123142"  ## change whenever you want to evaluate the model
+# checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/pretrained/knowledge_distillation_longrun_finetuning_from_longrun_B4_backend-None-1_20231005-122402"  ## change whenever you want to evaluate the model
+
 # /usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/BTS_DFT_nry_frozen_enc01_backend-None-1_20230822-182806/training_checkpoint_174000.pt
 # /usr/stud/hank/storage/user/BehindTheScenes/out/kitti_360/att32_nmv5_lay3_enc0_Unfr_Lr5e_5_BTS_Nry_backend-None-1_20230830-022311/training_checkpoint_324500.pt
 output_path: "out/mvbts/kitti_360/"
@@ -30,7 +34,7 @@ model_conf:
     arch: "MVBTSNet"            # !Note!: this should be the same architecture with the architecture trained with checkpt to eval. constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 4           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 3           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     sample_color: true
     loss_from_single_img: false # default: false
     encoder:
@@ -51,20 +55,20 @@ model_conf:
           name: "multiviewhead"
           args:
             embedding_encoder:
-                type: "ff"
-                d_out: 16
+                type: "pwf"
+                d_out: 32
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
             attn_layers:
                 IBRAttn: False
-                n_layers: 3
+                n_layers: 2
                 n_heads: 4
                 readout_token:
                     type: "fixed"  # fixed, data, neuray
             probing_layer:
 
-            dropout_view_rate: 0
+            dropout_views_rate: 0
 
         - type: "resnet"
           name: "singleviewhead"

@@ -33,7 +33,7 @@ output_path: "out/mvbts/debug/"
 num_epochs: 200
 validate_every: 10000
 visualize_every: 5          # default: 10       ## bigger is good for computational reduction
-batch_size: 4                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
+batch_size: 1                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.

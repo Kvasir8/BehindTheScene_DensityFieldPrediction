@@ -13,6 +13,17 @@ def make_head(conf, d_in: int, d_out: int):
         head = ResnetFC.from_conf(conf["args"], d_in, d_out)
     elif head_type == "MultiViewHead":
         head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
+
+    ## For baseline comparison
+    # elif head_type == "IBRNet":
+    #     head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
+    # elif head_type == "NeuRay":
+    #     head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
+    # elif head_type == "GeoNeRF":
+    #     head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
+    # elif head_type == "PixelNeRF":
+    #     head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
+    
     else:
         raise NotImplementedError("Unsupported Head type")
     return head

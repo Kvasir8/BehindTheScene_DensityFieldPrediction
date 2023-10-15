@@ -234,8 +234,10 @@ class NeRFRenderer(torch.nn.Module):
             points = rays[:, None, :3] + z_samp.unsqueeze(2) * rays[:, None, 3:6]
             ## pts_ibr = points.clone()  ## deep copy for ibrnet
             points = points.reshape(-1, 3)  # (B*K, 3)
+
             if hasattr(model, "use_viewdirs"): use_viewdirs = model.use_viewdirs
             else:   use_viewdirs = None
+            
             viewdirs_all = []
             rgbs_all, invalid_all, sigmas_all = [], [], []
 
@@ -252,7 +254,7 @@ class NeRFRenderer(torch.nn.Module):
 
             split_points = torch.split(points, eval_batch_size, dim=eval_batch_dim)     ## chunking for computational limit
 
-            if use_viewdirs:        ## for NeuRay input for the model
+            if use_viewdirs:        ## for IBRNet input for the model
                 dim1 = K
                 viewdirs = rays[:, None, 3:6].expand(-1, dim1, -1)  # (B, K, 3)         ## ray direction d from o_{n} = o + t_{n} d : c.f. ibrnet class ray_diff: ray direction difference, first 3 channels are directions
                 if sb > 0:  viewdirs = viewdirs.reshape(sb, -1, 3)  # (SB, B'*K, 3)

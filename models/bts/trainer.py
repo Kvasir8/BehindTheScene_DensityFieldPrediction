@@ -290,7 +290,7 @@ class BTSWrapper(nn.Module):
                 data["rays"] = render_dict["rays"]
         else:   ### self.prediction_mode == default
             with profiler.record_function("trainer_render"):
-                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt)
+                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt)    ## where the encoder is used from output of "self.renderer.net.encode"
                 ### [n:=batch_size, M_patches, cam_views:=8]    ## forward in _RenderWrapper
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
@@ -437,7 +437,7 @@ def get_dataflow(config, logger=None):
     test_dataset._left_offset = 0
     test_dataset.return_stereo = mode == "nvs"
     test_dataset.return_depth = True
-    test_dataset.length = min(256, test_dataset.length)  ## ? default: 256
+    test_dataset.length = min(256, test_dataset.length)
 
     # Change visualisation dataset
     vis_dataset.length = 1
@@ -487,6 +487,7 @@ def initialize(config: dict, logger=None):
         if config["model_conf"]["decoder_heads"][0]["freeze"]: ## Freezing the MVhead for knowledge distillation
             for param in decoder_heads["multiviewhead"].parameters():   param.requires_grad = False
             print("__frozen the MVhead for knowledge distillation.")
+        else: print("__no freezing heads.")
 
     # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
@@ -497,11 +498,20 @@ def initialize(config: dict, logger=None):
             final_pred_head = config.get("final_prediction_head", None),
             ren_nc = config["renderer"]["n_coarse"],
         )
+
     elif arch == "BTSNet":     ## For single view BTS model
         net = BTSNet(config["model_conf"])
         encoder = make_backbone(config["model_conf"]["encoder"])
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
         d_in = encoder.latent_size + code_xyz.d_out         ### 103
+        
+
+    # elif arch == "IBRNet":     ## For baselines
+    #     net = BTSNet(config["model_conf"])
+    #     encoder = make_backbone(config["model_conf"]["encoder"])
+    #     code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+    #     d_in = encoder.latent_size + code_xyz.d_out         ### 103
+        
     else:   raise NotImplementedError(f"__unrecognized net: {arch} instantiation in model")
 
     renderer = NeRFRenderer.from_conf(config["renderer"])

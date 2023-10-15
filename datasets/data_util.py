@@ -173,7 +173,7 @@ def make_datasets(config):
             pose_path=config["pose_path"],
             split_path=train_split_path,
             target_image_size=tuple(config.get("image_size", (192, 640))),
-            frame_count=config.get("data_fc", 3),       ## ? frame_count
+            frame_count=config.get("data_fc", 3),       
             return_stereo=config.get("data_stereo", True),
             return_fisheye=config.get("data_fisheye", True),
             return_3d_bboxes=config.get("data_3d_bboxes", False),

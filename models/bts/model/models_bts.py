@@ -98,9 +98,7 @@ class MVBTSNet(torch.nn.Module):
 
     def compute_grid_transforms(self, *args, **kwargs): pass
 
-    def encode(
-        self, images, Ks, poses_c2w, ids_encoder=None, ids_render=None, images_alt=None, combine_ids=None
-    ):  ## ids_encoder:=which img to begin with
+    def encode(self, images, Ks, poses_c2w, ids_encoder=None, ids_render=None, images_alt=None, combine_ids=None):
         poses_w2c = torch.inverse(poses_c2w)
 
         if ids_encoder is None:
@@ -109,7 +107,7 @@ class MVBTSNet(torch.nn.Module):
             poses_w2c_encoder = poses_w2c
             ids_encoder = list(range(len(images)))
         else:
-            images_encoder = images[:, ids_encoder]  ## TODO: Check how ids_encoder sth to do with nv_ (nv_ == nmv?)
+            images_encoder = images[:, ids_encoder]  
             Ks_encoder = Ks[:, ids_encoder]
             poses_w2c_encoder = poses_w2c[:, ids_encoder]
 
@@ -159,11 +157,12 @@ class MVBTSNet(torch.nn.Module):
             image_latents_ms, bottleneck_feats_ms = self.encoder(
                 images_encoder.view(n_ * nv_, c_, h_, w_)
             )  ## Encoder of BTS's backbone model e.g. Monodepth2
-        else:
+        elif not self.requires_bottleneck_feats:
             image_latents_ms, _ = self.encoder(
                 images_encoder.view(n_ * nv_, c_, h_, w_)
             )  ## Encoder of BTS's backbone model e.g. Monodepth2
             bottleneck_feats_ms = None
+        else: NotImplementedError(f"__unrecognized input self.requires_bottleneck_feats:{self.requires_bottleneck_feats}")
 
         if do_flip:
             image_latents_ms = [torch.flip(il, dims=(-1,)) for il in image_latents_ms]
@@ -194,15 +193,10 @@ class MVBTSNet(torch.nn.Module):
 
         self.grid_t_pos = ids_encoder   ## positional embedding for token's order
 
-    def sample_features(
-        self, xyz, use_single_featuremap=True
+    def sample_features(self, xyz, use_single_featuremap=True
         # self, xyz, grid_t_pos, use_single_featuremap=True
     ):  ## 2nd arg: to control whether multiple feature maps should be combined into a single feature map or not. If True, the function will average the sampled features from multiple feature maps along the view dimension (nv) before returning the result. This can be useful when you want to combine information from multiple views or feature maps into a single representation.
-        (
-            n_,
-            n_pts,
-            _,
-        ) = xyz.shape  ## Get the shape of the input point cloud and the feature grid (n, pts, spatial_coordinate == 3)
+        (n_,n_pts,_,) = xyz.shape  ## Get the shape of the input point cloud and the feature grid (n, pts, spatial_coordinate == 3)
         n_, nv_, c_, h_, w_ = self.grid_f_features[self._scale].shape  ### [B, nv, C, 192, 640]
         # if not use_single_featuremap:   nv_ = self.nv_
         xyz = xyz.unsqueeze(
@@ -264,7 +258,7 @@ class MVBTSNet(torch.nn.Module):
             xyz_projected = torch.cat( (xy, distance), dim=-1 )  ## Apply the positional encoder to the concatenated xy and depth/distance coordinates (it enables the model to capture more complex spatial dependencies without a significant increase in model complexity or training data)
         xyz_code = self.code_xyz(xyz_projected.view(n_ * nv_ * n_pts, -1)).view(n_, nv_, n_pts, -1).permute(0, 2, 1, 3)  ## ! positional encoding dimension to check (concatenate)
 
-        feature_map = self.grid_f_features[self._scale][:, :nv_]
+        feature_map = self.grid_f_features[self._scale][:, :nv_]    ## !
 
         # These samples are from different scales
         if self.learn_empty:  ## "empty space" can refer to areas in a scene where there is no object, or it could also refer to areas that are not observed or are beyond the range of the sensor. This allows the model to have a distinct learned representation for "empty" space, which can be beneficial in tasks like 3D reconstruction where understanding both the objects in a scene and the empty space between them is important.
