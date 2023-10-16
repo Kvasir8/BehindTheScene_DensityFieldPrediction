@@ -17,7 +17,9 @@ from utils.plotting import color_tensor
 
 
 ## BTS paper, Fig 4: Occupancy Estimation for Kitti-raw:
-#  /storage/group/dataset_mirrors/01_incoming/kitti_data/2011_09_26/2011_09_26_drive_0005_sync/image_02/data/0000000003.jpg
+# /storage/group/dataset_mirrors/01_incoming/kitti_data/2011_09_26/2011_09_26_drive_0005_sync/image_02/data/0000000003.jpg
+# /storage/group/dataset_mirrors/01_incoming/kitti_data/2011_09_26/2011_09_26_drive_0013_sync/image_02/data/0000000050.jpg
+# /storage/group/dataset_mirrors/01_incoming/kitti_data/2011_09_26/2011_09_26_drive_0013_sync/image_02/data/0000000040.jpg
 
 
 def main():

@@ -40,8 +40,8 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
     do_ = dec_args["dropout_views_rate"]
     do_h = dec_args["dropout_multiviewhead"]
 
-    dec_type = dec_emb["type"]  ## ff
-    dec_dout = dec_emb["d_out"]
+    dec_type = dec_emb["type"]  ## ff | pwf
+    dec_dout = dec_emb["d_out"] ## embedding feature dim
     dec_IBR = attn_layers["IBRAttn"]
     dec_nly = attn_layers["n_layers"]
     dec_nh = attn_layers["n_heads"]

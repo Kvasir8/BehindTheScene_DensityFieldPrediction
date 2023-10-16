@@ -43,7 +43,7 @@ save_best:
 # resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
 
 data:
-    data_fc: 2
+    data_fc: 3              ## default: 2, 3 for monocular camera
     image_size: [192, 640]
     color_aug: true
     is_preprocessed: true
@@ -51,7 +51,7 @@ data:
 
     ## This is for ablation study for different training view cases: F, S, FS in BTS paper
     data_fisheye: false
-    data_stereo: true       ## load only left
+    data_stereo: false       ## load only left
 
 #### below are the same for both eval and training
 
@@ -70,7 +70,7 @@ model_conf:
     arch: "MVBTSNet"            # constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
-    num_multiviews: 4           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
+    num_multiviews: 2           # TODO: Check L_{loss} and L_{render} which neither of them works. number of multi views to aggregate. Possible value ~8. Default: 2 Note: cams are render loss
     use_viewdirs: true          # to aggregate multi-views, set true. c.f. IBRNet
     
     # camera_positional_encoding: true

@@ -38,6 +38,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     readout_token = attn_layers["readout_token"]
     data_fisheye = config["data"]["data_fisheye"]
     data_stereo = config["data"]["data_stereo"]
+    frame_count = config["data"]["data_fc"]
     frame_sample_mode = model_conf["frame_sample_mode"]
 
     lr_ = config["learning_rate"]
@@ -58,7 +59,8 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     readout_token_type = readout_token["type"]
 
-    model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
+    model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] \
+    + "_Fc" + str(frame_count) + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
     + "_decIBR" + str(dec_IBR)[:1] + "_nly" + str(dec_nly) + "_nh" + str(dec_nh) + "_readoutType" + readout_token_type \
     + "_lr" + str(lr_) + "_bs" + str(bs_) + "_rbs" + str(rbs) + "_ztype_" + z_mode + "_trainType_" + config["name"]
     logger = setup_logger(model_name)

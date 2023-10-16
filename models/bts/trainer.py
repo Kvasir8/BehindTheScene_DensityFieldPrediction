@@ -214,7 +214,7 @@ class BTSWrapper(nn.Module):
             else:
                 raise NotImplementedError
 
-        else:  ## eval (==not self.training)
+        else:  ## eval (!= self.training)
             ids_loss = torch.arange(v)
             ids_render = [0]
 
