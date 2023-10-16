@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="r_ed64_slurm"
+#SBATCH --job-name="360_encLy1_slurm"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
@@ -19,12 +19,12 @@ nvidia-smi
 python train.py -cn ab_kitti_360_encLy1
 # python train.py -cn ab_kitti_360_encLy6
 # python train.py -cn ab_kitti_360_dropoutZero
+# python train.py -cn ab_kitti_360_dropout05
+# python train.py -cn ab_kitti_360_embTypeff
 # python train.py -cn ab_kitti_360_embdim16
 # python train.py -cn ab_kitti_360_embdim64
-## For message: Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_embdim64, then change job name as embdim64
+## For message: Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_encLy1, then change job name as "360_encLy1_slurm"
 
-# python train.py -cn ab_kitti_360_embTypeff
-# python train.py -cn ab_kitti_360_dropout05
 ## kitti-raw
 # python train.py -cn ab_kitti_raw_encLy1
 # python train.py -cn ab_kitti_raw_encLy6
