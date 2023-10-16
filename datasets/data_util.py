@@ -160,6 +160,30 @@ def make_datasets(config):
         )
         return train_dataset, test_dataset
 
+    elif type == "KITTI_Raw_DFT":
+        train_dataset = KittiRawDataset(
+            data_path=config["data_path"],
+            pose_path=config["pose_path"],
+            split_path=os.path.join(config["split_path"], "train_files.txt"),
+            target_image_size=config.get("image_size", (192, 640)),
+            frame_count=config.get("data_fc", 1),
+            return_stereo=config.get("data_stereo", False),
+            keyframe_offset=config.get("keyframe_offset", 0),
+            dilation=config.get("dilation", 1),
+            color_aug=config.get("color_aug", False)
+        )
+        test_dataset = KittiRawDataset(
+            data_path=config["data_path"],
+            pose_path=config["pose_path"],
+            split_path=os.path.join(config["split_path"], "val_files.txt"),
+            target_image_size=config.get("image_size", (192, 640)),
+            frame_count=config.get("data_fc", 1),
+            return_stereo=config.get("data_stereo", False),
+            keyframe_offset=config.get("keyframe_offset", 0),
+            dilation=config.get("dilation", 1),
+        )
+        return train_dataset, test_dataset
+
     elif type == "KITTI_360_DFT":
         if config.get("split_path", None) is None:
             train_split_path = None

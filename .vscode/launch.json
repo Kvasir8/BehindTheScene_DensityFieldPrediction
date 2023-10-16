@@ -36,7 +36,26 @@
         },
 
         {
-            "name": "launch_debug: train.py",
+            "name": "TrRaw_debug",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_raw_DFT_debug"
+            ],
+            "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        
+
+        {
+            "name": "Tr360_debug",
             "type": "python",
             "request": "launch",
             "program": "train.py",
@@ -52,8 +71,9 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
+        
         {
-            "name": "svbts: launch_debug",
+            "name": "svbts: Tr360_debug",
             "type": "python",
             "request": "launch",
             "program": "train.py",

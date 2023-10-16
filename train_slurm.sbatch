@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="MVBTS_full_modelNv4_longrun"
+#SBATCH --job-name="r_ed64_slurm"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
@@ -13,6 +13,27 @@ export HYDRA_FULL_ERROR=1
 export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
-python train.py -cn exp_kitti_360_DFT_slurm
+
+### For ablation study
+## kitti-360
+python train.py -cn ab_kitti_360_encLy6
+# python train.py -cn ab_kitti_360_dropoutZero
+# python train.py -cn ab_kitti_360_dropout05
+# python train.py -cn ab_kitti_360_embTypeff
+# python train.py -cn ab_kitti_360_embdim16
+# python train.py -cn ab_kitti_360_embdim64
+## For message: Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_embdim64, then change job name as embdim64
+
+## kitti-raw
+# python train.py -cn ab_kitti_raw_encLy1
+# python train.py -cn ab_kitti_raw_encLy6
+# python train.py -cn ab_kitti_raw_dropoutZero
+# python train.py -cn ab_kitti_raw_dropout05
+# python train.py -cn ab_kitti_raw_embTypeff
+# python train.py -cn ab_kitti_raw_embdim16
+# python train.py -cn ab_kitti_raw_embdim64
+
+# python train.py -cn exp_kitti_360_DFT_slurm
+# python train.py -cn ab_kitti_raw_base
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

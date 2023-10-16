@@ -31,14 +31,14 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "__Ablation_embeddingEncoderType_ff_slurm"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "__Ablation_encLyer6_stdTransformer_slurm"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
 
 num_epochs: 200
-validate_every: 100000                   # default: 50000    for batch_size: 1
-visualize_every: 500                   # default: 5000       ## bigger is good for computational reduction
+validate_every: 100000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
+visualize_every: 1000                    # default: 5000       ## bigger is good for computational reduction
 batch_size: 4                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -108,7 +108,7 @@ model_conf:
           freeze: false                 # True For knowledge-distillation learning for singleview head
           args:
             embedding_encoder:
-                type: "ff"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
+                type: "pwf"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
                 d_out: 32               ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
@@ -119,7 +119,7 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: True           ## default: False // Note: customized IBRAttn tends to decrease the loss faster than built-in, but large memory consumption with customized transformer. built-in Pytorch is efficient.
-                n_layers: 2             ## default: 3, num encoder layers from Transformer
+                n_layers: 6             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
@@ -152,6 +152,7 @@ model_conf:
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
     ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
+    ## TODO: Implement sample_type: Uniform | Hierarchical
 
     learn_empty: false
     code_mode: z                        # default: z, z | distance | z_feat: additional cam_feature_map_positional_encoding, Note: z_feat is unverified
@@ -159,13 +160,13 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # photometric reconstruction loss
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 1e-3  # default: 0.001
-    lambda_pseudo_ground_truth: 0    # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
+    lambda_edge_aware_smoothness: 1e-3  # default: 1e-3 == 0.001
+    lambda_pseudo_ground_truth: 0       # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 5e-5                     # default: 1e-4
+learning_rate: 1e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 
 scheduler:
     type: step

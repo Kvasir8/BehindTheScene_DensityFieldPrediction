@@ -6,7 +6,7 @@ pose_path: "/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_
 split_path: "datasets/kitti_360/splits/seg"
 image_size: [ 192, 640 ]
 data_stereo: true
-data_fc: 2
+# data_fc: 2
 fisheye_offset: [ 10, 11,  12, 13,  14, 15,  16, 17,  18, 19,  20] ## default: fisheye_offset: [10]
 stereo_offset: [1] #  [1,2,3,4,5,6,7,8]  ## defaut: [1] time stamps
 is_preprocessed: false
