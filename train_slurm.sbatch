@@ -16,14 +16,15 @@ nvidia-smi
 
 ### For ablation study
 ## kitti-360
-python train.py -cn ab_kitti_360_encLy6
+python train.py -cn ab_kitti_360_encLy1
+# python train.py -cn ab_kitti_360_encLy6
 # python train.py -cn ab_kitti_360_dropoutZero
-# python train.py -cn ab_kitti_360_dropout05
-# python train.py -cn ab_kitti_360_embTypeff
 # python train.py -cn ab_kitti_360_embdim16
 # python train.py -cn ab_kitti_360_embdim64
 ## For message: Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_embdim64, then change job name as embdim64
 
+# python train.py -cn ab_kitti_360_embTypeff
+# python train.py -cn ab_kitti_360_dropout05
 ## kitti-raw
 # python train.py -cn ab_kitti_raw_encLy1
 # python train.py -cn ab_kitti_raw_encLy6
