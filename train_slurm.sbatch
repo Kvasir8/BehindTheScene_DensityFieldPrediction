@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="360_encLy1_slurm"
+#SBATCH --job-name="360_embdim16_slurm"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
@@ -16,7 +16,7 @@ nvidia-smi
 
 ### For ablation study
 ## kitti-360
-python train.py -cn ab_kitti_360_encLy1
+# python train.py -cn ab_kitti_360_encLy1
 # python train.py -cn ab_kitti_360_encLy6
 # python train.py -cn ab_kitti_360_dropoutZero
 # python train.py -cn ab_kitti_360_dropout05

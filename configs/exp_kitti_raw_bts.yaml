@@ -1,12 +1,12 @@
 defaults:                       ### For viz purpose for original BTS model to compare MVBTS
     - default
-    - data: kitti_360_bts
+    - data: kitti_raw_bts
     - _self_
 
 name: "base_debug"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
-output_path: "out/svbts/viz/kitti_360/"   
-# output_path: "out/mvbts/viz/kitti-raw"
+# output_path: "out/svbts/viz/kitti_360/"   
+output_path: "out/mvbts/viz/kitti-raw"
 
 
 num_epochs: 25                  ## Note: since the model runs from the BTS checkpoint whose epoch starts with 24, epoch should be greater than 24
@@ -20,9 +20,9 @@ save_best:
 
 # resume_from: "/home/wiss/muhled/Documents/supervision/Keonhee/MVBTS/out/kitti_360/pretrained/training-checkpoint.pt"
 ## For kitti-360
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 ## For kitti-raw
-# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_raw/pretrained/training-checkpoint.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_raw/pretrained/training-checkpoint.pt"
 
 data:
     data_fc: 2
@@ -65,7 +65,7 @@ model_conf:
         d_out: 64
 
     mlp_coarse:
-        type : "resnet"
+        type : "resnet" ## please comment them for running trainer in models_bts.py
         n_blocks : 0
         d_hidden : 64
 
@@ -102,8 +102,6 @@ loss:
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
-    pseudo_ground_truth_density: True   ## True: PGT is computed on the density values (after F.softplus), False: PGT is computed on the values before F.softplus
-    pseudo_ground_truth_masking: True   ## True: only compute PGT for query points in camera 0 frustum, False: compute PGT for all queried points
 
 learning_rate: 5e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 

@@ -137,7 +137,7 @@ loss:
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 1e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
+learning_rate: 5e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 
 scheduler:
     type: step

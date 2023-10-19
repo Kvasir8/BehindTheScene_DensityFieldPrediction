@@ -16,7 +16,7 @@ save_best:
     metric: abs_rel                     # The model that has the smallest absolute relative error will be saved.
     sign: -1                            # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-## fine-tuning from pretrained BTS model
+## fine-tuning from pretrained BTS model from kittiraw
 resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_raw/pretrained/training-checkpoint.pt"
 
 ## keep continuing training from breakpoint
@@ -117,7 +117,7 @@ model_conf:
 
     n_frames_encoder: 1
     n_frames_render: 2                  # num frame to render among given cameras at a frame: 4 x 2 => v==8
-    frame_sample_mode: default    # defaut: kitti360-mono | mono | stereo | only (for single image without temporal steps). Note: Make sure data_fisheye, data_stereo is set up accordingly.
+    frame_sample_mode: default          # defaut: default (for kitti-raw) | kitti360-mono | mono | stereo | only (for single image without temporal steps). Note: Make sure data_fisheye, data_stereo is set up accordingly.
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
@@ -137,7 +137,7 @@ loss:
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 1e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
+learning_rate: 5e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 
 scheduler:
     type: step

@@ -13,45 +13,52 @@ from utils.array_operations import to
 
 from ignite.contrib.handlers.tensorboard_logger import *
 
-def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, logger = None, visualize = None):
+
+def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, logger=None, visualize=None):
     rank = idist.get_rank()
     manual_seed(config["seed"] + rank)
     device = idist.device()
 
-    # logger = setup_logger(name=config["name"])    ## default
-    model_conf = config["model_conf"]
-    enc = model_conf["encoder"]
-    dec_h = model_conf["decoder_heads"][0]
-    dec_args = dec_h["args"]
-    dec_emb = dec_args["embedding_encoder"]
-    attn_layers = dec_args["attn_layers"]
-    readout_token = attn_layers["readout_token"]
-    data_fisheye = config["data_fisheye"]
-    data_stereo = config["data_stereo"]
-    frame_sample_mode = model_conf["frame_sample_mode"]
+    ## To distinguish between original BTS model vs DFT model writing in tensorboard logger
+    # if config["data"]["type"] == ("KITTI_Raw_DFT" or "KITTI_360_DFT"):
+    #     model_conf = config["model_conf"]
+    #     enc = model_conf["encoder"]
+    #     dec_h = model_conf["decoder_heads"][0]
+    #     dec_args = dec_h["args"]
+    #     dec_emb = dec_args["embedding_encoder"]
+    #     attn_layers = dec_args["attn_layers"]
+    #     readout_token = attn_layers["readout_token"]
+    #     data_fisheye = config["data"]["data_fisheye"]
+    #     data_stereo = config["data"]["data_stereo"]
+    #     frame_count = config["data"]["data_fc"]
+    #     frame_sample_mode = model_conf["frame_sample_mode"]
 
-    lr_ = config["learning_rate"]
-    bs_ = config["batch_size"]
+    #     lr_ = config["learning_rate"]
+    #     bs_ = config["batch_size"]
 
-    rbs = model_conf["ray_batch_size"]
-    z_mode = model_conf["code_mode"]
+    #     rbs = model_conf["ray_batch_size"]
+    #     z_mode = model_conf["code_mode"]
 
-    frz = enc["freeze"]
-    do_ = dec_args["dropout_views_rate"]
-    do_h = dec_args["dropout_multiviewhead"]
+    #     frz = enc["freeze"]
+    #     do_ = dec_args["dropout_views_rate"]
+    #     do_h = dec_args["dropout_multiviewhead"]
 
-    dec_type = dec_emb["type"]  ## ff | pwf
-    dec_dout = dec_emb["d_out"] ## embedding feature dim
-    dec_IBR = attn_layers["IBRAttn"]
-    dec_nly = attn_layers["n_layers"]
-    dec_nh = attn_layers["n_heads"]
+    #     dec_type = dec_emb["type"]  ## ff
+    #     dec_dout = dec_emb["d_out"]
+    #     dec_IBR = attn_layers["IBRAttn"]
+    #     dec_nly = attn_layers["n_layers"]
+    #     dec_nh = attn_layers["n_heads"]
 
-    readout_token_type = readout_token["type"]
+    #     readout_token_type = readout_token["type"]
 
-    model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
-    + "_decIBR" + str(dec_IBR)[:1] + "_nly" + str(dec_nly) + "_nh" + str(dec_nh) + "_readoutType" + readout_token_type \
-    + "_lr" + str(lr_) + "_bs" + str(bs_) + "_rbs" + str(rbs) + "_ztype_" + z_mode + "_trainType_" + config["name"]
-    logger = setup_logger(model_name)
+    #     model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] \
+    #     + "_Fc" + str(frame_count) + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
+    #     + "_decIBR" + str(dec_IBR)[:1] + "_nly" + str(dec_nly) + "_nh" + str(dec_nh) + "_readoutType" + readout_token_type \
+    #     + "_lr" + str(lr_) + "_bs" + str(bs_) + "_rbs" + str(rbs) + "_ztype_" + z_mode + "_trainType_" + config["name"]
+    #     logger = setup_logger(model_name)
+    # else:
+    model_name = config["name"]
+    logger = setup_logger(name=model_name)  ## default
 
     log_basic_info(logger, config)
 
@@ -64,7 +71,7 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
 
         # folder_name = f"{config['name']}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
         folder_name = f"{model_name}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
-        
+
         output_path = Path(output_path) / folder_name
         if not output_path.exists():
             output_path.mkdir(parents=True)
@@ -104,12 +111,12 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
     # - `evaluator` will save the best model based on validation score
     evaluator = create_evaluator(model, metrics=metrics, config=config, logger=logger)
 
-
     # # Create Tensorboard logger
     # tb_logger = TensorboardLogger(log_dir="/tmp/tb_logs")
 
-
-    evaluator.add_event_handler(Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics))
+    evaluator.add_event_handler(
+        Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics)
+    )
     # evaluator.add_event_handler(Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics), tensorboard_metrics_logging(tb_logger, metrics, config["log_every"]))
 
     try:
@@ -153,11 +160,13 @@ def log_basic_info(logger, config):
 #         for name, value in metrics.items():
 #             logger.writer.add_scalar(name, value.compute(), engine.state.iteration)
 
+
 def log_metrics_current(logger, metrics):
     def f(engine):
         out_str = "\n" + "\t".join([f"{v.compute():.3f}".ljust(8) for v in metrics.values()])
         out_str += "\n" + "\t".join([f"{k}".ljust(8) for k in metrics.keys()])
         logger.info(out_str)
+
     return f
 
 
@@ -186,15 +195,10 @@ def create_evaluator(model, metrics, config, logger=None, tag="val"):
 
         loss_metrics = {}
 
-        return {
-            "output": data,
-            "loss_dict": loss_metrics,
-            "timings_dict": timing,
-            "metrics_dict": {}
-        }
+        return {"output": data, "loss_dict": loss_metrics, "timings_dict": timing, "metrics_dict": {}}
 
     evaluator = Engine(evaluate_step)
-    evaluator.logger = logger   ##
+    evaluator.logger = logger  ##
 
     for name, metric in metrics.items():
         metric.attach(evaluator, name)

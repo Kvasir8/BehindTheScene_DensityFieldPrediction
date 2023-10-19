@@ -28,46 +28,84 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     manual_seed(config["seed"] + rank)
     device = idist.device()
 
-    # logger = setup_logger(name=config["name"])    ## default
-    model_conf = config["model_conf"]
-    enc = model_conf["encoder"]
-    dec_h = model_conf["decoder_heads"][0]
-    dec_args = dec_h["args"]
-    dec_emb = dec_args["embedding_encoder"]
-    attn_layers = dec_args["attn_layers"]
-    readout_token = attn_layers["readout_token"]
-    data_fisheye = config["data"]["data_fisheye"]
-    data_stereo = config["data"]["data_stereo"]
-    frame_count = config["data"]["data_fc"]
-    frame_sample_mode = model_conf["frame_sample_mode"]
+    ## To distinguish between original BTS model vs DFT model writing in tensorboard logger
+    # if config["data"]["type"] == ("KITTI_Raw_DFT" or "KITTI_360_DFT"):
+    #     model_conf = config["model_conf"]
+    #     enc = model_conf["encoder"]
+    #     dec_h = model_conf["decoder_heads"][0]
+    #     dec_args = dec_h["args"]
+    #     dec_emb = dec_args["embedding_encoder"]
+    #     attn_layers = dec_args["attn_layers"]
+    #     readout_token = attn_layers["readout_token"]
+    #     data_fisheye = config["data"]["data_fisheye"]
+    #     data_stereo = config["data"]["data_stereo"]
+    #     frame_count = config["data"]["data_fc"]
+    #     frame_sample_mode = model_conf["frame_sample_mode"]
 
-    lr_ = config["learning_rate"]
-    bs_ = config["batch_size"]
+    #     lr_ = config["learning_rate"]
+    #     bs_ = config["batch_size"]
 
-    rbs = model_conf["ray_batch_size"]
-    z_mode = model_conf["code_mode"]
+    #     rbs = model_conf["ray_batch_size"]
+    #     z_mode = model_conf["code_mode"]
 
-    frz = enc["freeze"]
-    do_ = dec_args["dropout_views_rate"]
-    do_h = dec_args["dropout_multiviewhead"]
+    #     frz = enc["freeze"]
+    #     do_ = dec_args["dropout_views_rate"]
+    #     do_h = dec_args["dropout_multiviewhead"]
 
-    dec_type = dec_emb["type"]  ## ff
-    dec_dout = dec_emb["d_out"]
-    dec_IBR = attn_layers["IBRAttn"]
-    dec_nly = attn_layers["n_layers"]
-    dec_nh = attn_layers["n_heads"]
+    #     dec_type = dec_emb["type"]  ## ff
+    #     dec_dout = dec_emb["d_out"]
+    #     dec_IBR = attn_layers["IBRAttn"]
+    #     dec_nly = attn_layers["n_layers"]
+    #     dec_nh = attn_layers["n_heads"]
 
-    readout_token_type = readout_token["type"]
+    #     readout_token_type = readout_token["type"]
 
-    model_name = "Smode" + frame_sample_mode + "_Fe" + str(data_fisheye)[:1] + "_St" + str(data_stereo)[:1] + "Fr" + str(frz)[:1] \
-    + "_Fc" + str(frame_count) + "_do" + str(do_) + "_doh" + str(do_h)[:1] + "_embEnc" + str(dec_type) + "_dout" + str(dec_dout) \
-    + "_decIBR" + str(dec_IBR)[:1] + "_nly" + str(dec_nly) + "_nh" + str(dec_nh) + "_readoutType" + readout_token_type \
-    + "_lr" + str(lr_) + "_bs" + str(bs_) + "_rbs" + str(rbs) + "_ztype_" + z_mode + "_trainType_" + config["name"]
-    logger = setup_logger(model_name)
+    #     model_name = (
+    #         "Smode"
+    #         + frame_sample_mode
+    #         + "_Fe"
+    #         + str(data_fisheye)[:1]
+    #         + "_St"
+    #         + str(data_stereo)[:1]
+    #         + "Fr"
+    #         + str(frz)[:1]
+    #         + "_Fc"
+    #         + str(frame_count)
+    #         + "_do"
+    #         + str(do_)
+    #         + "_doh"
+    #         + str(do_h)[:1]
+    #         + "_embEnc"
+    #         + str(dec_type)
+    #         + "_dout"
+    #         + str(dec_dout)
+    #         + "_decIBR"
+    #         + str(dec_IBR)[:1]
+    #         + "_nly"
+    #         + str(dec_nly)
+    #         + "_nh"
+    #         + str(dec_nh)
+    #         + "_readoutType"
+    #         + readout_token_type
+    #         + "_lr"
+    #         + str(lr_)
+    #         + "_bs"
+    #         + str(bs_)
+    #         + "_rbs"
+    #         + str(rbs)
+    #         + "_ztype_"
+    #         + z_mode
+    #         + "_trainType_"
+    #         + config["name"]
+    #     )
+    #     logger = setup_logger(model_name)
+    # else:
+    model_name = config["name"]
+    logger = setup_logger(name=model_name)  ## default
 
     log_basic_info(logger, config)
     output_path = config["output_path"]
-    if rank == 0: 
+    if rank == 0:
         if config["stop_iteration"] is None:
             now = datetime.now().strftime("%Y%m%d-%H%M%S")
         else:
@@ -108,8 +146,10 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
     }
 
     loss_during_validation = config.get("loss_during_validation", True)
-    if loss_during_validation:  eval_metrics = {**metrics, **metrics_loss}
-    else:                       eval_metrics = metrics
+    if loss_during_validation:
+        eval_metrics = {**metrics, **metrics_loss}
+    else:
+        eval_metrics = metrics
 
     # Create trainer for current task
     trainer = create_trainer(
@@ -370,26 +410,46 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
     scaler = GradScaler(enabled=with_amp)
 
-    if model.renderer.net.__class__.__name__ == "MVBTSNet":
+    if model.renderer.net.__class__.__name__ == "MVBTSNet" and (requires_pgt != 0):
+        invalid_features = []
         head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+
+        def hook_fn_forward_invalid():
+            def _hook_fn(module, input, output):
+                invalid_features.append(module.invalid_features.flatten(0, 1))
+
+            return _hook_fn
 
         def hook_fn_forward_heads(name):
             def _hook_fn(module, input, output):
-                # head_outputs[name].append(output)
-                head_outputs[name] = output
+                head_outputs[name].append(output)
+                # head_outputs[name] = output
+
             return _hook_fn
 
     def train_step(engine, data: dict):
-        if "t__get_item__" in data:     timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
-        else:                           timing = {}
+        if "t__get_item__" in data:
+            timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
+        else:
+            timing = {}
 
         _start_time = time.time()
+
+        # if model.renderer.net.__class__.__name__ == "MVBTSNet":
+        #     invalid_features = []
+        #     head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
 
         data = to(data, device)
 
         if (model.renderer.net.__class__.__name__ == "MVBTSNet") and (requires_pgt != 0):
-        #     head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
-        #     head_outputs = model.renderer.net.mlp_coarse
+            nonlocal head_outputs
+            nonlocal invalid_features
+            #     head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+            #     head_outputs = model.renderer.net.mlp_coarse
+
+            if not model.renderer.net._forward_hooks:
+                print(f"__Registering invalid_feature_hook fwd hook")
+                model.renderer.net.register_forward_hook(hook_fn_forward_invalid())
 
             for name, module in model.renderer.net.heads.items():
                 if not module._forward_hooks:
@@ -408,14 +468,19 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         _start_time = time.time()
 
         with autocast(enabled=with_amp):
-            data = model(data)  ## Forward pass: model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
+            data = model(
+                data
+            )  ## Forward pass: model == BTSWrapper(nn.Module) or BTSWrapperOverfit(BTSWrapper)  ## data has 8 views for kitti360
 
         # if model.renderer.net.__class__.__name__ == "BTSNet":
 
         # calculate the loss based on data["head_outputs"], convert to tensors
-        if model.renderer.net.__class__.__name__ == "MVBTSNet":
-            # data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
-            data["head_outputs"] = {name: predictions for name, predictions in head_outputs.items()}
+        if model.renderer.net.__class__.__name__ == "MVBTSNet" and (requires_pgt != 0):
+            data["invalid_features"] = torch.cat(invalid_features, dim=0)
+            data["head_outputs"] = {name: torch.cat(predictions, dim=0) for name, predictions in head_outputs.items()}
+            invalid_features = []
+            head_outputs = {name: [] for name, _ in model.renderer.net.heads.items()}
+            # data["head_outputs"] = {name: predictions for name, predictions in head_outputs.items()}
 
         timing["t_forward"] = time.time() - _start_time
 
@@ -424,10 +489,12 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         timing["t_loss"] = time.time() - _start_time
 
         # for handle in hook_fw_handles:  handle.remove()   ## remove hooks for safety
-        
+
         _start_time = time.time()
         optimizer.zero_grad()
-        scaler.scale(loss).backward()       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
+        scaler.scale(
+            loss
+        ).backward()  ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         # scaler.scale(loss).backward(retain_graph=True)       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         scaler.step(optimizer)
         # bwd_hook_debug_init_state = {param.clone() for param in model.renderer.net.heads.multiviewhead.attn_layers.layers[0].linear1.parameters()}
@@ -513,6 +580,8 @@ def create_evaluator(model, metrics, criterion, config, tag="val"):
 
 
 def get_save_handler(config):
+    print("=======SAVING========")
+    print(config["output_path"])
     return DiskSaver(config["output_path"], require_empty=False)
 
 

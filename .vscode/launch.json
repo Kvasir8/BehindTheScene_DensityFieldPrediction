@@ -11,12 +11,11 @@
             "program": "./train.py",
             "args": [
                 "-cn",
-                "exp_kitti_360_base"
+                "ab_kitti_raw_embdim16"
             ],
             "console": "integratedTerminal",
             "justMyCode": false
         },
-
         {
             "name": "launch: eval.py (occ)",
             "type": "python",
@@ -34,7 +33,6 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-
         {
             "name": "TrRaw_debug",
             "type": "python",
@@ -52,8 +50,6 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-        
-
         {
             "name": "Tr360_debug",
             "type": "python",
@@ -63,6 +59,23 @@
                 "-cn",
                 "exp_kitti_360_DFT_debug"
             ],
+            // "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
+            "name": "svbts:Trraw_debug",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_raw_bts"
+            ],
             "cwd": "${workspaceFolder}",
             // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
             "env": {
@@ -71,9 +84,8 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-        
         {
-            "name": "svbts: Tr360_debug",
+            "name": "svbts:Tr360_debug",
             "type": "python",
             "request": "launch",
             "program": "train.py",
@@ -89,7 +101,6 @@
             "stopOnEntry": false,
             "justMyCode": true
         },
-        
         {
             "name": "Attach: train_debug_remote_IDE",
             "type": "python",

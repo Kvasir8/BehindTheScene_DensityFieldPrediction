@@ -9,7 +9,7 @@ output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 100000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
-visualize_every: 500                    # default: 5000       ## bigger is good for computational reduction
+visualize_every: 1000                    # default: 5000       ## bigger is good for computational reduction
 batch_size: 4                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
@@ -137,7 +137,7 @@ loss:
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 1e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
+learning_rate: 5e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 
 scheduler:
     type: step

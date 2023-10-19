@@ -7,21 +7,37 @@ from torch import profiler
 from models.common.model.layers import ssim, geo
 
 
-def compute_errors_l1ssim(img0, img1, mask=None):   ## (img0 == pred, img1 == GT)
-    (n,pc,h,w,nv,c,) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
-    img1 = img1.expand(img0.shape)  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
+def compute_errors_l1ssim(img0, img1, mask=None):  ## (img0 == pred, img1 == GT)
+    (
+        n,
+        pc,
+        h,
+        w,
+        nv,
+        c,
+    ) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
+    img1 = img1.expand(
+        img0.shape
+    )  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
     img0 = img0.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)
-    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(-1, c, h, w)  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
+    img1 = img1.permute(0, 1, 4, 5, 2, 3).reshape(
+        -1, c, h, w
+    )  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
     errors = 0.85 * torch.mean(
         ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
     ) + 0.15 * torch.mean(
         torch.abs(img0 - img1), dim=1
     )  ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
-    errors = (errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1))  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
+    errors = (
+        errors.view(n, pc, nv, h, w).permute(0, 1, 3, 4, 2).unsqueeze(-1)
+    )  ## reshaping and reordering the dimensions of the errors tensor back to its original shape and adding an extra dimension at the end.
     if mask is not None:
-        return (errors,mask,)  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
+        return (
+            errors,
+            mask,
+        )  ## checking if a mask is provided. If a mask is provided, it is returned along with the errors. Otherwise, only the errors are returned.
     else:
-        return errors   ### (n, pc, h, w, nv+1, 1)
+        return errors  ### (n, pc, h, w, nv+1, 1)
 
 
 def edge_aware_smoothness(gt_img, depth, mask=None):  ## L_{eas}
@@ -59,9 +75,9 @@ class ReconstructionLoss:  ## L_{ph}
         elif self.criterion_str == "l1+ssim":
             self.rgb_coarse_crit = compute_errors_l1ssim
             self.rgb_fine_crit = compute_errors_l1ssim
-        # elif self.criterion_str == "l1+ssim+":                ## TODO: add more losses
-        #     self.rgb_coarse_crit = compute_errors_l1ssim
-        #     self.rgb_fine_crit = compute_errors_l1ssim
+            # elif self.criterion_str == "l1+ssim+":                ## TODO: add more losses
+            #     self.rgb_coarse_crit = compute_errors_l1ssim
+            #     self.rgb_fine_crit = compute_errors_l1ssim
             self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         self.invalid_policy = config.get("invalid_policy", "strict")
         assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
@@ -81,6 +97,8 @@ class ReconstructionLoss:  ## L_{ph}
         self.lambda_pseudo_ground_truth = config.get("lambda_pseudo_ground_truth", 0)
         self.pseudo_ground_truth_teacher = config.get("pseudo_ground_truth_teacher", None)
         self.pseudo_ground_truth_students = config.get("pseudo_ground_truth_students", None)
+        self.pseudo_ground_truth_density = config.get("pseudo_ground_truth_density", True)
+        self.pseudo_ground_truth_masking = config.get("pseudo_ground_truth_masking", True)
 
         self.median_thresholding = config.get("median_thresholding", False)
 
@@ -176,7 +194,7 @@ class ReconstructionLoss:  ## L_{ph}
                     rgb_fine = rgb_fine[..., :-1]
                     rgb_gt = rgb_gt[..., :-1]
 
-                rgb_coarse = rgb_coarse                             ### (n, pc, h, w, nv+1, 3)
+                rgb_coarse = rgb_coarse  ### (n, pc, h, w, nv+1, 3)
                 rgb_fine = rgb_fine
                 rgb_gt = rgb_gt.unsqueeze(-2)
 
@@ -185,7 +203,7 @@ class ReconstructionLoss:  ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt) ### (n, pc, h, w, nv+1, 1)
+                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)  ### (n, pc, h, w, nv+1, 1)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -306,17 +324,51 @@ class ReconstructionLoss:  ## L_{ph}
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
 
-                if (self.lambda_pseudo_ground_truth > 0
+                if (
+                    self.lambda_pseudo_ground_truth > 0
                     and self.pseudo_ground_truth_students is not None
                     and self.pseudo_ground_truth_teacher is not None
                 ):
-                    teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].clone().detach()       ## if only detach(), it is in-place computaitonal graph frozen. This makes whole DFT model frozen, and not learnable during training. Thus, it needs to be frozen-cloned that is separately trained from pgt_loss computation. c.f. https://discuss.pytorch.org/t/difference-between-detach-clone-and-clone-detach/34173/3
+                    teacher_density = (
+                        data["head_outputs"][self.pseudo_ground_truth_teacher].clone().detach()
+                    )  ## if only detach(), it is in-place computaitonal graph frozen. This makes whole DFT model frozen, and not learnable during training. Thus, it needs to be frozen-cloned that is separately trained from pgt_loss computation. c.f. https://discuss.pytorch.org/t/difference-between-detach-clone-and-clone-detach/34173/3
                     # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     # teacher_density.requires_grad = False
                     for student_name in self.pseudo_ground_truth_students:
-                        loss_pseudo_ground_truth += torch.nn.MSELoss(reduction="mean")(
-                            data["head_outputs"][student_name].view(-1,), teacher_density.view(-1,)
-                        ) / int((teacher_density.size()[0])) * self.lambda_pgt  ## Normalized: reason: its magnitude in updating computational graph during backpropagation affects the training of en- and decoder of BTS model.
+                        if student_name == "singleviewhead" and self.pseudo_ground_truth_masking:
+                            mask = ~data["invalid_features"][:, 0]
+                        else:
+                            mask = torch.ones_like(data["invalid_features"][:, 0]).bool()
+                        if self.pseudo_ground_truth_density:
+                            loss_pseudo_ground_truth += (
+                                torch.nn.MSELoss(reduction="mean")(
+                                    F.softplus(
+                                        data["head_outputs"][student_name].view(
+                                            -1,
+                                        )
+                                    )[mask],
+                                    F.softplus(
+                                        teacher_density.view(
+                                            -1,
+                                        )
+                                    )[mask],
+                                )
+                                / int((teacher_density.size()[0]))
+                                * self.lambda_pgt
+                            )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
+                        else:
+                            loss_pseudo_ground_truth += (
+                                torch.nn.MSELoss(reduction="mean")(
+                                    data["head_outputs"][student_name].view(
+                                        -1,
+                                    )[mask],
+                                    teacher_density.view(
+                                        -1,
+                                    )[mask],
+                                )
+                                / int((teacher_density.size()[0]))
+                                * self.lambda_pgt
+                            )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation affects the training of en- and decoder of BTS model.
                         # loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
                     loss += loss_pseudo_ground_truth
@@ -338,8 +390,7 @@ class ReconstructionLoss:  ## L_{ph}
                 loss_ray_entropy = ray_entropy.mean()
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
-            
-        
+
         loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all

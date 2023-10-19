@@ -91,6 +91,7 @@ class MVBTSNet(torch.nn.Module):
             self.empty_feature = nn.Parameter(torch.randn((self.encoder.latent_size,), requires_grad=True))
         ## factor to multiply the output of the corresponding MLP in the forward, which helps to control the range of the output values from the MLP
         self._scale = 0  ## set spatial resolution size accoridng to the scale of output feature map from the encoder
+        self.invalid_features = None
 
     def set_scale(self, scale): self._scale = scale
 
@@ -484,7 +485,7 @@ class MVBTSNet(torch.nn.Module):
             if self.grid_c_combine is not None: nv_ = len(self.grid_c_combine)
 
             # Sampled features all has shape: scales [n, n_pts, c + xyz_code]   ## c + xyz_code := combined dimensionality of the features and the positional encoding c.f. (paper) Fig.2
-            sampled_features, invalid_features, sampled_bottleneck_features = self.sample_features(
+            sampled_features, self.invalid_features, sampled_bottleneck_features = self.sample_features(
                 # xyz, self.grid_t_pos, use_single_featuremap=False
                 xyz, use_single_featuremap=False
             )  # (B, n_pts, n_views, C), (B, n_pts, n_views), (B, n_pts, n_views, C_bottleneck)
@@ -497,7 +498,7 @@ class MVBTSNet(torch.nn.Module):
             combine_index, dim_size = None, None
 
             kwargs = {
-                "invalid_features": invalid_features.flatten(0, 1),  # (B* n_pts, n_views)
+                "invalid_features": self.invalid_features.flatten(0, 1),  # (B* n_pts, n_views)
                 "combine_inner_dims": (n_pts,),
                 "combine_index": combine_index,
                 "dim_size": dim_size,
@@ -530,7 +531,7 @@ class MVBTSNet(torch.nn.Module):
                 sigma = F.relu(sigma)
                 rgb = mlp_output[..., 1:4].reshape(n_, 1, n_pts, 3)
                 rgb = F.sigmoid(rgb)
-                invalid_colors = invalid_features.unsqueeze(-2)
+                invalid_colors = self.invalid_features.unsqueeze(-2)
                 nv_ = 1
 
             mlp_outputs = [head_outputs[name] for name in head_outputs]
@@ -543,7 +544,7 @@ class MVBTSNet(torch.nn.Module):
             #     loss_pgt = float((numer / denom_).cpu())                   ## Min-Max Normalization
 
             if self.empty_empty:  ## method sets the sigma values of the invalid features to 0 for invalidity.
-                sigma[torch.all(invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
+                sigma[torch.all(self.invalid_features, dim=-1)] = 0  # sigma[invalid_features[..., 0]] = 0
             # TODO: Think about this!
             # Since we don't train the colors directly, lets use softplus instead of relu
 
@@ -554,12 +555,12 @@ class MVBTSNet(torch.nn.Module):
                 invalid_colors = invalid_colors.permute(0, 2, 1, 3).reshape(n_, n_pts, nv_)
 
                 invalid = (
-                    invalid_colors | torch.all(invalid_features, dim=-1)[..., None]
+                    invalid_colors | torch.all(self.invalid_features, dim=-1)[..., None]
                 )  # invalid = invalid_colors | torch.all(invalid_features, dim=1).expand(-1,-1,invalid_colors.shape[-1])       # # invalid = invalid_colors | invalid_features  # Invalid features gets broadcasted to (n, n_pts, nv)
                 invalid = invalid.to(rgb.dtype)
             else:  ## If only_density is True, the method only returns the volume density (sigma) without computing the RGB colors.
                 rgb = torch.zeros((n_, n_pts, nv_ * 3), device=sigma.device)
-                invalid = invalid_features.to(sigma.dtype)
+                invalid = self.invalid_features.to(sigma.dtype)
         return rgb, invalid, sigma
         # return rgb, torch.prod(invalid, dim=-1), sigma
 
@@ -596,8 +597,17 @@ class BTSNet(torch.nn.Module):
         self._d_in = d_in
         self._d_out = d_out
 
+        ## default
         self.mlp_coarse = make_mlp(conf["mlp_coarse"], d_in, d_out=d_out)
         self.mlp_fine = make_mlp(conf["mlp_fine"], d_in, d_out=d_out, allow_empty=True)
+
+        ## to compatible with MVBTS simultaneously
+        # kwargs = {
+        #         "d_out": d_out,
+        #         "allow_empty": True,
+        #     }
+        # self.mlp_coarse = make_mlp(conf["mlp_coarse"], d_in, kwargs)
+        # self.mlp_fine = make_mlp(conf["mlp_fine"], d_in, kwargs)
 
         if self.learn_empty:
             self.empty_feature = nn.Parameter(torch.randn((self.encoder.latent_size,), requires_grad=True))

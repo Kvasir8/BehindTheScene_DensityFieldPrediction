@@ -186,7 +186,8 @@ class ResnetFC(nn.Module):
             return out
 
     @classmethod        ## For foward_hook arguments matching: For multi view BTS model
-    def from_conf(cls, conf, d_in, d_out):
+    # def from_conf(cls, conf, d_in, d_out):    ## default
+    def from_conf(cls, conf, d_in, d_out, d_latent=0):
         return cls(d_in=d_in, d_out=d_out, **conf)
 
     # @classmethod          ## default for original resnetfc.py
