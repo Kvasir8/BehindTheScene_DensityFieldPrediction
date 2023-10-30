@@ -191,11 +191,15 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
 
     if not eval_use_iters:
         trainer.add_event_handler(
-            Events.EPOCH_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation
+            # Events.EPOCH_COMPLETED(every=config["validate_every"]) | Events.COMPLETED,
+            Events.EPOCH_COMPLETED(every=config["validate_every"]),
+            run_validation,
         )
     else:
         trainer.add_event_handler(
-            Events.ITERATION_COMPLETED(every=config["validate_every"]) | Events.COMPLETED, run_validation
+            # Events.ITERATION_COMPLETED(every=config["validate_every"]) | Events.COMPLETED,
+            Events.ITERATION_COMPLETED(every=config["validate_every"]),
+            run_validation,
         )
 
     if visualizer:
@@ -333,7 +337,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
             {"model": model},
             get_save_handler(config),
             filename_prefix="best",
-            n_saved=2,
+            n_saved=5,
             global_step_transform=global_step_from_engine(trainer),
             score_name=metric_name,
             score_function=Checkpoint.get_default_score_fn(metric_name, score_sign=sign),
@@ -512,11 +516,12 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         metric.attach(trainer, name)
 
     to_save = {"trainer": trainer, "model": model, "lr_scheduler": lr_scheduler}
+    to_save_new_model = {"trainer": trainer, "model": model, "optimizer": optimizer, "lr_scheduler": lr_scheduler}
 
     common.setup_common_training_handlers(
         trainer=trainer,
         train_sampler=train_sampler,
-        to_save=to_save,
+        to_save=to_save_new_model,
         save_every_iters=config["checkpoint_every"],
         save_handler=get_save_handler(config),
         lr_scheduler=lr_scheduler,
@@ -524,17 +529,22 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         with_pbars=False,
         clear_cuda_cache=False,
         log_every_iters=config.get("log_every_iters", 100),
+        n_saved=10,
     )
 
     resume_from = config["resume_from"]
     if resume_from is not None:
+        new_model_architecture = config.get("new_model_architecture", False)
         checkpoint_fp = Path(resume_from)
         assert checkpoint_fp.exists(), f"__Checkpoint '{checkpoint_fp.as_posix()}' is not found"
         logger.info(f"Resume from a checkpoint: {checkpoint_fp.as_posix()}")
         checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
-        Checkpoint.load_objects(
-            to_load=to_save, checkpoint=checkpoint, strict=False
-        )  ## !strickt := matching parameters only done mis match ML != DFT
+        if new_model_architecture:
+            Checkpoint.load_objects(to_load=to_save_new_model, checkpoint=checkpoint, strict=False)
+        else:
+            Checkpoint.load_objects(
+                to_load=to_save, checkpoint=checkpoint, strict=False
+            )  ## !strickt := matching parameters only done mis match ML != DFT
 
     return trainer
 
@@ -626,6 +636,8 @@ class MetricLoggingHandler(BaseHandler):
             # Plot losses
             loss_dict = engine.state.output["loss_dict"]
             for k, v in loss_dict.items():
+                if not isinstance(v, (float, int)):
+                    print(f"{k}: {type(v)}")
                 writer.add_scalar(f"loss-{self.tag}/{k}", v, global_step)
 
         if self.log_metrics:
@@ -634,8 +646,12 @@ class MetricLoggingHandler(BaseHandler):
             metrics_dict_custom = engine.state.output["metrics_dict"]
 
             for k, v in metrics_dict.items():
+                if not isinstance(v, (float, int)):
+                    print(f"{k}: {type(v)}")
                 writer.add_scalar(f"metrics-{self.tag}/{k}", v, global_step)
             for k, v in metrics_dict_custom.items():
+                if not isinstance(v, (float, int)):
+                    print(f"{k}: {type(v)}")
                 writer.add_scalar(f"metrics-{self.tag}/{k}", v, global_step)
 
         if self.log_timings:

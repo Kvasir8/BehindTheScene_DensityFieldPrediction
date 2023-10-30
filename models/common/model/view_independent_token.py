@@ -37,7 +37,7 @@ class FixedViewIndependentToken(BaseIndependentToken):
         self.readout_token = nn.Parameter(torch.rand(1, 1, attn_feat), requires_grad=True)
 
     def forward(self, view_dependent_tokens: torch.Tensor, **kwargs) -> torch.Tensor:
-        return self.readout_token.expand(view_dependent_tokens.shape[0], -1, -1)            ### (n_pts, 1, 16)
+        return self.readout_token.expand(view_dependent_tokens.shape[0], -1, -1)  ### (n_pts, 1, 16)
 
 
 def weights_init(m):
@@ -49,8 +49,8 @@ def weights_init(m):
 
 @torch.jit.script
 def fused_mean_variance(x, weight):
-    mean = torch.sum(x * weight, dim=2, keepdim=True)
-    var = torch.sum(weight * (x - mean) ** 2, dim=2, keepdim=True)
+    mean = torch.sum(x * weight, dim=-2, keepdim=True)
+    var = torch.sum(weight * (x - mean) ** 2, dim=-2, keepdim=True)
     return mean, var
 
 
@@ -64,10 +64,10 @@ class DataViewIndependentToken(BaseIndependentToken):
 
     # def forward(self, view_dependent_tokens: torch.Tensor, invalid_mask: torch.Tensor) -> torch.Tensor:
     def forward(self, view_dependent_tokens: torch.Tensor, **kwargs) -> torch.Tensor:
-        mask = 1 - kwargs["invalid_mask"]
+        mask = 1 - kwargs["invalid_features"].float()
         # mask = 1 - invalid_mask
-        weights = mask / (torch.sum(mask, dim=2, keepdim=True) + 1e-8)
-        mean, var = fused_mean_variance(view_dependent_tokens, weights)
+        weights = mask / (torch.sum(mask, dim=-1, keepdim=True) + 1e-8)
+        mean, var = fused_mean_variance(view_dependent_tokens, weights.unsqueeze(-1))
         # num_valid_tokens = torch.sum((1 - invalid_mask), dim=-1, keepdim=True) + self.eps
         # mean = torch.sum(view_dependent_tokens * (1 - invalid_mask).unsqueeze(-1), dim=-2) / num_valid_tokens
         # var = torch.sum((view_dependent_tokens - mean)**2 * (1 - invalid_mask).unsqueeze(-1), dim=-2) / num_valid_tokens

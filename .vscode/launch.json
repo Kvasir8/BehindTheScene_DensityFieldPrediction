@@ -11,7 +11,40 @@
             "program": "./train.py",
             "args": [
                 "-cn",
-                "ab_kitti_raw_embdim16"
+                // "ab_kitti_raw_embdim16",
+                // "exp_kitti_360_simple_multi_view_head",
+                "exp_kitti_360_mean_var_token",
+                "batch_size=1",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Just Visualization",
+            "type": "python",
+            "request": "launch",
+            "program": "./train.py",
+            "args": [
+                "-cn",
+                // "exp_kitti_360_no_dropout",
+                "exp_kitti_360_simple_multi_view_head",
+                "++batch_size=1",
+                "++stop_iteration=210002",
+                "++model_conf.ids_enc_offset_viz=[0, 1, 4, 5]",
+                "++resume_from=/storage/user/muhled/outputs/mvbts/kitti-360/simple_multi_view_head_backend-None-1_20231027-110726/training_checkpoint_210000.pt",
+                "++new_model_architecture=true"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Evaluation",
+            "type": "python",
+            "request": "launch",
+            "program": "./eval.py",
+            "args": [
+                "-cn",
+                "eval_lidar_occ_dominik",
             ],
             "console": "integratedTerminal",
             "justMyCode": false

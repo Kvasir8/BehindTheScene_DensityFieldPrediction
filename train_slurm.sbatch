@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="360_embdim16_slurm"
+#SBATCH --job-name="kitti360_debug"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
@@ -14,8 +14,23 @@ export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
 
-### For ablation study
+### For ablation study: ## Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_encLy1, then change job name as "360_encLy1_slurm"
 ## kitti-360
+### For knowledge-distillation
+# python train.py -cn exp_kitti_360_DFT_KD
+
+### For checking whether the poor intrinsics from fisheye's camera would be detrimental for the reconstruction quality
+# python train.py -cn ab_kitti_360_NoFe_PWF_do05_nv4    ## Note: To check having all input stereo views as input feature maps would be reasonable for density field reconstruction
+
+## For only stereo input feature map
+# python train.py -cn ab_kitti_360_NoFe_PWF_do05_nv2    ## taking half of the input images
+# python train.py -cn ab_kitti_360_NoFe_PWF_do01_nv3
+
+# python train.py -cn ab_kitti_360_NoFe_FF_do05
+# python train.py -cn ab_kitti_360_NoFe_FF_do01
+
+## Including all input images as input feature map
+
 # python train.py -cn ab_kitti_360_encLy1
 # python train.py -cn ab_kitti_360_encLy6
 # python train.py -cn ab_kitti_360_dropoutZero
@@ -23,7 +38,7 @@ nvidia-smi
 # python train.py -cn ab_kitti_360_embTypeff
 # python train.py -cn ab_kitti_360_embdim16
 # python train.py -cn ab_kitti_360_embdim64
-## For message: Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_encLy1, then change job name as "360_encLy1_slurm"
+
 
 ## kitti-raw
 # python train.py -cn ab_kitti_raw_encLy1
@@ -36,5 +51,8 @@ nvidia-smi
 
 # python train.py -cn exp_kitti_360_DFT_slurm
 # python train.py -cn ab_kitti_raw_base
+
+## kitti-360 debug
+python train.py -cn exp_kitti_360_DFT_debug
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

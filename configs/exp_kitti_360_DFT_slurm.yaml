@@ -31,7 +31,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "__Ablation_encLyer6_stdTransformer_slurm"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "__KD_allFrameEnc_do05"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
@@ -54,7 +54,7 @@ resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/traini
 
 ## knowlege distillation (Note: make same configuration from checkpoint)
 # resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
-
+# resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
 
 data:
     data_fc: 2              ## default: 2, and 3 for monocular camera
@@ -119,7 +119,7 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: True           ## default: False // Note: customized IBRAttn tends to decrease the loss faster than built-in, but large memory consumption with customized transformer. built-in Pytorch is efficient.
-                n_layers: 6             ## default: 3, num encoder layers from Transformer
+                n_layers: 3             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
@@ -137,7 +137,7 @@ model_conf:
 
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "random"            # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
+    encoding_style: "random"                # random | default | stereo : execlusively load stereo for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
     ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3                           # default: 3(m)

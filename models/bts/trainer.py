@@ -97,8 +97,14 @@ class BTSWrapper(nn.Module):
         self._counter = 0
 
     @staticmethod
-    def get_loss_metric_names():    ## TODO: pseudo GT loss or Eikonal loss
-        return ["loss", "loss_l2", "loss_mask", "loss_temporal", "loss_pgt"]        ## default: ["loss", "loss_l2", "loss_mask", "loss_temporal"]
+    def get_loss_metric_names():  ## TODO: pseudo GT loss or Eikonal loss
+        return [
+            "loss",
+            "loss_l2",
+            "loss_mask",
+            "loss_temporal",
+            "loss_pgt",
+        ]  ## default: ["loss", "loss_l2", "loss_mask", "loss_temporal"]
 
     def forward(self, data):
         data = dict(data)
@@ -131,19 +137,26 @@ class BTSWrapper(nn.Module):
         else:
             frame_perm = torch.arange(v)  ## eval
 
-        if self.enc_style == "random":         ## encoded views
+        if self.enc_style == "random":  ## encoded views
             encoder_perm = (torch.randperm(v - 1) + 1)[: self.nv_ - 1].tolist()  ## nv-1 for mono [0] idx
             ids_encoder = [0]  ## always starts sampling from mono cam
             ids_encoder.extend(encoder_perm)  ## add more cam_views randomly incl. fe
         elif self.enc_style == "default":
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
-        elif self.enc_style == "test":
+        elif self.enc_style == "stereo":
+            # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
+            # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
+            encoder_perm = (torch.randperm(v - (1 + 4)) + 1)[: self.nv_ - 1].tolist()
             ids_encoder = [0]
-        else:   raise NotImplementedError(f"__unrecognized enc_style: {self.enc_style}")
+            ids_encoder.extend(encoder_perm)
+        else:
+            raise NotImplementedError(f"__unrecognized enc_style: {self.enc_style}")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (not self.training and self.ids_enc_viz_eval):   ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
-            ids_encoder = self.ids_enc_viz_eval             ## fixed during eval
+        if (
+            not self.training and self.ids_enc_viz_eval
+        ):  ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
+            ids_encoder = self.ids_enc_viz_eval  ## fixed during eval
 
         ids_render = torch.sort(frame_perm[[i for i in self.frames_render if i < v]]).values  ## ?    ### tensor([0, 4])
 
@@ -153,12 +166,12 @@ class BTSWrapper(nn.Module):
             if self.frame_sample_mode == "only":
                 ids_loss = [0]
                 ids_render = ids_render[ids_render != 0]
-            
+
             elif self.frame_sample_mode == "not":
                 frame_perm = torch.randperm(v - 1) + 1
                 ids_loss = torch.sort(frame_perm[[i for i in self.frames_render if i < v - 1]]).values
                 ids_render = [i for i in range(v) if i not in ids_loss]
-            
+
             elif self.frame_sample_mode == "stereo":
                 if frame_perm[0] < v // 2:
                     ids_loss = list(range(v // 2))
@@ -166,7 +179,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(v // 2, v))
                     ids_render = list(range(v // 2))
-            
+
             elif self.frame_sample_mode == "mono":
                 split_i = v // 2
                 if frame_perm[0] < v // 2:
@@ -175,7 +188,7 @@ class BTSWrapper(nn.Module):
                 else:
                     ids_loss = list(range(1, split_i, 2)) + list(range(split_i, v, 2))
                     ids_render = list(range(0, split_i, 2)) + list(range(split_i + 1, v, 2))
-            
+
             elif self.frame_sample_mode == "kitti360-mono":
                 steps = v // 4
                 start_from = 0 if frame_perm[0] < v // 2 else 1
@@ -186,9 +199,10 @@ class BTSWrapper(nn.Module):
                     ids_loss += [cam * steps + i for i in range(start_from, steps, 2)]
                     ids_render += [cam * steps + i for i in range(1 - start_from, steps, 2)]
                     start_from = 1 - start_from
-                
-                if self.enc_style == "test":    ids_encoder = ids_loss[:self.nv_]
-            
+
+                if self.enc_style == "test":
+                    ids_encoder = ids_loss[: self.nv_]
+
             elif self.frame_sample_mode.startswith("waymo"):
                 num_views = int(self.frame_sample_mode.split("-")[-1])
                 steps = v // num_views
@@ -227,7 +241,8 @@ class BTSWrapper(nn.Module):
                 ids_render = [0, steps, steps * 2]
                 combine_ids = [(i, steps + i, steps * 2 + i) for i in range(steps)]
 
-        if self.loss_from_single_img:   ids_loss = ids_loss[:1]
+        if self.loss_from_single_img:
+            ids_loss = ids_loss[:1]
 
         ip = self.train_image_processor if self.training else self.val_image_processor
 
@@ -263,7 +278,7 @@ class BTSWrapper(nn.Module):
         sampler = self.train_sampler if self.training else self.val_sampler
 
         with profiler.record_function("trainer_sample-rays"):
-            all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss], poses[:, ids_loss], projs[:, ids_loss])   ## !
+            all_rays, all_rgb_gt = sampler.sample(images_ip[:, ids_loss], poses[:, ids_loss], projs[:, ids_loss])  ## !
 
         data["fine"], data["coarse"] = [], []
         # if self.dropout: all_rays = self.dropout(all_rays.permute(0,-1,1)).permute(0,-1,1)    ## randomly zero out entire samples from sets of fraction of views (8), dim(all_rays)==(n,M,v)
@@ -291,9 +306,11 @@ class BTSWrapper(nn.Module):
                 data["coarse"].append(render_dict["coarse"])
                 data["rgb_gt"] = render_dict["rgb_gt"]
                 data["rays"] = render_dict["rays"]
-        else:   ### self.prediction_mode == default
+        else:  ### self.prediction_mode == default
             with profiler.record_function("trainer_render"):
-                render_dict = self.renderer(all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt)    ## where the encoder is used from output of "self.renderer.net.encode"
+                render_dict = self.renderer(
+                    all_rays, want_weights=True, want_alphas=True, want_rgb_samps=True, want_pgt_loss=self.loss_pgt
+                )  ## where the encoder is used from output of "self.renderer.net.encode"
                 ### [n:=batch_size, M_patches, cam_views:=8]    ## forward in _RenderWrapper
             if "fine" not in render_dict:
                 render_dict["fine"] = dict(render_dict["coarse"])
@@ -312,7 +329,7 @@ class BTSWrapper(nn.Module):
         data["z_near"] = torch.tensor(self.z_near, device=images.device)
         data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
-        if self.training is False:      ## for viz eval with Bird-eye view
+        if self.training is False:  ## for viz eval with Bird-eye view
             data["coarse"][0]["depth"] = distance_to_z(data["coarse"][0]["depth"], projs)
             data["fine"][0]["depth"] = distance_to_z(data["fine"][0]["depth"], projs)
 
@@ -336,7 +353,8 @@ class BTSWrapper(nn.Module):
             data["profiles"] = [render_profile(self.renderer.net, cam_incl_adjust=cam_incl_adjust)]
             # data["segmentation_profiles"] = [render_segmentation_profile(self.renderer.net, cam_incl_adjust)]
 
-        if self.training:   self._counter += 1
+        if self.training:
+            self._counter += 1
 
         return data
 
@@ -480,42 +498,50 @@ def initialize(config: dict, logger=None):
     d_out = 1 if sample_color else 4
 
     if arch == "MVBTSNet":
-        if config["model_conf"]["code_mode"] == "z_feat": cam_pos = 1
-        else: cam_pos = 0
-        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3+cam_pos)
+        if config["model_conf"]["code_mode"] == "z_feat":
+            cam_pos = 1
+        else:
+            cam_pos = 0
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
         encoder = make_backbone(config["model_conf"]["encoder"])
-        d_in = encoder.latent_size + code_xyz.d_out         ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
-        decoder_heads = {head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]}
-        
-        if config["model_conf"]["decoder_heads"][0]["freeze"]: ## Freezing the MVhead for knowledge distillation
-            for param in decoder_heads["multiviewhead"].parameters():   param.requires_grad = False
-            print("__frozen the MVhead for knowledge distillation.")
-        else: print("__No freezing heads during training.")
+        d_in = (
+            encoder.latent_size + code_xyz.d_out
+        )  ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
+        decoder_heads = {
+            head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
+        }
 
-    # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
+        if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
+            for param in decoder_heads["multiviewhead"].parameters():
+                param.requires_grad = False
+            print("__frozen the MVhead for knowledge distillation.")
+        else:
+            print("__No freezing heads during training.")
+
+        # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
             config["model_conf"],
             encoder,
             code_xyz,
             decoder_heads,
-            final_pred_head = config.get("final_prediction_head", None),
-            ren_nc = config["renderer"]["n_coarse"],
+            final_pred_head=config.get("final_prediction_head", None),
+            ren_nc=config["renderer"]["n_coarse"],
         )
 
-    elif arch == "BTSNet":     ## For single view BTS model
+    elif arch == "BTSNet":  ## For single view BTS model
         net = BTSNet(config["model_conf"])
         encoder = make_backbone(config["model_conf"]["encoder"])
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
-        d_in = encoder.latent_size + code_xyz.d_out         ### 103
-        
+        d_in = encoder.latent_size + code_xyz.d_out  ### 103
 
     # elif arch == "IBRNet":     ## For baselines
     #     net = BTSNet(config["model_conf"])
     #     encoder = make_backbone(config["model_conf"]["encoder"])
     #     code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
     #     d_in = encoder.latent_size + code_xyz.d_out         ### 103
-        
-    else:   raise NotImplementedError(f"__unrecognized net: {arch} instantiation in model")
+
+    else:
+        raise NotImplementedError(f"__unrecognized net: {arch} instantiation in model")
 
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
@@ -526,14 +552,15 @@ def initialize(config: dict, logger=None):
 
     model = idist.auto_model(model)
 
-    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
+    optimizer = optim.Adam(
+        model.parameters(), lr=config["learning_rate"]
+    )  ## TODO:(below)first to see how the model is constructed in loss. Then maybe speicfy the lr for en- and decoder
     # optimizer = optim.Adam([{"encoder_decoder": model.[...encoder].parameters()}, {"final_decoder": model.transformer.parameters(), "lr": config["learning_rate"] / 10}], lr=config["learning_rate"])
     optimizer = idist.auto_optim(optimizer)
 
     lr_scheduler = make_scheduler(config.get("scheduler", {}), optimizer)
 
     criterion = ReconstructionLoss(config["loss"], config["model_conf"].get("use_automasking", False))
-
 
     return model, optimizer, criterion, lr_scheduler
 

@@ -1,23 +1,23 @@
 defaults:                       ### This code is for concept of proof and transfer its parameters to long run slurm training config
     - default
-    - data: kitti_raw_DFT
+    - data: kitti_360_DFT
     - _self_
 
-name: "base_debug"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "__Ab_NoFe_PWF_do05_slurm"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
-output_path: "out/debug/mvbts/kitti-raw"
+output_path: "out/mvbts/kitti_360/"
 
 num_epochs: 200
 validate_every: 100000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
-visualize_every: 5                    # default: 5000       ## bigger is good for computational reduction
-batch_size: 1                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
+visualize_every: 1000                    # default: 5000       ## bigger is good for computational reduction
+batch_size: 4                           # default: 4 for MVBTS | 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel                     # The model that has the smallest absolute relative error will be saved.
     sign: -1                            # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
-## fine-tuning from pretrained BTS model from kittiraw
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_raw/pretrained/training-checkpoint.pt"
+## fine-tuning from pretrained BTS model
+resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 
 ## keep continuing training from breakpoint
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/Smodekitti360-mono_FeT_StTFrF_Fc2_do0.1_dohT_embEncff_dout16_decIBRT_nly4_nh4_readoutTypefixed_lr5e-05_bs1_rbs2048_ztype_z_trainType__slurm_backend-None-1_20231015-213542/training_checkpoint_182000.pt"
@@ -35,7 +35,7 @@ data:
     fisheye_rotation: [0, -15]
 
     ## This is for training inference viz for different training view cases: F, S, FS in BTS paper. No need to change for normal training
-    data_fisheye: true
+    data_fisheye: true      ## load fisheye for input images for image reconstruction loss
     data_stereo: true       ## load only left
 
 #### below are the same for both eval and training
@@ -96,7 +96,7 @@ model_conf:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_views_rate: 0.1     # default: 0.1, set 0 for disable and for knowledge-distillation
+            dropout_views_rate: 0.5     # default: 0.1, set 0 for disable and for knowledge-distillation
             dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
@@ -117,11 +117,11 @@ model_conf:
 
     n_frames_encoder: 1
     n_frames_render: 2                  # num frame to render among given cameras at a frame: 4 x 2 => v==8
-    frame_sample_mode: default          # defaut: default (for kitti-raw) | kitti360-mono | mono | stereo | only (for single image without temporal steps). Note: Make sure data_fisheye, data_stereo is set up accordingly.
+    frame_sample_mode: kitti360-mono    # defaut: kitti360-mono | mono | stereo | only (for single image without temporal steps). Note: Make sure data_fisheye, data_stereo is set up accordingly.
 
     sample_mode: patch                  # e.g. a ray_batch_size of 4096, we sample 4096/64=64 patches.
     patch_size: 8                       # => 64 patches * (8 * 8) pixels / patch * 1 ray / pixel * 64 points / ray = 262144 points in the space in a single batch entry to be evaluated
-    ray_batch_size: 128                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
+    ray_batch_size: 2048                # default: 2048, 2048 in BTS paper #_sampled points in an array from one single view. Note: assert ray_batch_size % (self.patch_size_x * self.patch_size_y)
     flip_augmentation: true             # data augmentation
     ## TODO: Implement sample_type: Uniform | Hierarchical
 
@@ -144,7 +144,6 @@ scheduler:
     step_size: 120000
     gamma: 0.1
 
-## For distributed training
 #backend = "nccl"  # Or "gloo"
 #nproc_per_node: 2
 

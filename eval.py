@@ -11,7 +11,8 @@ from models.bts.evaluator_3dbb import evaluation as bts_3dbb
 from models.bts.evaluator_lidar import evaluation as bts_lidar
 
 
-@hydra.main(version_base=None, config_path="configs")
+# @hydra.main(version_base=None, config_path="configs")
+@hydra.main(version_base=None, config_path="configs", config_name="exp_kitti_360_DFT")
 def main(config: DictConfig):
 
     OmegaConf.set_struct(config, False)

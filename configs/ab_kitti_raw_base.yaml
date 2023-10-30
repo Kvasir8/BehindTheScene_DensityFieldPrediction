@@ -35,8 +35,8 @@ data:
     fisheye_rotation: [0, -15]
 
     ## This is for training inference viz for different training view cases: F, S, FS in BTS paper. No need to change for normal training
-    data_fisheye: true
-    data_stereo: true       ## load only left
+    data_fisheye: true      ## load fisheye for input images for image reconstruction loss
+    data_stereo: true       ## false for load only left
 
 #### below are the same for both eval and training
 
@@ -108,7 +108,7 @@ model_conf:
 
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "random"            # random | default | test : randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
+    encoding_style: "random"            # random | default | fe : load fisheye for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
     ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3                           # default: 3(m)
