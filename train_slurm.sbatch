@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="kitti360_debug"
-#SBATCH --nodes=1
+#SBATCH --job-name="kitti360_train_long_run"
+#SBATCH --nodes=1 
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:48G
 #SBATCH --mem=32G
@@ -49,10 +49,10 @@ nvidia-smi
 # python train.py -cn ab_kitti_raw_embdim16
 # python train.py -cn ab_kitti_raw_embdim64
 
-# python train.py -cn exp_kitti_360_DFT_slurm
+python train.py -cn exp_kitti_360_DFT_slurm
 # python train.py -cn ab_kitti_raw_base
 
 ## kitti-360 debug
-python train.py -cn exp_kitti_360_DFT_debug
+# python train.py -cn exp_kitti_360_DFT_debug
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

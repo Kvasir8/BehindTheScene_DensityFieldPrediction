@@ -9,6 +9,7 @@ from models.bts.evaluator import evaluation as bts
 from models.bts.evaluator_nvs import evaluation as bts_nvs
 from models.bts.evaluator_3dbb import evaluation as bts_3dbb
 from models.bts.evaluator_lidar import evaluation as bts_lidar
+from models.bts.evaluator_depth import evaluation as bts_depth  ##
 
 
 # @hydra.main(version_base=None, config_path="configs")

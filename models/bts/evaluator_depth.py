@@ -95,7 +95,7 @@ class BTSWrapper(nn.Module):
         data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
         data.update(self.compute_depth_metrics(data))
-        data.update(self.compute_nvs_metrics(data))
+        # data.update(self.compute_nvs_metrics(data))
 
         globals()["IDX"] += 1
 
@@ -158,41 +158,41 @@ class BTSWrapper(nn.Module):
         }
         return metrics_dict
 
-    def compute_nvs_metrics(self, data):
-        # TODO: This is only correct for batchsize 1!
-        # Following tucker et al. and others, we crop 5% on all sides
+    # def compute_nvs_metrics(self, data):
+    #     # TODO: This is only correct for batchsize 1!
+    #     # Following tucker et al. and others, we crop 5% on all sides
 
-        # idx of stereo frame (the target frame is always the "stereo" frame).
-        sf_id = data["rgb_gt"].shape[1] // 2
+    #     # idx of stereo frame (the target frame is always the "stereo" frame).
+    #     sf_id = data["rgb_gt"].shape[1] // 2
 
-        imgs_gt = data["rgb_gt"][:, sf_id:sf_id+1]
-        imgs_pred = data["fine"][0]["rgb"][:, sf_id:sf_id+1]
+    #     imgs_gt = data["rgb_gt"][:, sf_id:sf_id+1]
+    #     imgs_pred = data["fine"][0]["rgb"][:, sf_id:sf_id+1]
 
-        imgs_gt = imgs_gt.squeeze(0).permute(0, 3, 1, 2)
-        imgs_pred = imgs_pred.squeeze(0).squeeze(-2).permute(0, 3, 1, 2)
+    #     imgs_gt = imgs_gt.squeeze(0).permute(0, 3, 1, 2)
+    #     imgs_pred = imgs_pred.squeeze(0).squeeze(-2).permute(0, 3, 1, 2)
 
-        n, c, h, w = imgs_gt.shape
-        y0 = int(math.ceil(0.05 * h))
-        y1 = int(math.floor(0.95 * h))
-        x0 = int(math.ceil(0.05 * w))
-        x1 = int(math.floor(0.95 * w))
+    #     n, c, h, w = imgs_gt.shape
+    #     y0 = int(math.ceil(0.05 * h))
+    #     y1 = int(math.floor(0.95 * h))
+    #     x0 = int(math.ceil(0.05 * w))
+    #     x1 = int(math.floor(0.95 * w))
 
-        imgs_gt = imgs_gt[:, :, y0:y1, x0:x1]
-        imgs_pred = imgs_pred[:, :, y0:y1, x0:x1]
+    #     imgs_gt = imgs_gt[:, :, y0:y1, x0:x1]
+    #     imgs_pred = imgs_pred[:, :, y0:y1, x0:x1]
 
-        imgs_gt_np = imgs_gt.detach().squeeze().permute(1, 2, 0).cpu().numpy()
-        imgs_pred_np = imgs_pred.detach().squeeze().permute(1, 2, 0).cpu().numpy()
+    #     imgs_gt_np = imgs_gt.detach().squeeze().permute(1, 2, 0).cpu().numpy()
+    #     imgs_pred_np = imgs_pred.detach().squeeze().permute(1, 2, 0).cpu().numpy()
 
-        ssim_score = skimage.metrics.structural_similarity(imgs_pred_np, imgs_gt_np, multichannel=True, data_range=1, channel_axis=2)
-        psnr_score = skimage.metrics.peak_signal_noise_ratio(imgs_pred_np, imgs_gt_np, data_range=1)
-        lpips_score = self.lpips_vgg(imgs_pred, imgs_gt, normalize=False).mean()
+    #     ssim_score = skimage.metrics.structural_similarity(imgs_pred_np, imgs_gt_np, multichannel=True, data_range=1, channel_axis=2)
+    #     psnr_score = skimage.metrics.peak_signal_noise_ratio(imgs_pred_np, imgs_gt_np, data_range=1)
+    #     lpips_score = self.lpips_vgg(imgs_pred, imgs_gt, normalize=False).mean()
 
-        metrics_dict = {
-            "ssim": ssim_score,
-            "psnr": psnr_score,
-            "lpips": lpips_score
-        }
-        return metrics_dict
+    #     metrics_dict = {
+    #         "ssim": ssim_score,
+    #         "psnr": psnr_score,
+    #         "lpips": lpips_score
+    #     }
+    #     return metrics_dict
 
 
 def evaluation(local_rank, config):
@@ -224,8 +224,7 @@ def initialize(config: dict, logger=None):
         else:   cam_pos = 0
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
         encoder = make_backbone(config["model_conf"]["encoder"])
-        d_in = (
-            encoder.latent_size + code_xyz.d_out
+        d_in = (encoder.latent_size + code_xyz.d_out
         )  ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
         decoder_heads = {
             head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
@@ -247,6 +246,10 @@ def initialize(config: dict, logger=None):
             final_pred_head=config.get("final_prediction_head", None),
             ren_nc=config["renderer"]["n_coarse"],
         )
+    elif arch == "IBRNet": pass
+
+    elif arch == "neuray": pass
+        
     else:
         net = globals()[arch](config["model_conf"])
     renderer = NeRFRenderer.from_conf(config["renderer"])

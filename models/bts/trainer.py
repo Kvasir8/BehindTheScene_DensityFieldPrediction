@@ -144,17 +144,19 @@ class BTSWrapper(nn.Module):
         elif self.enc_style == "default":
             ids_encoder = [v_ for v_ in range(self.nv_)]  ## iterating view(v_) over num_views(nv_)
         elif self.enc_style == "stereo":
-            # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
-            # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
-            encoder_perm = (torch.randperm(v - (1 + 4)) + 1)[: self.nv_ - 1].tolist()
-            ids_encoder = [0]
-            ids_encoder.extend(encoder_perm)
+            if self.training:
+                # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
+                # if v < 8:   raise RuntimeError(f"__number of views should be more than 4 when excluding fisheye views")
+                encoder_perm = (torch.randperm(v - (1 + 4)) + 1)[: self.nv_ - 1].tolist()
+                ids_encoder = [0]
+                ids_encoder.extend(encoder_perm)
+            else:
+                ids_encoder = [0]
         else:
             raise NotImplementedError(f"__unrecognized enc_style: {self.enc_style}")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (
-            not self.training and self.ids_enc_viz_eval
+        if (not self.training and self.ids_enc_viz_eval
         ):  ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
             ids_encoder = self.ids_enc_viz_eval  ## fixed during eval
 
@@ -498,10 +500,8 @@ def initialize(config: dict, logger=None):
     d_out = 1 if sample_color else 4
 
     if arch == "MVBTSNet":
-        if config["model_conf"]["code_mode"] == "z_feat":
-            cam_pos = 1
-        else:
-            cam_pos = 0
+        if config["model_conf"]["code_mode"] == "z_feat":   cam_pos = 1
+        else:   cam_pos = 0
         code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
         encoder = make_backbone(config["model_conf"]["encoder"])
         d_in = (

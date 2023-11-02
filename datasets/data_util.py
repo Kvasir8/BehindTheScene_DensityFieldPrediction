@@ -278,9 +278,12 @@ def make_test_dataset(config):
             return_segmentation=config.get("data_segmentation", False),
             keyframe_offset=0,
             fisheye_rotation=config.get("fisheye_rotation", 0),
-            fisheye_offset=config.get("fisheye_offset", 1),
+            fisheye_offset=config.get("fisheye_offset", [10])[0],        ## this modifies the offsets for all datasets including the training dataset
+            stereo_offset= config.get("stereo_offset", [1])[0],         ## This is to set consistent evaluation with test and viz
             dilation=config.get("dilation", 1),
-            is_preprocessed=config.get("is_preprocessed", False)
+            is_preprocessed=config.get("is_preprocessed", False),
+
+            return_depth=True
         )
         return test_dataset
     elif type == "RealEstate10k":

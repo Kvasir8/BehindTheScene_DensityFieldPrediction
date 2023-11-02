@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="test_batch_size"
+#SBATCH --job-name="multi_view_head_alt_no_random_no_fisheye"
 #SBATCH --partition=DEADLINEBIG
 #SBATCH --comment="CVPR"
 #SBATCH --nodes=1
@@ -16,9 +16,11 @@ export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
 
-python train.py -cn exp_kitti_360_base
+# python train.py -cn exp_kitti_360_base
 # python train.py -cn exp_kitti_360_smaller_encoder
 # python train.py -cn exp_kitti_360_no_fisheye
 # python train.py -cn exp_kitti_360_no_dropout
 # python train.py -cn exp_kitti_360_simple_multi_view_head
+# python train.py -cn exp_kitti_360_simple_multi_view_head2
+python train.py -cn exp_kitti_360_simple_multi_view_head3
 # python train.py -cn exp_kitti_360_mean_var_token

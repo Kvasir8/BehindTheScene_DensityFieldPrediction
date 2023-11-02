@@ -82,8 +82,8 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
             config["cuda device name"] = torch.cuda.get_device_name(local_rank)
 
     # Setup dataflow, model, optimizer, criterion
-    # test_loader = get_dataflow(config)
-    test_loader = get_dataflow(config, logger)
+    test_loader = get_dataflow(config)          ## default
+    # test_loader = get_dataflow(config, logger)
 
     if hasattr(test_loader, "dataset"):
         logger.info(f"Dataset length: Test: {len(test_loader.dataset)}")
@@ -191,7 +191,7 @@ def create_evaluator(model, metrics, config, logger=None, tag="val"):
         data = to(data, device)
 
         with autocast(enabled=with_amp):
-            data = model(data)
+            data = model(data)              ## ! This is where the occupancy prediction is made.
 
         loss_metrics = {}
 

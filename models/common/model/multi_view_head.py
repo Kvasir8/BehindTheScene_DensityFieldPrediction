@@ -221,3 +221,203 @@ class SimpleMultiViewHead(nn.Module):
             conf.get("dropout_views_rate", 0.0),
             conf.get("dropout_multiviewhead", False),
         )
+
+
+class MultiViewHead2(nn.Module):
+    def __init__(
+        self,
+        mlp: nn.Module,
+        do_: float = 0.0,
+        do_mvh: bool = True,
+        attn_layers: Optional[nn.Module] = None,
+        independent_token_net: Optional[BaseIndependentToken] = None,
+        mlp2: Optional[nn.Module] = None,
+    ):
+        """Attention based feature aggregation module for multi-view density prediction.
+
+        Args:
+            emb_encoder (nn.Module, optional): small network to compress the per view feature vectors to a lower dimensional representation. Defaults to Optional[nn.Module].
+            independent_feature_net (nn.Module, optional): module to generate the view independent token from the view dependent tokens. Defaults to nn.Module.
+            attn_layers (nn.Module, optional): attention layers of the module responsible for information sharing between the views. Defaults to nn.Module.
+            density_head (nn.Module, optional): final network layers to predict the density from the view independent token. Defaults to nn.Module.
+            do_ (float, optional): probability of dropping out a single view for training. Defaults to 0.0.
+            do_mvh (bool, optional): to decide whether the first view feature map should be droppout due to pgt_loss computation. Defaults to 0.0.
+        """
+
+        super(MultiViewHead2, self).__init__()
+
+        self.dropout = nn.Dropout(do_)
+        self.do_mvh = do_mvh
+
+        self.mlp = mlp
+
+        self.attn_layers = attn_layers
+        self.independent_token = independent_token_net
+        self.mlp2 = mlp2
+
+    def forward(self, sampled_features, **kwargs):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+        ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
+        invalid_features = kwargs.get("invalid_features", None)
+        assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
+        assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
+        # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
+
+        if (
+            self.dropout.p != 0 and self.do_mvh
+        ):  ## dropping out except first view feature map due to pgt_loss computation
+            invalid_features = torch.concat(
+                [invalid_features[:, :1], 1 - self.dropout((1 - invalid_features[:, 1:].float()))], dim=1
+            )
+        elif self.dropout.p != 0 and not self.do_mvh:
+            invalid_features = 1 - self.dropout(
+                (1 - invalid_features.float())
+            )  ## Note: after dropping out NeuRay, the values of elements are 2. ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        elif self.dropout.p == 0 and not self.do_mvh:
+            pass
+        else:
+            raise NotImplementedError(
+                f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition"
+            )
+
+        encoded_features = self.mlp(sampled_features)
+
+        if self.independent_token is not None:
+            view_independent_feature = self.independent_token(encoded_features, **kwargs).to(encoded_features.device)
+
+            # padding
+            encoded_features = torch.concat(
+                [view_independent_feature, encoded_features], dim=1
+            )  ### (B*n_pts, nv_+1, 103) == ([100000, 2+1, 103]): padding along the num_token dim. B*n_pts:=Batch size or number of data points being processed.
+            invalid_features = torch.concat(  ## Note: view_independent_feature is 1st index in Tensor (:,0,:)
+                [torch.zeros(invalid_features.shape[0], 1, device="cuda"), invalid_features],
+                dim=1,
+            )
+
+        if self.attn_layers is not None:
+            encoded_features = self.attn_layers(encoded_features, src_key_padding_mask=invalid_features)
+
+        if self.independent_token is not None:
+            if self.mlp2 is not None:
+                return self.mlp2(encoded_features[..., 0, :])
+            else:
+                return encoded_features[..., 0, 1:]
+        else:
+            if self.mlp2 is not None:
+                encoded_features = self.mlp2(encoded_features)
+
+            weights = torch.nn.functional.softmax(
+                encoded_features[..., 0].masked_fill(invalid_features == 1, -1e9), dim=-1
+            )
+            return torch.sum(encoded_features[..., 1:] * weights.unsqueeze(-1), dim=-2)
+
+        # return density_field
+
+    @classmethod
+    def from_conf(cls, conf, d_in, d_out):
+        if conf["mlp2"] is not None:
+            d_out_mlp = conf["mlp2"]["d_in"]
+        else:
+            d_out_mlp = d_out + 1
+        mlp = ResnetFC.from_conf(conf["mlp"]["args"], d_in, d_out_mlp)
+
+        if conf["attn_layers"] is not None:
+            attn_layers = make_attn_layers(conf["attn_layers"], d_out_mlp)
+        else:
+            attn_layers = None
+
+        if conf["independent_token"] is not None:
+            independent_token = make_independent_token(conf["independent_token"], d_out_mlp)
+        else:
+            independent_token = None
+
+        if conf["mlp2"] is not None:
+            if conf["independent_token"] is not None:
+                d_out_mlp2 = d_out
+            else:
+                d_out_mlp2 = d_out + 1
+            mlp2 = ResnetFC.from_conf(conf["mlp2"]["args"], d_out_mlp, d_out_mlp2)
+        else:
+            mlp2 = None
+
+        return cls(
+            mlp,
+            conf.get("dropout_views_rate", 0.0),
+            conf.get("dropout_multiviewhead", False),
+            attn_layers,
+            independent_token,
+            mlp2,
+        )
+
+
+class MultiViewHead3(nn.Module):
+    def __init__(
+        self,
+        mlp: nn.Module,
+        mlp2: nn.Module,
+        do_: float = 0.0,
+        do_mvh: bool = True,
+    ):
+        """Attention based feature aggregation module for multi-view density prediction.
+
+        Args:
+            emb_encoder (nn.Module, optional): small network to compress the per view feature vectors to a lower dimensional representation. Defaults to Optional[nn.Module].
+            independent_feature_net (nn.Module, optional): module to generate the view independent token from the view dependent tokens. Defaults to nn.Module.
+            attn_layers (nn.Module, optional): attention layers of the module responsible for information sharing between the views. Defaults to nn.Module.
+            density_head (nn.Module, optional): final network layers to predict the density from the view independent token. Defaults to nn.Module.
+            do_ (float, optional): probability of dropping out a single view for training. Defaults to 0.0.
+            do_mvh (bool, optional): to decide whether the first view feature map should be droppout due to pgt_loss computation. Defaults to 0.0.
+        """
+
+        super(MultiViewHead3, self).__init__()
+
+        self.dropout = nn.Dropout(do_)
+        self.do_mvh = do_mvh
+
+        self.mlp = mlp
+
+        self.mlp2 = mlp2
+
+    def forward(self, sampled_features, **kwargs):  ### [n_, nv_, M, C1+C_pos_emb], [nv_==2, M==100000, C==1]
+        ## invalid_features: invalid features to mask the features to let model learn without occluded points in the camera's view
+        invalid_features = kwargs.get("invalid_features", None)
+        assert isinstance(invalid_features, torch.Tensor), f"__The {invalid_features} is not a torch.Tensor."
+        assert invalid_features.dtype == torch.bool, f"The elements of the {invalid_features} are not boolean."
+        # invalid_features = (invalid_features > 0.5)  ## round the each of values of 3D points simply by step function within the range of std_var [0,1]
+
+        if (
+            self.dropout.p != 0 and self.do_mvh
+        ):  ## dropping out except first view feature map due to pgt_loss computation
+            invalid_features = torch.concat(
+                [invalid_features[:, :1], 1 - self.dropout((1 - invalid_features[:, 1:].float()))], dim=1
+            )
+        elif self.dropout.p != 0 and not self.do_mvh:
+            invalid_features = 1 - self.dropout(
+                (1 - invalid_features.float())
+            )  ## Note: after dropping out NeuRay, the values of elements are 2. ## randomly zero out the valid sampled_features' matrix. i.e. (1-invalid_features)
+        elif self.dropout.p == 0 and not self.do_mvh:
+            pass
+        else:
+            raise NotImplementedError(
+                f"__unrecognized self.dropout: {self.dropout}, self.do_mvh: {self.do_mvh} condition"
+            )
+
+        encoded_features = self.mlp(sampled_features)
+
+        weights = torch.nn.functional.softmax(encoded_features[..., 0].masked_fill(invalid_features == 1, -1e9), dim=-1)
+
+        density_feature = torch.sum(encoded_features[..., 1:] * weights.unsqueeze(-1), dim=-2)
+
+        return self.mlp2(density_feature)
+
+    @classmethod
+    def from_conf(cls, conf, d_in, d_out):
+        mlp = ResnetFC.from_conf(conf["mlp"]["args"], d_in, conf["mlp2"]["d_in"] + 1)
+
+        mlp2 = ResnetFC.from_conf(conf["mlp2"]["args"], conf["mlp2"]["d_in"], d_out)
+
+        return cls(
+            mlp,
+            mlp2,
+            conf.get("dropout_views_rate", 0.0),
+            conf.get("dropout_multiviewhead", False),
+        )

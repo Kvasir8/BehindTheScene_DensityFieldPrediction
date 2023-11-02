@@ -1,4 +1,4 @@
-from .multi_view_head import MultiViewHead, SimpleMultiViewHead, make_attn_layers
+from .multi_view_head import MultiViewHead, SimpleMultiViewHead, MultiViewHead2, MultiViewHead3, make_attn_layers
 
 from .resnetfc import ResnetFC
 from .mlp import ImplicitNet, make_embedding_encoder
@@ -15,6 +15,10 @@ def make_head(conf, d_in: int, d_out: int):
         head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
     elif head_type == "SimpleMultiViewHead":
         head = SimpleMultiViewHead.from_conf(conf["args"], d_in, d_out)
+    elif head_type == "MultiViewHead2":
+        head = MultiViewHead2.from_conf(conf["args"], d_in, d_out)
+    elif head_type == "MultiViewHead3":
+        head = MultiViewHead3.from_conf(conf["args"], d_in, d_out)
 
     ## For baseline comparison
     # elif head_type == "IBRNet":

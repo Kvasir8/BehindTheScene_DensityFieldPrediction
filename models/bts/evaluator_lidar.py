@@ -302,7 +302,7 @@ class BTSWrapper(nn.Module):
 
         rays, _ = self.sampler.sample(None, poses[:, :1, :, :], projs[:, :1, :, :])
 
-        ## Making possible view combination cases for evaluation
+        ## TODO: Making possible view combination cases for evaluation
         # enc2eval = [i for i in self.encoder_ids]
         # enc2eval = {
         #     mono: [0]                        ## monocular fixed case
@@ -336,7 +336,7 @@ class BTSWrapper(nn.Module):
         for i_from in range(0, len(q_pts), self.query_batch_size):
             i_to = min(i_from + self.query_batch_size, len(q_pts))
             q_pts_ = q_pts[i_from:i_to]
-            _, _, densities_= self.renderer.net(q_pts_.unsqueeze(0), only_density=True)
+            _, _, densities_= self.renderer.net(q_pts_.unsqueeze(0), only_density=True) ## ! occupancy estimation
             densities.append(densities_.squeeze(0))
         densities = torch.cat(densities, dim=0).squeeze()
         is_occupied_pred = densities > self.occ_threshold
