@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="RFull_eval_depth_MVBTS_full"
+#SBATCH --job-name="RFull_eval_lidar_occ_IncFe_NoOffset"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -16,16 +16,12 @@ pwd; hostname; date
 nvidia-smi
 
 ## Depth evaluation
-python eval.py -cn eval_depth_MVBTS
+# python eval.py -cn eval_depth_MVBTS
 # python eval.py -cn eval_depth_MVBTS_full
 # python eval.py -cn eval_depth_MVBTS_singleview
 
 ## Occupancy evaluation
-# python eval.py -cn eval_lidar_occ_MVBTS_NoSF
-# python eval.py -cn eval_lidar_occ_MVBTS_NoF
-# python eval.py -cn eval_lidar_occ_MVBTS_full
-
-# python eval.py -cn eval_lidar_occ_KDBTS_full
+python eval.py -cn eval_lidar_occ
 
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

@@ -14,7 +14,7 @@ visualize_every: 100
 log_every_iters: 1
 log_tb_train_every_iters: -1
 log_tb_val_every_iters: -1
-log_tb_vis_every_iters: 1
+log_tb_vis_every_iters: 10    ## default: 1
 
 checkpoint_every: 10000
 resume_from: null

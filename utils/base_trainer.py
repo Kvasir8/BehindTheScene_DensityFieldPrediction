@@ -324,7 +324,7 @@ def base_training(local_rank, config, get_dataflow, initialize, get_metrics, vis
                 tb_logger.attach(
                     visualizer,
                     VisualizationHandler(tag="vis", visualizer=visualize, global_step_transform=vis_gst_it),
-                    Events.ITERATION_COMPLETED(every=vis_log_interval),
+                    Events.ITERATION_COMPLETED(every=vis_log_interval) | Events.ITERATION_COMPLETED(every=vis_log_interval // 10, before=vis_log_interval),
                 )
 
     if "save_best" in config:
@@ -420,7 +420,8 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         def hook_fn_forward_invalid():
             def _hook_fn(module, input, output):
-                invalid_features.append(module.invalid_features.flatten(0, 1))
+                if module.training:
+                    invalid_features.append(module.invalid_features.flatten(0, 1))
 
             return _hook_fn
 
@@ -537,14 +538,14 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
         new_model_architecture = config.get("new_model_architecture", False)
         checkpoint_fp = Path(resume_from)
         assert checkpoint_fp.exists(), f"__Checkpoint '{checkpoint_fp.as_posix()}' is not found"
-        logger.info(f"Resume from a checkpoint: {checkpoint_fp.as_posix()}")
+        logger.info(f"__Resume from a checkpoint: {checkpoint_fp.as_posix()}")
         checkpoint = torch.load(checkpoint_fp.as_posix(), map_location="cpu")
         if new_model_architecture:
             Checkpoint.load_objects(to_load=to_save_new_model, checkpoint=checkpoint, strict=False)
         else:
             Checkpoint.load_objects(
                 to_load=to_save, checkpoint=checkpoint, strict=False
-            )  ## !strickt := matching parameters only done mis match ML != DFT
+            )  ## !strict := matching parameters only done mis match ML != DFT
 
     return trainer
 

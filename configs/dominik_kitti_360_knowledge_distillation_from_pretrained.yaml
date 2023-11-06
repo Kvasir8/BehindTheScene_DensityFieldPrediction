@@ -4,14 +4,16 @@ defaults:                       ### This code is to run for slurm config
     - _self_
 
 ## For training
-name: "BaseExperiment"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "KnowledgeDistillationFromPretrained"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"
 output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 
-num_epochs: 15
-validate_every: 50000
+num_epochs: 25
+validate_every: 150000
 visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 batch_size: 8                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
+resume_from: "/storage/user/muhled/outputs/mvbts/kitti-360/KnowledgeDistillationFromPretrained_backend-None-1_20231103-160405/training_checkpoint_250000.pt"
+new_model_architecture: true
 # stop_iteration: 150020
 
 save_best:
@@ -48,7 +50,7 @@ model_conf:
 
     encoder:
         type: "monodepth2"
-        freeze: false            # freezing encoder to train the transformer
+        freeze: true            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -60,21 +62,31 @@ model_conf:
         include_input: true
 
     decoder_heads:
-        - type: "MultiViewHead2"
-          name: "multiviewhead2"
-          freeze: false
+        - type: "MultiViewHead3"
+          name: "multiviewhead3"
+          freeze: true
           args:
             mlp:
                 type: "resnet"
                 args:
                     n_blocks: 0
                     d_hidden: 64
-            attn_layers: null
-            independent_token: null
-            mlp2: null
-            dropout_views_rate: 0.5
-            dropout_multiviewhead: true
-    final_prediction_head: "multiviewhead2"
+            mlp2:
+                type: "resnet"
+                d_in: 16
+                args:
+                    n_blocks: 0
+                    d_hidden: 4
+            dropout_views_rate: 0.0
+            dropout_multiviewhead: false
+
+        - type: "resnet"
+          name: "singleviewhead"
+          args:
+            n_blocks : 0
+            view_number: 0              # which encoder id we want to extract among feature maps
+            d_hidden : 64
+    final_prediction_head: "multiviewhead3"
 
     encoding_style: "stereo"      # sampling fisheye during training. BTS uses only mono as sampling. default: false
     ids_enc_offset_viz: [0]     # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or None if you want to sample randomly (c.f. fisheye_offset)
@@ -99,8 +111,8 @@ loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    lambda_pseudo_ground_truth: 0.0
-    pseudo_ground_truth_teacher: "multiviewhead"
+    lambda_pseudo_ground_truth: 1e-4
+    pseudo_ground_truth_teacher: "multiviewhead3"
     pseudo_ground_truth_students:
         - "singleviewhead"
 

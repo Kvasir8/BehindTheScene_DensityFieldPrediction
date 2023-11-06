@@ -1,5 +1,5 @@
 type: "KITTI_Raw"
-data_path: "data/KITTI-Raw"
+data_path: "/storage/group/dataset_mirrors/01_incoming/kitti_data"
 pose_path: "datasets/kitti_raw/orb-slam_poses"
 split_path: "datasets/kitti_raw/splits/eigen_zhou"
 image_size: [ 192, 640 ]

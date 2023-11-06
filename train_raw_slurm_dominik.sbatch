@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="dominik_kitti_360_alt_mvbts2"
+#SBATCH --job-name="dominik_kitti_raw_feature_fusion"
 #SBATCH --partition=DEADLINEBIG
 #SBATCH --comment="CVPR"
 #SBATCH --nodes=1
@@ -16,7 +16,4 @@ export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
 
-# python train.py -cn dominik_kitti_360_knowledge_distillation_from_pretrained
-# python train.py -cn dominik_kitti_360_knowledge_distillation
-# python train.py -cn dominik_kitti_360_fisheye_feature_fusion
-python train.py -cn dominik_kitti_360_alt_mvbts2
+python train.py -cn dominik_kitti_raw_feature_fusion

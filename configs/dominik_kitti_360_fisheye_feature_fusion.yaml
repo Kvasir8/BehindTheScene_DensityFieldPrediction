@@ -5,7 +5,7 @@ defaults:                       ### This code is to run for slurm config
 #### Simply comment one of them for usage. (Because we want the same configuration as the model was trained last time.)
 
 ## For training
-name: "BaseExperimentFeatureFusionLarge" 
+name: "BaseExperimentFisheyeFeatureFusionLarge" 
 
 model_conf:
     decoder_heads:
@@ -27,3 +27,4 @@ model_conf:
             dropout_views_rate: 0.5
             dropout_multiviewhead: true
     final_prediction_head: multiviewhead3
+    encoding_style: "random" 

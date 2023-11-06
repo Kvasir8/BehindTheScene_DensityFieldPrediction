@@ -56,21 +56,31 @@ model_conf:
         include_input: true
 
     decoder_heads:
-        - type: "MultiViewHead2"
-          name: "multiviewhead2"
-          freeze: false
+        - type: "MultiViewHead3"
+          name: "multiviewhead3"
+          freeze: true
           args:
             mlp:
                 type: "resnet"
                 args:
                     n_blocks: 0
                     d_hidden: 64
-            attn_layers: null
-            independent_token: null
-            mlp2: null
+            mlp2:
+                type: "resnet"
+                d_in: 16
+                args:
+                    n_blocks: 0
+                    d_hidden: 4
             dropout_views_rate: 0.0
             dropout_multiviewhead: false
-    final_prediction_head: "multiviewhead2"
+
+        - type: "resnet"
+          name: "singleviewhead"
+          args:
+            n_blocks : 0
+            view_number: 0              # which encoder id we want to extract among feature maps
+            d_hidden : 64
+    final_prediction_head: "singleviewhead"
 
 
     encoding_style: "stereo"                # random | default | stereo : execlusively load stereo for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.

@@ -239,7 +239,7 @@ class NeRFRenderer(torch.nn.Module):
             else:   use_viewdirs = None
             
             viewdirs_all = []
-            rgbs_all, invalid_all, sigmas_all = [], [], []
+            rgbs_all, invalid_all, sigmas_all, state_dicts_all = [], [], [], []
 
             if sb > 0:
                 points = points.reshape(sb, -1, 3)              # (SB, B'*K, 3) B' is real ray batch size
@@ -262,18 +262,22 @@ class NeRFRenderer(torch.nn.Module):
                 split_viewdirs = torch.split(viewdirs, eval_batch_size, dim=eval_batch_dim)
 
                 for pnts, dirs in zip(split_points, split_viewdirs):
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse, viewdirs=dirs)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
+                    rgbs, invalid, sigmas, state_dict = model(pnts, coarse=coarse, viewdirs=dirs)    ## , infer=False)   ## ,eval_batch_dim=eval_batch_dim)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
 
                     viewdirs_all.append(dirs)
+                    if state_dict is not None:
+                        state_dicts_all.append(state_dict)
             else:
                 for pnts in split_points:
-                    rgbs, invalid, sigmas = model(pnts, coarse=coarse)
+                    rgbs, invalid, sigmas, state_dict = model(pnts, coarse=coarse)
                     rgbs_all.append(rgbs)
                     invalid_all.append(invalid)
                     sigmas_all.append(sigmas)
+                    if state_dict is not None:
+                        state_dicts_all.append(state_dict)
 
             points, viewdirs = None, None
 
@@ -282,11 +286,19 @@ class NeRFRenderer(torch.nn.Module):
             invalid = torch.cat(invalid_all, dim=eval_batch_dim)
             sigmas = torch.cat(sigmas_all, dim=eval_batch_dim)
 
+            if state_dicts_all is not None and len(state_dicts_all) != 0:   ## not empty in a list
+                state_dicts = {key: torch.cat([state_dicts[key] for state_dicts in state_dicts_all], dim=eval_batch_dim) for key in state_dicts_all[0].keys()}
+            else:
+                state_dicts = None
+
             # viewdirs = torch.cat(viewdirs_all, dim=eval_batch_dim)      ## TODO: unverified
 
             rgbs = rgbs.reshape(B, K, -1)  # (B, K, 4 or 5)
             invalid = invalid.reshape(B, K, -1)
             sigmas = sigmas.reshape(B, K)
+
+            if state_dicts is not None:
+                state_dicts = {key: value.reshape(B, K, *value.shape[2:]) for key, value in state_dicts.items()} # BxKx... (BxKxn_viewsx...)
 
             # viewdirs = viewdirs.reshape(B, K, -1)
 
@@ -317,7 +329,7 @@ class NeRFRenderer(torch.nn.Module):
                 rgb_final = rgb_final + 1 - pix_alpha.unsqueeze(-1)  # (B, 3)
 
             # return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs, viewdirs)
-            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs)
+            return (weights, rgb_final, depth_final, alphas, invalid, z_samp, rgbs, state_dicts)
 
     def forward(
         self, model, rays, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False, sample_from_dist=None
@@ -359,6 +371,7 @@ class NeRFRenderer(torch.nn.Module):
                     coarse_composite, superbatch_size, want_weights=want_weights, want_alphas=want_alphas, want_z_samps=want_z_samps, want_rgb_samps=want_rgb_samps, want_pgt_loss=want_pgt_loss
                 ),
             )
+            outputs.state_dict = coarse_composite[-1]
 
             if self.using_fine:
                 all_samps = [z_coarse]
@@ -384,7 +397,7 @@ class NeRFRenderer(torch.nn.Module):
     def _format_outputs(
         self, rendered_outputs, superbatch_size, want_weights=False, want_alphas=False, want_z_samps=False, want_rgb_samps=False, want_pgt_loss=False
     ):
-        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps = rendered_outputs
+        weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps, state_dict = rendered_outputs
         # weights, rgb_final, depth, alphas, invalid, z_samps, rgb_samps, _ = rendered_outputs
         n_smps = weights.shape[-1]
         out_d_rgb = rgb_final.shape[-1]

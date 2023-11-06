@@ -12,13 +12,15 @@
             "args": [
                 "-cn",
                 // "ab_kitti_raw_embdim16",
-                // "exp_kitti_360_simple_multi_view_head",
-                "exp_kitti_360_simple_multi_view_head2",
-                "++name=debugging",
-                "++resume_from=null",
-                "++stop_iteration=20",
+                // "dominik_kitti_360_knowledge_distillation_from_pretrained",
+                // "exp_kitti_360_simple_multi_view_head2",
+                "dominik_kitti_360_alt_mvbts2",
+                // "++name=debugging",
+                // "++resume_from=null",
+                "++stop_iteration=150020",
                 "++validate_every=1",
-                "batch_size=1",
+                "++visualize_every=1",
+                "++batch_size=1",
             ],
             "console": "integratedTerminal",
             "justMyCode": false
@@ -59,6 +61,19 @@
                 // "++model_conf.encoder_ids=[0, 1, 2, 3, 4, 5, 6, 7]", // full
                 "++checkpoint=/storage/user/muhled/outputs/mvbts/kitti-360/simple_multi_view_head_backend-None-1_20231030-163439/training_checkpoint_200000.pt",
                 "++new_model_architecture=true"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Evaluation Depth",
+            "type": "python",
+            "request": "launch",
+            "program": "./eval.py",
+            "args": [
+                "-cn",
+                "dominik_eval_depth_ibrnet",
+                // "dominik_eval_depth_base",
             ],
             "console": "integratedTerminal",
             "justMyCode": false
@@ -115,13 +130,14 @@
             "justMyCode": true
         },
         {
-            "name": "Tr360_debug",
+            "name": "Tr360_scratch",
             "type": "python",
             "request": "launch",
             "program": "train.py",
             "args": [
                 "-cn",
-                "exp_kitti_360_DFT_debug"
+                // "exp_kitti_360_DFT_debug"
+                "exp_kitti_360_DFT_slurm"
             ],
             // "cwd": "${workspaceFolder}",
             // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",

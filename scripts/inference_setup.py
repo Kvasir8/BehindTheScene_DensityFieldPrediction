@@ -20,7 +20,7 @@ from datasets.realestate10k.realestate10k_dataset import RealEstate10kDataset
 from datasets.kitti_360.kitti_360_dataset import Kitti360Dataset
 from datasets.kitti_raw.kitti_raw_dataset import KittiRawDataset
 
-from models.bts.model import MVBTSNet   ## default: BTSNet
+from models.bts.model import MVBTSNet  ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler
 
 from models.common.render import NeRFRenderer
@@ -31,7 +31,7 @@ os.system("nvidia-smi")
 
 gpu_id = 0  ## default: 0
 
-device = f'cuda:0'
+device = f"cuda:0"
 if gpu_id is not None:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
@@ -40,16 +40,16 @@ if torch.cuda.is_available():
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
 
-r, c, = 0, 0
+(
+    r,
+    c,
+) = (
+    0,
+    0,
+)
 n_rows, n_cols = 3, 3
 
-OUT_RES = dotdict(
-    X_RANGE = (-9, 9),
-    Y_RANGE = (.0, .75),
-    Z_RANGE = (21, 3),
-    P_RES_ZX = (256, 256),
-    P_RES_Y = 64
-)
+OUT_RES = dotdict(X_RANGE=(-9, 9), Y_RANGE=(0.0, 0.75), Z_RANGE=(21, 3), P_RES_ZX=(256, 256), P_RES_Y=64)
 
 
 def plot(img, fig, axs, i=None):
@@ -78,7 +78,12 @@ def save_plot(img, file_name=None, grey=False, mask=None, dry_run=False):
         plt.title(file_name)
         plt.show()
     else:
-        cv2.imwrite(file_name, cv2.cvtColor((img * 255).clip(max=255).astype(np.uint8), cv2.COLOR_RGB2BGR) if not grey else (img * 255).clip(max=255).astype(np.uint8))
+        cv2.imwrite(
+            file_name,
+            cv2.cvtColor((img * 255).clip(max=255).astype(np.uint8), cv2.COLOR_RGB2BGR)
+            if not grey
+            else (img * 255).clip(max=255).astype(np.uint8),
+        )
 
 
 def get_pts(x_range, y_range, z_range, x_res, y_res, z_res, cam_incl_adjust=None):
@@ -101,32 +106,38 @@ def setup_kitti360(out_folder, split="test", split_name="seg"):
     resolution = (192, 640)
 
     dataset = Kitti360Dataset(
-        data_path="data/KITTI-360",
-        pose_path="data/KITTI-360/data_poses",
-        split_path=f"datasets/kitti_360/splits/{split_name}/{split}_files.txt",
+        data_path="/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360",
+        pose_path="/storage/group/dataset_mirrors/01_incoming/kitti_360/KITTI-360/data_poses",
+        split_path=f"datasets/kitti_360/splits/seg/train_files.txt",
         return_fisheye=False,
-        return_stereo=False,
+        return_stereo=True,
         return_depth=False,
         frame_count=1,
         target_image_size=resolution,
         fisheye_rotation=(25, -25),
-        color_aug=False)
+        color_aug=False,
+    )
 
-    config_path = "exp_kitti_360"
+    config_path = "dominik_eval_lidar_occ_feature_fusion"
 
-    cp_path = Path(f"out/kitti_360/pretrained")
+    # cp_path = Path(f"out/kitti_360/pretrained")
+    cp_path = Path(
+        f"/storage/user/muhled/outputs/mvbts/kitti-360/simple_multi_view_head_alt2_backend-None-1_20231101-095135"
+    )
     cp_name = cp_path.name
     cp_path = next(cp_path.glob("training*.pt"))
 
     out_path = Path(f"media/{out_folder}/kitti_360/{cp_name}")
 
     cam_incl_adjust = torch.tensor(
-    [  [1.0000000,  0.0000000,  0.0000000, 0],
-       [0.0000000,  0.9961947, -0.0871557, 0],
-       [0.0000000,  0.0871557,  0.9961947, 0],
-       [0.0000000,  000000000,  0.0000000, 1]
-    ],
-    dtype=torch.float32).view(1, 4, 4)
+        [
+            [1.0000000, 0.0000000, 0.0000000, 0],
+            [0.0000000, 0.9961947, -0.0871557, 0],
+            [0.0000000, 0.0871557, 0.9961947, 0],
+            [0.0000000, 000000000, 0.0000000, 1],
+        ],
+        dtype=torch.float32,
+    ).view(1, 4, 4)
 
     return dataset, config_path, cp_path, out_path, resolution, cam_incl_adjust
 
@@ -142,7 +153,8 @@ def setup_kittiraw(out_folder, split="test"):
         target_image_size=resolution,
         return_stereo=True,
         return_depth=False,
-        color_aug=False)
+        color_aug=False,
+    )
 
     config_path = "exp_kitti_raw"
 
@@ -164,7 +176,8 @@ def setup_re10k(out_folder, split="test"):
         data_path="data/RealEstate10K",
         split_path=f"datasets/realestate10k/splits/mine/{split}_files.txt" if split != "train" else None,
         frame_count=1,
-        target_image_size=resolution)
+        target_image_size=resolution,
+    )
 
     config_path = "exp_re10k"
 
@@ -189,7 +202,7 @@ def render_poses(renderer, ray_sampler, poses, projs, black_invalid=False):
     depth = render_dict["coarse"]["depth"].squeeze(1)[0].cpu()
     frame = render_dict["coarse"]["rgb"][0].cpu()
 
-    invalid = (render_dict["coarse"]["invalid"].squeeze(-1) * render_dict["coarse"]["weights"]).sum(-1).squeeze() > .8
+    invalid = (render_dict["coarse"]["invalid"].squeeze(-1) * render_dict["coarse"]["weights"]).sum(-1).squeeze() > 0.8
 
     if black_invalid:
         depth[invalid] = depth.max()
@@ -197,13 +210,25 @@ def render_poses(renderer, ray_sampler, poses, projs, black_invalid=False):
 
     return frame, depth
 
+
 ## viz_inference
-def render_profile(net, cam_incl_adjust, viewdirs = None):
-    q_pts = get_pts(OUT_RES.X_RANGE, OUT_RES.Y_RANGE, OUT_RES.Z_RANGE, OUT_RES.P_RES_ZX[1], OUT_RES.P_RES_Y, OUT_RES.P_RES_ZX[0], cam_incl_adjust=cam_incl_adjust)
+def render_profile(net, cam_incl_adjust, viewdirs=None):
+    q_pts = get_pts(
+        OUT_RES.X_RANGE,
+        OUT_RES.Y_RANGE,
+        OUT_RES.Z_RANGE,
+        OUT_RES.P_RES_ZX[1],
+        OUT_RES.P_RES_Y,
+        OUT_RES.P_RES_ZX[0],
+        cam_incl_adjust=cam_incl_adjust,
+    )
     q_pts = q_pts.to(device).view(1, -1, 3)
 
     batch_size = 50000
-    if hasattr(net, "n_coarse"):   batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
+    if hasattr(net, "n_coarse"):
+        batch_size = (
+            batch_size // net.n_coarse
+        ) * net.n_coarse  ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     # batch_size = (batch_size // net.n_coarse) * net.n_coarse    ## chunking according to n_coarse such that the chunk is evaluated according to sample size on a ray
     if q_pts.shape[1] > batch_size:
         sigmas, invalid = [], []
@@ -214,13 +239,13 @@ def render_profile(net, cam_incl_adjust, viewdirs = None):
             q_pts_ = q_pts[:, f:t, :]
             # if net.n_coarse:    _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs = None, infer= True)      ## This gives error for viz when infer passed TODO: viewdirs should be passed onto the net to make sure the model is robustly integrated with NeuRay
             # if net.loss_pgt:    _, invalid_, sigmas_, loss_pgt_ = net.forward(q_pts_, pgt=True)      ## This gives error for viz when infer passed TODO: forward from models_bts.py : return rgb, invalid, sigma, loss_pgt
-            _, invalid_, sigmas_ = net.forward(q_pts_, viewdirs=viewdirs)    ## default, note: viewdirs is for neuray
+            _, invalid_, sigmas_, _ = net.forward(q_pts_, viewdirs=viewdirs)  ## default, note: viewdirs is for neuray
             sigmas.append(sigmas_)
             invalid.append(invalid_)
         sigmas = torch.cat(sigmas, dim=1)
         invalid = torch.cat(invalid, dim=1)
     else:
-        _, invalid, sigmas = net.forward(q_pts)
+        _, invalid, sigmas, _ = net.forward(q_pts)
 
     sigmas[torch.any(invalid, dim=-1)] = 1
     alphas = sigmas
@@ -230,5 +255,6 @@ def render_profile(net, cam_incl_adjust, viewdirs = None):
     alphas_sum = torch.cumsum(alphas, dim=0)
     profile = (alphas_sum <= 8).float().sum(dim=0) / alphas.shape[0]
     return profile
+
 
 print("+++ Inference Setup Complete +++")

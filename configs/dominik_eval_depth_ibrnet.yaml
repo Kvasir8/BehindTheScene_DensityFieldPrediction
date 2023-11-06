@@ -1,13 +1,13 @@
 defaults:       ## Note: Make sure the configuration is the same with the one from the training set up as it evaluates the occupancy from the checkpoint trained before.
     - default
-    - data: kitti_360_DFT
+    - data: kitti_raw
     - _self_
 
 # name: "eval_lidar_occ"
-name: "eval_lidar"
-model: "bts_lidar"
+name: "eval_depth_ibrnet"
+model: "bts_depth"
 
-output_path: "/storage/user/muhled/outputs/mvbts/kitti-360-eval"
+output_path: "/storage/user/muhled/outputs/mvbts/kitti-raw-eval"
 
 log_every: 10
 batch_size: 8
@@ -35,7 +35,10 @@ renderer:
     eval_batch_size: 65536 # ==2^15       ## ~/2 /2 /2    ## Note: this is the absolute eval steps without having to worry about the variant evaluations caused by batch epoch
 
 model_conf:
-    arch: "MVBTSNet"            # !Note!: this should be the same architecture with the architecture trained with checkpt to eval. constructor for class MVBTSNet(torch.nn.Module):
+    load_from_plate: True
+    depth_dir: "/storage/user/hank/methods_test/IBRNet/kittiraw/savdpred/kittiraw_250000"
+    depth_scaling: "median"
+    arch: "IBRNet"            # !Note!: this should be the same architecture with the architecture trained with checkpt to eval. constructor for class MVBTSNet(torch.nn.Module):
     use_code: true
     prediction_mode: default
     num_multiviews: 4           
@@ -68,8 +71,8 @@ model_conf:
             attn_layers: null
             independent_token: null
             mlp2: null
-            dropout_views_rate: 0.0
-            dropout_multiviewhead: false
+            dropout_views_rate: 0.5
+            dropout_multiviewhead: true
     final_prediction_head: "multiviewhead2"
 
 

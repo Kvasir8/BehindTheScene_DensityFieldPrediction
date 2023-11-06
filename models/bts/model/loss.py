@@ -95,6 +95,8 @@ class ReconstructionLoss:  ## L_{ph}
         self.lambda_depth_smoothness = config.get("lambda_depth_smoothness", 0)
 
         self.lambda_pseudo_ground_truth = config.get("lambda_pseudo_ground_truth", 0)
+        self.lambda_pseudo_ground_truth_alt = config.get("lambda_pseudo_ground_truth_alt", 0)
+        self.lambda_pseudo_ground_truth_alt2 = config.get("lambda_pseudo_ground_truth_alt2", 0)
         self.pseudo_ground_truth_teacher = config.get("pseudo_ground_truth_teacher", None)
         self.pseudo_ground_truth_students = config.get("pseudo_ground_truth_students", None)
         self.pseudo_ground_truth_density = config.get("pseudo_ground_truth_density", True)
@@ -179,6 +181,8 @@ class ReconstructionLoss:  ## L_{ph}
             loss_eas = torch.tensor(0.0, device=invalid_fine.device)
             loss_depth_smoothness = torch.tensor(0.0, device=invalid_fine.device)
             loss_pseudo_ground_truth = torch.tensor(0.0, device=invalid_fine.device)
+            loss_pseudo_ground_truth_alt = torch.tensor(0.0, device=invalid_fine.device)
+            loss_pseudo_ground_truth_alt2 = torch.tensor(0.0, device=invalid_fine.device)
 
             for scale in range(n_scales):
                 coarse = data["coarse"][scale]
@@ -335,10 +339,15 @@ class ReconstructionLoss:  ## L_{ph}
                     # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     # teacher_density.requires_grad = False
                     for student_name in self.pseudo_ground_truth_students:
-                        if student_name == "singleviewhead" and self.pseudo_ground_truth_masking:
+                        mask = torch.ones_like(teacher_density)[..., 0].bool()
+                        if (
+                            student_name == "singleviewhead"
+                            and self.pseudo_ground_truth_masking
+                            and (data["invalid_features"][:, 0].shape == mask.shape)
+                        ):
                             mask = ~data["invalid_features"][:, 0]
-                        else:
-                            mask = torch.ones_like(data["invalid_features"][:, 0]).bool()
+                        # else:
+                        #     mask = torch.ones_like(data["invalid_features"][:, 0]).bool()
                         if self.pseudo_ground_truth_density:
                             loss_pseudo_ground_truth += (
                                 torch.nn.MSELoss(reduction="mean")(
@@ -377,6 +386,35 @@ class ReconstructionLoss:  ## L_{ph}
                     # print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
                     # print("pgt_teacher_req_grad", {teacher_density.requires_grad})
 
+                if self.lambda_pseudo_ground_truth_alt > 0 and data["state_dict"] is not None:
+                    teacher_density = data["state_dict"]["final_sigma"].clone().detach()
+                    for i in range(data["state_dict"]["sigmas"].shape[2]):
+                        mask = ~data["state_dict"]["invalid_features"][:, :, i] & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0) & (teacher_density[..., 0] < 1.0)
+                        loss_pseudo_ground_truth_alt += (
+                                torch.nn.MSELoss(reduction="mean")(
+                                    data["state_dict"]["sigmas"][:, :, i][mask],
+                                    teacher_density[mask],
+                                )
+                                # / int((teacher_density[mask].size()[0]))
+                            )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
+                    loss += loss_pseudo_ground_truth_alt * self.lambda_pseudo_ground_truth_alt
+                if self.lambda_pseudo_ground_truth_alt2 > 0 and data["state_dict"] is not None:
+                    for i in range(data["state_dict"]["sigmas"].shape[2]):
+                        for j in range(data["state_dict"]["sigmas"].shape[2]):
+                            if i == j:
+                                continue
+                            mask = ~torch.logical_or(data["state_dict"]["invalid_features"][:, :, i], data["state_dict"]["invalid_features"][:, :, j]) & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0) & (data["state_dict"]["sigmas"][:, :, j, 0] < 1.0)
+                            loss_pseudo_ground_truth_alt2 += (
+                                        torch.nn.MSELoss(reduction="mean")(
+                                            data["state_dict"]["sigmas"][:, :, i][mask],
+                                            data["state_dict"]["sigmas"][:, :, j][mask],
+                                        )
+                                        # / int((data["state_dict"]["sigmas"][:, :, j][mask].size()[0]))
+
+                                    )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
+                    loss += loss_pseudo_ground_truth_alt2 * self.lambda_pseudo_ground_truth_alt2
+                    
+
             loss = loss / n_scales
 
             loss_ray_entropy = torch.tensor(0.0, device=loss.device)
@@ -392,6 +430,8 @@ class ReconstructionLoss:  ## L_{ph}
             loss = loss + loss_ray_entropy * self.lambda_entropy
 
         loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
+        loss_dict["loss_pseudo_ground_truth_alt"] = loss_pseudo_ground_truth_alt.item()
+        loss_dict["loss_pseudo_ground_truth_alt2"] = loss_pseudo_ground_truth_alt2.item()
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()

@@ -3,6 +3,10 @@ from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from tqdm import tqdm
 
 import sys
+from models.common.backbones.backbone_util import make_backbone
+from models.common.model.code import PositionalEncoding
+from models.common.model.head_util import make_head
+
 sys.path.append(".")
 
 from scripts.inference_setup import *
@@ -12,7 +16,7 @@ import copy
 import hydra
 import torch
 
-from models.bts.model import BTSNet, ImageRaySampler
+from models.bts.model import MVBTSNet, ImageRaySampler
 from models.common.render import NeRFRenderer
 from utils.array_operations import map_fn, unsqueezer
 from utils.plotting import color_tensor
@@ -21,21 +25,24 @@ from utils.plotting import color_tensor
 def main():
     s_img = True
     s_depth = True
-    s_profile = False
+    s_profile = True
     dry_run = False
 
     task = "KITTI-360"
     assert task in ["KITTI-360", "KITTI-Raw", "RealEstate10K"]
 
-    FROM = 1000
-    TO = 1400
+    FROM = 2000
+    # TO = 1400
+    TO = 2400
     assert 0 <= FROM < TO
 
     d_min = 3
     d_max = 40
 
     if task == "KITTI-360":
-        dataset, config_path, cp_path, out_path, resolution, cam_incl_adjust = setup_kitti360("videos/seq", "2013_05_28_drive_0000_sync", "val_seq")
+        dataset, config_path, cp_path, out_path, resolution, cam_incl_adjust = setup_kitti360(
+            "videos/seq", "2013_05_28_drive_0000_sync", "val_seq"
+        )
     elif task == "KITTI-Raw":
         dataset, config_path, cp_path, out_path, resolution, cam_incl_adjust = setup_kittiraw("videos/seq", "test")
     elif task == "RealEstate10K":
@@ -46,20 +53,58 @@ def main():
     # Slightly hacky, but we need to load the config based on the task
     global config
     config = {}
+
     @hydra.main(version_base=None, config_path="../../configs", config_name=config_path)
     def main_dummy(cfg):
         global config
         config = copy.deepcopy(cfg)
+
     main_dummy()
 
     print("Setup folders")
     out_path.mkdir(exist_ok=True, parents=True)
     file_name = f"{FROM:05d}-{TO:05d}.mp4"
 
-    print('Loading checkpoint')
+    print("Loading checkpoint")
     cp = torch.load(cp_path, map_location=device)
 
-    net = BTSNet(config["model_conf"])
+    if True:
+        d_out = 1
+        if config["model_conf"]["code_mode"] == "z_feat":
+            cam_pos = 1
+        else:
+            cam_pos = 0
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
+        encoder = make_backbone(config["model_conf"]["encoder"])
+        d_in = (
+            encoder.latent_size + code_xyz.d_out
+        )  ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
+        decoder_heads = {
+            head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
+        }
+
+        if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
+            for param in decoder_heads["multiviewhead"].parameters():
+                param.requires_grad = False
+            print("__frozen the MVhead for knowledge distillation.")
+        else:
+            print("__No freezing heads during training.")
+
+        # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
+        net = MVBTSNet(
+            config["model_conf"],
+            encoder,
+            code_xyz,
+            decoder_heads,
+            final_pred_head=config.get("final_prediction_head", None),
+            ren_nc=config["renderer"]["n_coarse"],
+        )
+
+    # else:  ## For single view BTS model
+    #     net = BTSNet(config["model_conf"])
+    #     encoder = make_backbone(config["model_conf"]["encoder"])
+    #     code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3)
+    #     d_in = encoder.latent_size + code_xyz.d_out  ### 103
     renderer = NeRFRenderer.from_conf(config["renderer"])
     renderer = renderer.bind_parallel(net, gpus=None).eval()
     renderer.renderer.n_coarse = 64
@@ -76,7 +121,9 @@ def main():
     renderer.to(device)
     renderer.eval()
 
-    ray_sampler = ImageRaySampler(config["model_conf"]["z_near"], config["model_conf"]["z_far"], *resolution, norm_dir=False)
+    ray_sampler = ImageRaySampler(
+        config["model_conf"]["z_near"], config["model_conf"]["z_far"], *resolution, norm_dir=False
+    )
 
     # Change resolution to match final height
     if s_depth and s_img:
@@ -87,7 +134,7 @@ def main():
     frames = []
 
     with torch.no_grad():
-        for idx in tqdm(range(FROM, TO)):
+        for idx in tqdm(range(FROM, TO, 2)):
             data = dataset[idx]
             data_batch = map_fn(map_fn(data, torch.tensor), unsqueezer)
 
@@ -98,10 +145,10 @@ def main():
             # Move coordinate system to input frame
             poses = torch.inverse(poses[:, :1, :, :]) @ poses
 
-            net.encode(images, projs, poses, ids_encoder=[0], ids_render=[0])
+            net.encode(images, projs, poses, ids_encoder=[0, 1], ids_render=[0])
             net.set_scale(0)
 
-            img = images[0, 0].permute(1, 2, 0).cpu() * .5 + .5
+            img = images[0, 0].permute(1, 2, 0).cpu() * 0.5 + 0.5
 
             img = img.numpy()
 
@@ -146,5 +193,5 @@ def main():
     print("Completed.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

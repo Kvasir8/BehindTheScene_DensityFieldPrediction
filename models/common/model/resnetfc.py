@@ -190,19 +190,18 @@ class ResnetFC(nn.Module):
     def from_conf(cls, conf, d_in, d_out, d_latent=0):
         return cls(d_in=d_in, d_out=d_out, **conf)
 
-    # @classmethod          ## default for original resnetfc.py
-    # def from_conf(cls, conf, d_in, **kwargs):
-    #     def from_conf(cls, conf, d_in, **kwargs):
-    #         # PyHocon construction
-    #         return cls(
-    #             d_in,
-    #             n_blocks=conf.get("n_blocks", 5),
-    #             d_hidden=conf.get("d_hidden", 128),
-    #             beta=conf.get("beta", 0.0),
-    #             combine_layer=conf.get("combine_layer", 1000),
-    #             combine_type=conf.get("combine_type", "average"),  # average | max
-    #             use_spade=conf.get("use_spade", False), **kwargs
-    #         )
+    @classmethod          ## default for original resnetfc.py
+    def from_conf2(cls, conf, d_in, **kwargs):
+        # PyHocon construction
+        return cls(
+            d_in,
+            n_blocks=conf.get("n_blocks", 5),
+            d_hidden=conf.get("d_hidden", 128),
+            beta=conf.get("beta", 0.0),
+            combine_layer=conf.get("combine_layer", 1000),
+            combine_type=conf.get("combine_type", "average"),  # average | max
+            use_spade=conf.get("use_spade", False), **kwargs
+        )
         
     # @classmethod        ## For both multi and single view BTS model (integrated from both classmethod)
     # def from_conf(cls, conf, d_in, d_out, **kwargs):

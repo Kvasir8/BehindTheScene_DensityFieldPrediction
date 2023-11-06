@@ -19,7 +19,6 @@ def make_head(conf, d_in: int, d_out: int):
         head = MultiViewHead2.from_conf(conf["args"], d_in, d_out)
     elif head_type == "MultiViewHead3":
         head = MultiViewHead3.from_conf(conf["args"], d_in, d_out)
-
     ## For baseline comparison
     # elif head_type == "IBRNet":
     #     head = MultiViewHead.from_conf(conf["args"], d_in, d_out)
@@ -32,4 +31,10 @@ def make_head(conf, d_in: int, d_out: int):
 
     else:
         raise NotImplementedError("Unsupported Head type")
+    if conf.get("freeze", False):
+        for param in head.parameters():
+            param.requires_grad = False
+        print(f"__freezing the {conf['name']} for knowledge distillation.")
+        # else:
+        #     print("__No freezing heads during training.")
     return head

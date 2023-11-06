@@ -82,7 +82,7 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
             config["cuda device name"] = torch.cuda.get_device_name(local_rank)
 
     # Setup dataflow, model, optimizer, criterion
-    test_loader = get_dataflow(config)          ## default
+    test_loader = get_dataflow(config)  ## default
     # test_loader = get_dataflow(config, logger)
 
     if hasattr(test_loader, "dataset"):
@@ -91,15 +91,18 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
     config["num_iters_per_epoch"] = len(test_loader)
     model = initialize(config, logger)
 
-    cp_path = config["checkpoint"]
-    if not cp_path.endswith(".pt"):
-        cp_path = Path(cp_path)
-        cp_path = next(cp_path.glob("training*.pt"))
-    checkpoint = torch.load(cp_path, map_location=device)
-    if "model" in checkpoint:
-        model.load_state_dict(checkpoint["model"], strict=False)
+    cp_path = config.get("checkpoint", None)
+    if cp_path is not None:
+        if not cp_path.endswith(".pt"):
+            cp_path = Path(cp_path)
+            cp_path = next(cp_path.glob("training*.pt"))
+        checkpoint = torch.load(cp_path, map_location=device)
+        if "model" in checkpoint:
+            model.load_state_dict(checkpoint["model"], strict=False)
+        else:
+            model.load_state_dict(checkpoint, strict=False)
     else:
-        model.load_state_dict(checkpoint, strict=False)
+        print("Be careful, no model is loaded")
     model.to(device)
 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
@@ -191,7 +194,7 @@ def create_evaluator(model, metrics, config, logger=None, tag="val"):
         data = to(data, device)
 
         with autocast(enabled=with_amp):
-            data = model(data)              ## ! This is where the occupancy prediction is made.
+            data = model(data)  ## ! This is where the occupancy prediction is made.
 
         loss_metrics = {}
 

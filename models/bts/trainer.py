@@ -24,7 +24,7 @@ from models.common.model.scheduler import make_scheduler
 from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss, compute_errors_l1ssim
-from models.bts.model.models_bts import MVBTSNet, BTSNet  ## default: BTSNet
+from models.bts.model.models_bts import MVBTSNet, MVBTSNet2, BTSNet  ## default: BTSNet
 from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
 from scripts.inference_setup import render_profile
 from utils.base_trainer import base_training
@@ -156,7 +156,8 @@ class BTSWrapper(nn.Module):
             raise NotImplementedError(f"__unrecognized enc_style: {self.enc_style}")
         ## default: ids_encoder = [0,1,2,3] <=> front stereo for 1st + 2nd time stamps
 
-        if (not self.training and self.ids_enc_viz_eval
+        if (
+            not self.training and self.ids_enc_viz_eval
         ):  ## when eval in viz to be standardized with test:  it's eval from line 354, base_trainer.py
             ids_encoder = self.ids_enc_viz_eval  ## fixed during eval
 
@@ -319,6 +320,9 @@ class BTSWrapper(nn.Module):
 
             render_dict["rgb_gt"] = all_rgb_gt
             render_dict["rays"] = all_rays
+
+            if render_dict["state_dict"] is not None:
+                data["state_dict"] = render_dict["state_dict"]
 
             with profiler.record_function("trainer_reconstruct"):
                 render_dict = sampler.reconstruct(render_dict)
@@ -511,15 +515,46 @@ def initialize(config: dict, logger=None):
             head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
         }
 
-        if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
-            for param in decoder_heads["multiviewhead"].parameters():
-                param.requires_grad = False
-            print("__frozen the MVhead for knowledge distillation.")
-        else:
-            print("__No freezing heads during training.")
+        # if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
+        #     for param in decoder_heads["multiviewhead"].parameters():
+        #         param.requires_grad = False
+        #     print("__frozen the MVhead for knowledge distillation.")
+        # else:
+        #     print("__No freezing heads during training.")
 
         # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
         net = MVBTSNet(
+            config["model_conf"],
+            encoder,
+            code_xyz,
+            decoder_heads,
+            final_pred_head=config.get("final_prediction_head", None),
+            ren_nc=config["renderer"]["n_coarse"],
+        )
+
+    elif arch == "MVBTSNet2":
+        if config["model_conf"]["code_mode"] == "z_feat":
+            cam_pos = 1
+        else:
+            cam_pos = 0
+        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
+        encoder = make_backbone(config["model_conf"]["encoder"])
+        d_in = (
+            encoder.latent_size + code_xyz.d_out
+        )  ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
+        decoder_heads = {
+            head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
+        }
+
+        # if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
+        #     for param in decoder_heads["multiviewhead"].parameters():
+        #         param.requires_grad = False
+        #     print("__frozen the MVhead for knowledge distillation.")
+        # else:
+        #     print("__No freezing heads during training.")
+
+        # net = globals()[arch]( config["model_conf"], ren_nc=config["renderer"]["n_coarse"], B_=config["batch_size"] )  ## default: globals()[arch](config["model_conf"])
+        net = MVBTSNet2(
             config["model_conf"],
             encoder,
             code_xyz,

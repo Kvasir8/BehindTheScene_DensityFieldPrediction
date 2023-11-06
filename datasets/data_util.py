@@ -242,7 +242,7 @@ def make_test_dataset(config):
             split_path=os.path.join(config["split_path"], "test_files.txt"),
             target_image_size=config.get("image_size", (192, 640)),
             return_depth=True,
-            frame_count=1,
+            frame_count=config.get("data_fc", 1),
             return_stereo=config.get("data_stereo", False),
             keyframe_offset=0
         )

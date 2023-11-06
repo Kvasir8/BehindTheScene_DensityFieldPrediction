@@ -31,7 +31,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "__KD_allFrameEnc_do05"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "MVBTS_Tr_scratch"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
@@ -39,14 +39,17 @@ output_path: "out/mvbts/kitti_360/"
 num_epochs: 200
 validate_every: 100000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
 visualize_every: 1000                    # default: 5000       ## bigger is good for computational reduction
-batch_size: 4                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
+batch_size: 1                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
 save_best:
     metric: abs_rel                     # The model that has the smallest absolute relative error will be saved.
     sign: -1                            # The sign is negative, meaning that the model with the smallest abs_rel is the best
 
+## Training from scratch
+resume_from: 
+
 ## fine-tuning from pretrained BTS model
-resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
+# resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/training-checkpoint.pt"
 
 ## keep continuing training from breakpoint
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/Smodekitti360-mono_FeT_StTFrF_Fc2_do0.1_dohT_embEncff_dout16_decIBRT_nly4_nh4_readoutTypefixed_lr5e-05_bs1_rbs2048_ztype_z_trainType__slurm_backend-None-1_20231015-213542/training_checkpoint_182000.pt"
@@ -57,7 +60,7 @@ resume_from: "/storage/user/hank/BehindTheScenes/out/kitti_360/pretrained/traini
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
 
 data:
-    data_fc: 2              ## default: 2, and 3 for monocular camera
+    data_fc: 2              ## default: 2 | 3 for monocular camera
     image_size: [192, 640]
     color_aug: true
     is_preprocessed: true
@@ -109,7 +112,7 @@ model_conf:
           args:
             embedding_encoder:
                 type: "pwf"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
-                d_out: 32               ## input dimension of encoder layer of Transformer
+                d_out: 16               ## input dimension of encoder layer of Transformer
             independent_token:
                 type: "FixedViewIndependentToken"
                 args: None
@@ -119,13 +122,13 @@ model_conf:
             #         n_points_per_ray: 64 # same as renderer.n_coarse
             attn_layers:
                 IBRAttn: True           ## default: False // Note: customized IBRAttn tends to decrease the loss faster than built-in, but large memory consumption with customized transformer. built-in Pytorch is efficient.
-                n_layers: 3             ## default: 3, num encoder layers from Transformer
+                n_layers: 1             ## default: 3, num encoder layers from Transformer
                 n_heads: 4
                 readout_token:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_views_rate: 0.1       # set 0 for disable and for knowledge-distillation
+            dropout_views_rate: 0.5       # set 0 for disable and for knowledge-distillation
             dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
@@ -137,7 +140,7 @@ model_conf:
 
     final_prediction_head: "multiviewhead"
 
-    encoding_style: "random"                # random | default | stereo : execlusively load stereo for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
+    encoding_style: "stereo"                # random | default | stereo : execlusively load stereo for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
     ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
 
     z_near: 3                           # default: 3(m)
@@ -166,7 +169,7 @@ loss:
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained
 
-learning_rate: 5e-5                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
+learning_rate: 1e-4                     # default: 1e-5 for fine-tuning. Note: 1e-4 for original BTS training from scratch, and last 20% is trained with 1e-5 c.f. BTS paper
 
 scheduler:
     type: step
