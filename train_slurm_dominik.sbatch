@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="dominik_kitti_360_alt_mvbts2"
+#SBATCH --job-name="dominik_kitti_360_no_fisheye_feature_fusion_knowdist"
 #SBATCH --partition=DEADLINEBIG
 #SBATCH --comment="CVPR"
 #SBATCH --nodes=1
@@ -18,5 +18,9 @@ nvidia-smi
 
 # python train.py -cn dominik_kitti_360_knowledge_distillation_from_pretrained
 # python train.py -cn dominik_kitti_360_knowledge_distillation
-# python train.py -cn dominik_kitti_360_fisheye_feature_fusion
-python train.py -cn dominik_kitti_360_alt_mvbts2
+# python train.py -cn dominik_kitti_360_attn_layers_and_token
+# python train.py -cn dominik_kitti_360_alt_mvbts2
+python train.py -cn dominik_kitti_360_no_fisheye_feature_fusion_knowdist
+
+# python train.py -cn exp_kitti_360_DFT_slurm_knowdist
+

@@ -1,13 +1,21 @@
 defaults:
     - default
-    - data: kitti_360_DFT
+    - data: kitti_360_DFT           ## For evaluating kitti360 | kittiraw, set kitti_360_DFT | kitti_raw
     - _self_
 
 name: "eval_depth_MVBTS"
 model: "bts_depth"
 
-checkpoint: "out/kitti_raw/pretrained"
+# checkpoint: "out/kitti_raw/pretrained"
 
+## pretrained KDBTS (knowlege distillation) (Note: make same configuration from checkpoint)
+# resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
+
+## pretrained DFT
+# resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+
+## pretrained KD-DFT
+resume_from: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/__KD_tempOffsetFeStereo_backend-None-1_20231109-170053/training_checkpoint_400000.pt"
 
 log_every: 10
 batch_size: 1
@@ -57,8 +65,8 @@ model_conf:
                     type: "fixed"       # default: fixed,  fixed | data | neuray
             probing_layer:
 
-            dropout_views_rate: 0.1       # set 0 for disable and for knowledge-distillation
-            dropout_multiviewhead: true # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
+            dropout_views_rate: 0       # set 0 for disable and for knowledge-distillation
+            dropout_multiviewhead: false # enforce encoder of multiviews to be dropped out, and keep the 1st encoder index not to be affected, so that to simulate different camera configurations with a varying number of input images during training. However, we want at least the first image to be consistently be present in the training. So no dropout for the first image. Dropout does not affect the single view head. 
 
         - type: "resnet"
           name: "singleviewhead"
@@ -82,6 +90,7 @@ model_conf:
     ray_batch_size: 256
     inv_z: true
 
+    learn_empty: false      ##
     code_mode: z
 
     n_frames_encoder: 1

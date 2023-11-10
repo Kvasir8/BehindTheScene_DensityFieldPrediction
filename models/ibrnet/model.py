@@ -35,13 +35,17 @@ class IBRNetModel(object):
         self.args = args
         device = torch.device("cuda:{}".format(args.local_rank))
         # create coarse IBRNet
-        self.net_coarse = IBRNet(args, in_feat_ch=self.args.coarse_feat_dim, n_samples=self.args.N_samples).to(device)
+        self.net_coarse = IBRNet(
+            args, in_feat_ch=self.args.coarse_feat_dim, n_samples=self.args.N_samples
+        ).to(device)
         if args.coarse_only:
             self.net_fine = None
         else:
             # create coarse IBRNet
             self.net_fine = IBRNet(
-                args, in_feat_ch=self.args.fine_feat_dim, n_samples=self.args.N_samples + self.args.N_importance
+                args,
+                in_feat_ch=self.args.fine_feat_dim,
+                n_samples=self.args.N_samples + self.args.N_importance,
             ).to(device)
 
         # create feature extraction network
@@ -76,29 +80,44 @@ class IBRNetModel(object):
             )
 
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.optimizer, step_size=args.lrate_decay_steps, gamma=args.lrate_decay_factor
+            self.optimizer,
+            step_size=args.lrate_decay_steps,
+            gamma=args.lrate_decay_factor,
         )
 
         # out_folder = os.path.join(args.rootdir, 'out', args.expname)  ## default
         out_folder = os.path.join(
             args.rootdir,
             "out",
-            args.expname + "/" + args.type + str(date.today()) + "_" + str(datetime.now().strftime("%H-%M-%S")),
+            args.expname
+            + "/"
+            + args.type
+            + str(date.today())
+            + "_"
+            + str(datetime.now().strftime("%H-%M-%S")),
         )
-        self.start_step = self.load_from_ckpt(out_folder, load_opt=load_opt, load_scheduler=load_scheduler)
+        self.start_step = self.load_from_ckpt(
+            out_folder, load_opt=load_opt, load_scheduler=load_scheduler
+        )
 
         if args.distributed:
             self.net_coarse = torch.nn.parallel.DistributedDataParallel(
-                self.net_coarse, device_ids=[args.local_rank], output_device=args.local_rank
+                self.net_coarse,
+                device_ids=[args.local_rank],
+                output_device=args.local_rank,
             )
 
             self.feature_net = torch.nn.parallel.DistributedDataParallel(
-                self.feature_net, device_ids=[args.local_rank], output_device=args.local_rank
+                self.feature_net,
+                device_ids=[args.local_rank],
+                output_device=args.local_rank,
             )
 
             if self.net_fine is not None:
                 self.net_fine = torch.nn.parallel.DistributedDataParallel(
-                    self.net_fine, device_ids=[args.local_rank], output_device=args.local_rank
+                    self.net_fine,
+                    device_ids=[args.local_rank],
+                    output_device=args.local_rank,
                 )
 
     def switch_to_eval(self):
@@ -128,7 +147,9 @@ class IBRNetModel(object):
 
     def load_model(self, filename, load_opt=True, load_scheduler=True):
         if self.args.distributed:
-            to_load = torch.load(filename, map_location="cuda:{}".format(self.args.local_rank))
+            to_load = torch.load(
+                filename, map_location="cuda:{}".format(self.args.local_rank)
+            )
         else:
             to_load = torch.load(filename)
 
@@ -143,7 +164,9 @@ class IBRNetModel(object):
         if self.net_fine is not None and "net_fine" in to_load.keys():
             self.net_fine.load_state_dict(to_load["net_fine"])
 
-    def load_from_ckpt(self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False):
+    def load_from_ckpt(
+        self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False
+    ):
         """
         load model from existing checkpoints and return the current step
         :param out_folder: the directory that stores ckpts
@@ -153,7 +176,11 @@ class IBRNetModel(object):
         # all existing ckpts
         ckpts = []
         if os.path.exists(out_folder):
-            ckpts = [os.path.join(out_folder, f) for f in sorted(os.listdir(out_folder)) if f.endswith(".pth")]
+            ckpts = [
+                os.path.join(out_folder, f)
+                for f in sorted(os.listdir(out_folder))
+                if f.endswith(".pth")
+            ]
 
         if self.args.ckpt_path is not None and not force_latest_ckpt:
             if os.path.isfile(self.args.ckpt_path):  # load the specified ckpt
@@ -165,7 +192,9 @@ class IBRNetModel(object):
             step = int(fpath[-10:-4])
             print("__Reloading from {}, starting at step={}".format(fpath, step))
         else:
-            print(f"__No ckpts found, training from scratch... checked path:{out_folder}")
+            print(
+                f"__No ckpts found, training from scratch... checked path:{out_folder}"
+            )
             step = 0
 
         return step

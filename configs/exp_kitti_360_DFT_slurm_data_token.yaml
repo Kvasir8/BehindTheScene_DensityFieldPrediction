@@ -59,7 +59,7 @@ save_best:
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
 
 ## pretrained MVBTS
-# resume_from: "/usr/stud/hank/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+# resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
 
 data:
     data_fc: 2              ## default: 2 | 3 for monocular camera
@@ -116,7 +116,7 @@ model_conf:
                 type: "pwf"              ## set embedding type as string: pwf | ff | hpwf : PoswiseFF_emb4enc | FeedForward | FeedForward_half| hardcoded_PoswiseFF_emb4enc . Note: shrink the size of sequence of dimension of token (for model's complexity reason)
                 d_out: 16               ## input dimension of encoder layer of Transformer
             independent_token:
-                type: "FixedViewIndependentToken"
+                type: "DataViewIndependentToken"
                 args: None
             # independent_token:
             #     type: "NeuRayIndependentToken"

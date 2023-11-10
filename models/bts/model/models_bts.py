@@ -38,7 +38,7 @@ class MVBTSNet(torch.nn.Module):
         if final_pred_head:
             self.final_pred_head = final_pred_head
         else:
-            self.final_pred_head = list(self.heads.keys())[0]  ### ['multiviewhead', 'singleviewhead'][0]
+            self.final_pred_head = list(self.heads.keys())[0]  ### [('multiviewhead' | 'singleviewhead')][0] ## knowledge-distillation purpose
 
         self.requires_bottleneck_feats = False
 

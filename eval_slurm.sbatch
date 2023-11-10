@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="RFull_eval_lidar_occ_IncFe_NoOffset"
+#SBATCH --job-name="depth_eval_KDDFT_kitti360"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -20,8 +20,10 @@ nvidia-smi
 # python eval.py -cn eval_depth_MVBTS_full
 # python eval.py -cn eval_depth_MVBTS_singleview
 
+python eval.py -cn eval_depth_MVBTS
+
 ## Occupancy evaluation
-python eval.py -cn eval_lidar_occ
+# python eval.py -cn eval_lidar_occ
 
 
 #export MY_PORT=58024  # Define the desired port number as an environment variable

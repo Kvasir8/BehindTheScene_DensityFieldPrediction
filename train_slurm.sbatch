@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="kitti360_train_long_run"
+#SBATCH --job-name="raw_KDDFT1_KD_OnlyFe_tempOffset__12GB"
 #SBATCH --nodes=1 
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:48G
+#SBATCH --gres=gpu:1,VRAM:12G
 #SBATCH --mem=32G
 #SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
@@ -17,7 +17,9 @@ nvidia-smi
 ### For ablation study: ## Please change job-name to correspodingly e.g. if executing -cn ab_kitti_360_encLy1, then change job name as "360_encLy1_slurm"
 ## kitti-360
 ### For knowledge-distillation
-# python train.py -cn exp_kitti_360_DFT_KD
+# python train.py -cn exp_kitti_360_DFT_KD_1      ## please comment to kitti360_tempOffsetFeStereo
+# python train.py -cn exp_kitti_360_DFT_KD_2      ## please comment to kitti360_KD_OnlyFe_tempOffset
+python train.py -cn exp_kitti_raw_DFT_KD_1      ## please comment to kittiraw_KD_OnlyFe_tempOffset_emb16
 
 ### For checking whether the poor intrinsics from fisheye's camera would be detrimental for the reconstruction quality
 # python train.py -cn ab_kitti_360_NoFe_PWF_do05_nv4    ## Note: To check having all input stereo views as input feature maps would be reasonable for density field reconstruction
@@ -49,7 +51,7 @@ nvidia-smi
 # python train.py -cn ab_kitti_raw_embdim16
 # python train.py -cn ab_kitti_raw_embdim64
 
-python train.py -cn exp_kitti_360_DFT_slurm
+# python train.py -cn exp_kitti_360_DFT_slurm
 # python train.py -cn ab_kitti_raw_base
 
 ## kitti-360 debug

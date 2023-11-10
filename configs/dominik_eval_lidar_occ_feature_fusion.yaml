@@ -17,13 +17,13 @@ model_conf:
                 type: "resnet"
                 args:
                     n_blocks: 0
-                    d_hidden: 64
+                    d_hidden: 128
             mlp2:
                 type: "resnet"
                 d_in: 16
                 args:
                     n_blocks: 0
-                    d_hidden: 4
-            dropout_views_rate: 0.5
-            dropout_multiviewhead: true
+                    d_hidden: 16
+            dropout_views_rate: 0.0
+            dropout_multiviewhead: false
     final_prediction_head: "multiviewhead3"

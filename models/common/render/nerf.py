@@ -415,7 +415,7 @@ class NeRFRenderer(torch.nn.Module):
         if want_alphas:     ret_dict.alphas    = alphas
         if want_z_samps:    ret_dict.z_samps   = z_samps
         if want_rgb_samps:  ret_dict.rgb_samps = rgb_samps
-        if want_pgt_loss:   ret_dict.loss_pgt  = loss_pgt
+        if want_pgt_loss:   ret_dict.loss_pgt  = loss_pgt       ## !?
     
         return ret_dict
 

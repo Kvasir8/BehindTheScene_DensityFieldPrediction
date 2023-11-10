@@ -14,12 +14,13 @@
                 // "ab_kitti_raw_embdim16",
                 // "dominik_kitti_360_knowledge_distillation_from_pretrained",
                 // "exp_kitti_360_simple_multi_view_head2",
-                "dominik_kitti_360_alt_mvbts2",
+                // "dominik_kitti_360_alt_mvbts2",
+                "exp_kitti_360_DFT_slurm_knowdist",
                 // "++name=debugging",
                 // "++resume_from=null",
-                "++stop_iteration=150020",
-                "++validate_every=1",
-                "++visualize_every=1",
+                "++stop_iteration=20",
+                "++validate_every=20",
+                "++visualize_every=20",
                 "++batch_size=1",
             ],
             "console": "integratedTerminal",
@@ -50,16 +51,16 @@
             "program": "./eval.py",
             "args": [
                 "-cn",
-                "eval_lidar_occ_dominik_simple_view_head",
-                // "exp_kitti_360_simple_multi_view_head",
+                // "eval_lidar_occ_dominik_ibrnet",
+                "dominik_eval_lidar_occ_feature_fusion",
                 // "++batch_size=1",
                 // "++stop_iteration=210002",
                 // "++model_conf.encoder_ids=[0]", // mono
-                "++model_conf.encoder_ids=[0, 1]", // temporal
+                // "++model_conf.encoder_ids=[0, 1]", // temporal
                 // "++model_conf.encoder_ids=[0, 2]", // stereo
-                // "++model_conf.encoder_ids=[0, 1, 2, 3]", // stereo-temporal
+                "++model_conf.encoder_ids=[0, 1, 2, 3]", // stereo-temporal
                 // "++model_conf.encoder_ids=[0, 1, 2, 3, 4, 5, 6, 7]", // full
-                "++checkpoint=/storage/user/muhled/outputs/mvbts/kitti-360/simple_multi_view_head_backend-None-1_20231030-163439/training_checkpoint_200000.pt",
+                "++checkpoint=/storage/user/muhled/outputs/mvbts/kitti-360/BaseExperimentNoFisheyeFeatureFusionLarge_backend-None-1_20231107-105543/training_checkpoint_200000.pt",
                 "++new_model_architecture=true"
             ],
             "console": "integratedTerminal",

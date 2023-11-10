@@ -31,13 +31,13 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "MVBTS_Tr_scratchFixedToken"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "MVBTS_Tr_scratchKnowDist"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
 
 num_epochs: 200
-validate_every: 50000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
+validate_every: 990000                  # default: 50000    , Note: This validation process takes around 6 hours for nvidia RTX A40 48GB
 visualize_every: 10000                    # default: 5000       ## bigger is good for computational reduction
 batch_size: 12                           # default: 4, and 16 for BTS      ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 
@@ -59,7 +59,8 @@ save_best:
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
 
 ## pretrained MVBTS
-# resume_from: "/usr/stud/hank/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/MVBTS_Tr_scratchKnowDist_backend-None-1_20231107-143537/training_checkpoint_50000.pt"
+new_model_architecture: True
 
 data:
     data_fc: 2              ## default: 2 | 3 for monocular camera
@@ -165,8 +166,8 @@ model_conf:
 loss:
     criterion: "l1+ssim"                # photometric reconstruction loss
     invalid_policy: weight_guided
-    lambda_edge_aware_smoothness: 1e-3  # default: 1e-3 == 0.001
-    lambda_pseudo_ground_truth: 0       # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
+    lambda_edge_aware_smoothness: 5e-3  # default: 1e-3 == 0.001
+    lambda_pseudo_ground_truth: 5e-2       # default: 1e-4, set 0 to disable. Note: This should be trained once the multiview head is trained enough to knowledge distillation for singleview head
     pseudo_ground_truth_teacher: "multiviewhead"
     pseudo_ground_truth_students:
         - "singleviewhead"              ## making list type with an string element contained

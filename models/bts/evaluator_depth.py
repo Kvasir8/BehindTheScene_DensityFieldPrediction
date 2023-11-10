@@ -15,7 +15,11 @@ from models.common.render import NeRFRenderer
 from models.bts.model.image_processor import make_image_processor, RGBProcessor
 from models.bts.model.loss import ReconstructionLoss
 from models.bts.model.models_bts import MVBTSNet  ## BTSNet
-from models.bts.model.ray_sampler import ImageRaySampler, PatchRaySampler, RandomRaySampler
+from models.bts.model.ray_sampler import (
+    ImageRaySampler,
+    PatchRaySampler,
+    RandomRaySampler,
+)
 from models.ibrnet.config import config_parser
 from models.ibrnet.ibrwrapper import IBRNetRenderingWrapper
 from models.ibrnet.model import IBRNetModel
@@ -48,8 +52,8 @@ class BTSWrapper(nn.Module):
         self.sampler = ImageRaySampler(self.z_near, self.z_far)
 
         self.load_from_plate = config.get("load_from_plate", False)
+        self.depth_dir = config.get("depth_dir", None)
         if self.load_from_plate:
-            self.depth_dir = config["depth_dir"]
             self.counter = 0
 
         self.lpips_vgg = lpips.LPIPS(net="vgg")
@@ -70,7 +74,11 @@ class BTSWrapper(nn.Module):
         data = dict(data)
         if self.load_from_plate:
             data["fine"] = [
-                {"depth": self.load_depth_map(self.counter)[None, None].to(data["imgs"][0].device)}
+                {
+                    "depth": self.load_depth_map(self.counter)[None, None].to(
+                        data["imgs"][0].device
+                    )
+                }
             ]  # 1, 1, 1, H, W
             self.counter = self.counter + 1
         else:
@@ -89,7 +97,9 @@ class BTSWrapper(nn.Module):
             # ids_encoder = [0]     ## default
             ids_renderer = [0]
 
-            self.renderer.net.compute_grid_transforms(projs[:, ids_encoder], poses[:, ids_encoder])
+            self.renderer.net.compute_grid_transforms(
+                projs[:, ids_encoder], poses[:, ids_encoder]
+            )
             self.renderer.net.encode(
                 images,
                 projs,
@@ -114,8 +124,12 @@ class BTSWrapper(nn.Module):
 
             render_dict = self.sampler.reconstruct(render_dict)
 
-            render_dict["coarse"]["depth"] = distance_to_z(render_dict["coarse"]["depth"], projs)
-            render_dict["fine"]["depth"] = distance_to_z(render_dict["fine"]["depth"], projs)
+            render_dict["coarse"]["depth"] = distance_to_z(
+                render_dict["coarse"]["depth"], projs
+            )
+            render_dict["fine"]["depth"] = distance_to_z(
+                render_dict["fine"]["depth"], projs
+            )
 
             data["fine"].append(render_dict["fine"])
             data["coarse"].append(render_dict["coarse"])
@@ -148,7 +162,9 @@ class BTSWrapper(nn.Module):
             depth_pred = depth_pred
             depth_gt_ = depth_gt[mask]
             depth_pred_ = depth_pred[mask]
-            depth_pred_ = torch.stack((depth_pred_, torch.ones_like(depth_pred_)), dim=-1)
+            depth_pred_ = torch.stack(
+                (depth_pred_, torch.ones_like(depth_pred_)), dim=-1
+            )
             x = torch.linalg.lstsq(
                 depth_pred_.to(torch.float32), depth_gt_.unsqueeze(-1).to(torch.float32)
             ).solution.squeeze()
@@ -199,7 +215,11 @@ def evaluation(local_rank, config):
 def get_dataflow(config):
     test_dataset = make_test_dataset(config["data"])
     test_loader = DataLoader(
-        test_dataset, batch_size=1, num_workers=config["num_workers"], shuffle=False, drop_last=False
+        test_dataset,
+        batch_size=1,
+        num_workers=config["num_workers"],
+        shuffle=False,
+        drop_last=False,
     )
 
     return test_loader
@@ -207,7 +227,10 @@ def get_dataflow(config):
 
 def get_metrics(config, device):
     names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
-    metrics = {name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device) for name in names}
+    metrics = {
+        name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device)
+        for name in names
+    }
     return metrics
 
 
@@ -223,16 +246,21 @@ def initialize(config: dict, logger=None):
             cam_pos = 1
         else:
             cam_pos = 0
-        code_xyz = PositionalEncoding.from_conf(config["model_conf"]["code"], d_in=3 + cam_pos)
+        code_xyz = PositionalEncoding.from_conf(
+            config["model_conf"]["code"], d_in=3 + cam_pos
+        )
         encoder = make_backbone(config["model_conf"]["encoder"])
         d_in = (
             encoder.latent_size + code_xyz.d_out
         )  ### 103 | 116 (TODO: some issue in ids_encoding embedding in Tensor)
         decoder_heads = {
-            head_conf["name"]: make_head(head_conf, d_in, d_out) for head_conf in config["model_conf"]["decoder_heads"]
+            head_conf["name"]: make_head(head_conf, d_in, d_out)
+            for head_conf in config["model_conf"]["decoder_heads"]
         }
 
-        if config["model_conf"]["decoder_heads"][0]["freeze"]:  ## Freezing the MVhead for knowledge distillation
+        if config["model_conf"]["decoder_heads"][0][
+            "freeze"
+        ]:  ## Freezing the MVhead for knowledge distillation
             for param in decoder_heads["multiviewhead"].parameters():
                 param.requires_grad = False
             print("__frozen the MVhead for knowledge distillation.")
@@ -251,7 +279,7 @@ def initialize(config: dict, logger=None):
     elif arch == "IBRNet":
         parser = config_parser()
         args = parser.parse_known_args(parser._default_config_files)[0]
-        args.ckpt_path = "/storage/user/hank/methods_test/IBRNet/out/pretraining/KITTI_360_kitti360_ovftFalse_N_2048_FeTrue_color_augFalse_sample_mode_uniform_z_near_far_3.0_80.0_NoOffset_2023-11-02_08-30-48/model_036000.pth"
+        args.ckpt_path = "/storage/user/hank/methods_test/IBRNet/out/pretraining/finished_kitti360_FeTrue_NoOffset_2023-11-06_11-15-43/model_250000.pth"
         model = IBRNetModel(args, load_opt=False, load_scheduler=False)
         projector = Projector(device="cuda")
         net = IBRNetRenderingWrapper(model=model, projector=projector)

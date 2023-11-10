@@ -7,7 +7,9 @@ defaults:       ## Note: Make sure the configuration is the same with the one fr
 name: "eval_lidar"
 model: "bts_lidar"
 
-output_path: "/storage/user/muhled/outputs/mvbts/kitti-360-eval"
+checkpoint: "/usr/wiss/muhled/storage/user/outputs/mvbts/kitti-360/simple_multi_view_head_backend-None-1_20231027-110726/training_checkpoint_220000.pt" 
+
+output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 
 log_every: 10
 batch_size: 8
@@ -32,51 +34,11 @@ renderer:
     white_bkgd : false
     lindisp: true
     hard_alpha_cap: true
-    eval_batch_size: 65536 # ==2^15       ## ~/2 /2 /2    ## Note: this is the absolute eval steps without having to worry about the variant evaluations caused by batch epoch
+    eval_batch_size: 32768 # ==2^15       ## ~/2 /2 /2    ## Note: this is the absolute eval steps without having to worry about the variant evaluations caused by batch epoch
 
 model_conf:
-    arch: "MVBTSNet"            # !Note!: this should be the same architecture with the architecture trained with checkpt to eval. constructor for class MVBTSNet(torch.nn.Module):
-    use_code: true
-    prediction_mode: default
-    num_multiviews: 4           
-    sample_color: true
-    use_viewdirs: false                  # use with Neuray to aggregate multi-views, set true. c.f. IBRNet, PixelNeRF
-    # loss_from_single_img: false # default: false
-    encoder:
-        type: "monodepth2"
-        freeze: false           # freezing encoder to train the transformer
-        pretrained: true
-        resnet_layers: 50
-        num_ch_dec: [32,32,64,128,256]
-        d_out: 64               # c.f. paper D.1. output channel dimension 64 as hparam for the best result
-
-    code:
-        num_freqs: 6
-        freq_factor: 1.5
-        include_input: true
-
-    decoder_heads:
-        - type: "MultiViewHead2"
-          name: "multiviewhead2"
-          freeze: false
-          args:
-            mlp:
-                type: "resnet"
-                args:
-                    n_blocks: 0
-                    d_hidden: 64
-            attn_layers: null
-            independent_token: null
-            mlp2: null
-            dropout_views_rate: 0.0
-            dropout_multiviewhead: false
-    final_prediction_head: "multiviewhead2"
-
-
-    # encoding_style: "stereo"                # random | default | stereo : execlusively load stereo for input features map. Note: Current kitti-360 fisheye's intrinsic is poorly setup, better to turn it false to stop detrimental result for density field reconstruction. random: randomly sampling feature maps during training fisheye during training. BTS uses only mono as sampling. default: encoding indices include num multiview in order.
+    arch: "IBRNet"
     
-    ## camera will evaluate the possible cases up until the defined indices.
-    # ids_enc_offset_viz: [0]             # which cam to choose for inference of viz_eval. e.g. [0, 1 ...] or set "false" if you want to sample randomly (c.f. fisheye_offset)
     encoder_ids: [0]                     ## temporal mono case
     # encoder_ids: [0, 2]                     ## temporal mono case
     # encoder_ids: [0, 1]                     ## stereo fixed case

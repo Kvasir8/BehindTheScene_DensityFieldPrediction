@@ -362,8 +362,8 @@ class ReconstructionLoss:  ## L_{ph}
                                         )
                                     )[mask],
                                 )
-                                / int((teacher_density.size()[0]))
-                                * self.lambda_pgt
+                                # / int((teacher_density.size()[0]))
+
                             )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
                         else:
                             loss_pseudo_ground_truth += (
@@ -375,12 +375,12 @@ class ReconstructionLoss:  ## L_{ph}
                                         -1,
                                     )[mask],
                                 )
-                                / int((teacher_density.size()[0]))
-                                * self.lambda_pgt
+                                # / int((teacher_density.size()[0]))
+                                # * self.lambda_pgt
                             )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation affects the training of en- and decoder of BTS model.
                         # loss_pgt_normalized = ( loss_pseudo_ground_truth / int((teacher_density.size()[0])) ) * self.lambda_pgt   ## TODO: modify this hard coded loss coefficient
                     # loss_pseudo_ground_truth = torch.stack(loss_pseudo_ground_truth, dim=0).sum()
-                    loss += loss_pseudo_ground_truth
+                    loss += loss_pseudo_ground_truth * self.lambda_pgt
 
                     # print("pgt_mv_req_grad", {data["head_outputs"]["multiviewhead"].requires_grad})
                     # print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})

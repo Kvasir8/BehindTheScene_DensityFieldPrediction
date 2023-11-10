@@ -8,7 +8,7 @@ name: "BaseExperiment"     ## Please name it in case there are various hparam se
 model: "bts"
 output_path: "/storage/user/muhled/outputs/mvbts/kitti-360"
 
-num_epochs: 15
+num_epochs: 25
 validate_every: 50000
 visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 batch_size: 8                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
