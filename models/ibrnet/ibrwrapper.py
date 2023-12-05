@@ -17,6 +17,7 @@ class IBRNetRenderingWrapper(nn.Module):
         # self.feature_net = feature_net
         self.projector = projector
         self.model = model
+        self.regular_grid = False
 
     def convert_camera(self, Ks, poses_c2w, ids, height, width):
         padded_Ks = torch.nn.functional.pad(
@@ -78,10 +79,15 @@ class IBRNetRenderingWrapper(nn.Module):
     def forward(
         self, xyz, coarse=True, viewdirs=None, far=False, only_density=False, pgt=False
     ):
-        xyz = xyz.reshape(-1, 64, 3)
+        que_camera = self.que_camera.clone()
+        if self.regular_grid:
+            que_camera_pose = torch.eye(4, device=self.que_camera.device)
+            que_camera_pose[2, 3] = -10000.0        ##
+            que_camera[:, -16:] = que_camera_pose.flatten(0, 1)[None]
+        xyz = xyz.reshape(-1, self.model.args.N_samples, 3)
         rgb_feat, ray_diff, mask = self.projector.compute(
             xyz,
-            self.que_camera,
+            que_camera,
             self.src_imgs,
             self.src_cameras,
             featmaps=self.featmaps[0],

@@ -8,7 +8,7 @@ defaults:                       ### This code is to run for slurm config
 name: "BaseExperimentAttnLayers" 
 
 model_conf:
-    decoder_heads:
+    decoder_heads: 
         - type: "MultiViewHead2"
           name: "multiviewhead2"
           freeze: false
@@ -17,17 +17,10 @@ model_conf:
                 type: "resnet"
                 args:
                     n_blocks: 0
-                    d_hidden: 128
-            attn_layers: 
-                IBRAttn: true
-                n_layers: 1
-                n_heads: 4
+                    d_hidden: 64
+            attn_layers: null
             independent_token: null
-            mlp2:
-                type: "resnet"
-                d_in: 4
-                args:
-                    n_blocks: 0
-                    d_hidden: 4
-            dropout_views_rate: 0.5
-            dropout_multiviewhead: true
+            mlp2: null
+          dropout_views_rate: 0.5
+          dropout_multiviewhead: true
+    final_prediction_head: "multiviewhead2"

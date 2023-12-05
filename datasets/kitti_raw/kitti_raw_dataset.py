@@ -279,7 +279,8 @@ class KittiRawDataset(Dataset):
 
         # project to image
         depth = np.zeros(size)
-        depth[velo_pts_im[:, 1].astype(np.int), velo_pts_im[:, 0].astype(np.int)] = velo_pts_im[:, 2]
+        # depth[velo_pts_im[:, 1].astype(np.int), velo_pts_im[:, 0].astype(np.int)] = velo_pts_im[:, 2]
+        depth[velo_pts_im[:, 1].astype(np.int64), velo_pts_im[:, 0].astype(np.int64)] = velo_pts_im[:, 2]
 
         # find the duplicate points and choose the closest depth
         inds = velo_pts_im[:, 1] * (size[1] - 1) + velo_pts_im[:, 0] - 1

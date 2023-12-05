@@ -25,8 +25,16 @@ class FisheyeToPinholeSampler:
         self._compute_transform(K_target, target_image_size, calibs, rotation)
 
     def _compute_transform(self, K_target, target_image_size, calibs, rotation=None):
-        x = torch.linspace(-1, 1, target_image_size[1]).view(1, -1).expand(target_image_size)
-        y = torch.linspace(-1, 1, target_image_size[0]).view(-1, 1).expand(target_image_size)
+        x = (
+            torch.linspace(-1, 1, target_image_size[1])
+            .view(1, -1)
+            .expand(target_image_size)
+        )
+        y = (
+            torch.linspace(-1, 1, target_image_size[0])
+            .view(-1, 1)
+            .expand(target_image_size)
+        )
         z = torch.ones_like(x)
         xyz = torch.stack((x, y, z), dim=-1).view(-1, 3)
 
@@ -67,7 +75,9 @@ class FisheyeToPinholeSampler:
 
     def resample(self, img):
         img = img.unsqueeze(0)
-        resampled_img = F.grid_sample(img, self.sample_pts, align_corners=True).squeeze(0)
+        resampled_img = F.grid_sample(img, self.sample_pts, align_corners=True).squeeze(
+            0
+        )
         return resampled_img
 
 
@@ -112,7 +122,9 @@ class Kitti360Dataset(Dataset):
         self.color_aug = color_aug
         self.is_preprocessed = is_preprocessed
 
-        if isinstance(self.fisheye_rotation, float) or isinstance(self.fisheye_rotation, int):
+        if isinstance(self.fisheye_rotation, float) or isinstance(
+            self.fisheye_rotation, int
+        ):
             self.fisheye_rotation = (0, self.fisheye_rotation)
         self.fisheye_rotation = tuple(self.fisheye_rotation)
 
@@ -125,11 +137,17 @@ class Kitti360Dataset(Dataset):
         if type(self.fisheye_offset) == int:
             self.random_fisheye_offset = False
             self.fisheye_offset = (self.fisheye_offset,)
-        elif type(self.fisheye_offset) in [tuple, list, omegaconf.listconfig.ListConfig]:
+        elif type(self.fisheye_offset) in [
+            tuple,
+            list,
+            omegaconf.listconfig.ListConfig,
+        ]:
             self.random_fisheye_offset = True
             self.fisheye_offset = tuple(sorted(self.fisheye_offset))
         else:
-            raise ValueError(f"Invalid datatype for fisheye offset: {type(self.fisheye_offset)}")
+            raise ValueError(
+                f"Invalid datatype for fisheye offset: {type(self.fisheye_offset)}"
+            )
 
         if type(self.stereo_offset) == int:
             self.random_stereo_offset = False
@@ -138,7 +156,9 @@ class Kitti360Dataset(Dataset):
             self.random_stereo_offset = True
             self.stereo_offset = tuple(sorted(self.stereo_offset))
         else:
-            raise ValueError(f"Invalid datatype for fisheye offset: {type(self.stereo_offset)}")
+            raise ValueError(
+                f"Invalid datatype for fisheye offset: {type(self.stereo_offset)}"
+            )
 
         self._sequences = self._get_sequences(self.data_path)
 
@@ -147,10 +167,14 @@ class Kitti360Dataset(Dataset):
             self._calibs, self._calibs["K_fisheye"], self.target_image_size
         )
         self._img_ids, self._poses = self._load_poses(self.pose_path, self._sequences)
-        self._left_offset = ((self.frame_count - 1) // 2 + self.keyframe_offset) * self.dilation
+        self._left_offset = (
+            (self.frame_count - 1) // 2 + self.keyframe_offset
+        ) * self.dilation
 
         self._perspective_folder = (
-            "data_rect" if not self.is_preprocessed else f"data_{self.target_image_size[0]}x{self.target_image_size[1]}"
+            "data_rect"
+            if not self.is_preprocessed
+            else f"data_{self.target_image_size[0]}x{self.target_image_size[1]}"
         )
         self._fisheye_folder = (
             "data_rgb"
@@ -161,12 +185,18 @@ class Kitti360Dataset(Dataset):
         if self.split_path is not None:
             self._datapoints = self._load_split(self.split_path, self._img_ids)
         elif self.return_segmentation:
-            self._datapoints = self._semantics_split(self._sequences, self.data_path, self._img_ids)
+            self._datapoints = self._semantics_split(
+                self._sequences, self.data_path, self._img_ids
+            )
         else:
-            self._datapoints = self._full_split(self._sequences, self._img_ids, self.check_file_integrity)
+            self._datapoints = self._full_split(
+                self._sequences, self._img_ids, self.check_file_integrity
+            )
 
         if self.return_3d_bboxes:
-            self._3d_bboxes = self._load_3d_bboxes(Path(data_path) / "data_3d_bboxes" / "train_full", self._sequences)
+            self._3d_bboxes = self._load_3d_bboxes(
+                Path(data_path) / "data_3d_bboxes" / "train_full", self._sequences
+            )
 
         if self.return_segmentation:
             # Segmentations are only provided for the left camera
@@ -187,7 +217,9 @@ class Kitti360Dataset(Dataset):
         ids = [id] + [
             max(min(i, seq_len - 1), 0)
             for i in range(
-                id - self._left_offset, id - self._left_offset + self.frame_count * self.dilation, self.dilation
+                id - self._left_offset,
+                id - self._left_offset + self.frame_count * self.dilation,
+                self.dilation,
             )
             if i != id
         ]
@@ -195,7 +227,10 @@ class Kitti360Dataset(Dataset):
             max(min(i, seq_len - 1), 0)
             for i in range(
                 id + self.fisheye_offset - self._left_offset,
-                id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation,
+                id
+                + self.fisheye_offset
+                - self._left_offset
+                + self.frame_count * self.dilation,
                 self.dilation,
             )
             if i != id + self.fisheye_offset
@@ -205,11 +240,17 @@ class Kitti360Dataset(Dataset):
         img_ids_fish = [self.get_img_id_from_id(seq, id) for id in ids_fish]
 
         for img_id in img_ids:
-            if not ((image_00 / f"{img_id:010d}.png").exists() and (image_01 / f"{img_id:010d}.png").exists()):
+            if not (
+                (image_00 / f"{img_id:010d}.png").exists()
+                and (image_01 / f"{img_id:010d}.png").exists()
+            ):
                 return False
         if self.return_fisheye:
             for img_id in img_ids_fish:
-                if not ((image_02 / f"{img_id:010d}.png").exists() and (image_03 / f"{img_id:010d}.png").exists()):
+                if not (
+                    (image_02 / f"{img_id:010d}.png").exists()
+                    and (image_03 / f"{img_id:010d}.png").exists()
+                ):
                     return False
         return True
 
@@ -230,7 +271,9 @@ class Kitti360Dataset(Dataset):
         datapoints = []
         for seq in sorted(sequences):
             ids = [id for id in range(len(img_ids[seq])) if check_integrity(seq, id)]
-            datapoints_seq = [(seq, id, False) for id in ids] + [(seq, id, True) for id in ids]
+            datapoints_seq = [(seq, id, False) for id in ids] + [
+                (seq, id, True) for id in ids
+            ]
             datapoints.extend(datapoints_seq)
         return datapoints
 
@@ -259,7 +302,9 @@ class Kitti360Dataset(Dataset):
 
     @staticmethod
     def _load_split(split_path, img_ids):
-        img_id2id = {seq: {id: i for i, id in enumerate(ids)} for seq, ids in img_ids.items()}
+        img_id2id = {
+            seq: {id: i for i, id in enumerate(ids)} for seq, ids in img_ids.items()
+        }
 
         with open(split_path, "r") as f:
             lines = f.readlines()
@@ -288,7 +333,9 @@ class Kitti360Dataset(Dataset):
             for line in f.readlines():
                 key, value = line.split(":", 1)
                 try:
-                    cam_to_pose_data[key] = np.array([float(x) for x in value.split()], dtype=np.float32)
+                    cam_to_pose_data[key] = np.array(
+                        [float(x) for x in value.split()], dtype=np.float32
+                    )
                 except ValueError:
                     pass
 
@@ -296,7 +343,9 @@ class Kitti360Dataset(Dataset):
         with open(cam_to_velo_file, "r") as f:
             line = f.readline()
             try:
-                cam_to_velo_data = np.array([float(x) for x in line.split()], dtype=np.float32)
+                cam_to_velo_data = np.array(
+                    [float(x) for x in line.split()], dtype=np.float32
+                )
             except ValueError:
                 pass
 
@@ -305,7 +354,9 @@ class Kitti360Dataset(Dataset):
             for line in f.readlines():
                 key, value = line.split(":", 1)
                 try:
-                    intrinsics_data[key] = np.array([float(x) for x in value.split()], dtype=np.float32)
+                    intrinsics_data[key] = np.array(
+                        [float(x) for x in value.split()], dtype=np.float32
+                    )
                 except ValueError:
                     pass
 
@@ -317,7 +368,10 @@ class Kitti360Dataset(Dataset):
             f.readline()  # Skips first line that defines the YAML version
             fisheye_03_data = yaml.safe_load(f)
 
-        im_size_rect = (int(intrinsics_data["S_rect_00"][1]), int(intrinsics_data["S_rect_00"][0]))
+        im_size_rect = (
+            int(intrinsics_data["S_rect_00"][1]),
+            int(intrinsics_data["S_rect_00"][0]),
+        )
         im_size_fish = (fisheye_02_data["image_height"], fisheye_02_data["image_width"])
 
         # Projection matrices
@@ -337,10 +391,14 @@ class Kitti360Dataset(Dataset):
         R_02 = np.eye(4, dtype=np.float32)
         R_03 = np.eye(4, dtype=np.float32)
         R_02[:3, :3] = (
-            Rotation.from_euler("xy", fisheye_rotation[:, [1, 0]], degrees=True).as_matrix().astype(np.float32)
+            Rotation.from_euler("xy", fisheye_rotation[:, [1, 0]], degrees=True)
+            .as_matrix()
+            .astype(np.float32)
         )
         R_03[:3, :3] = (
-            Rotation.from_euler("xy", fisheye_rotation[:, [1, 0]] * np.array([[1, -1]]), degrees=True)
+            Rotation.from_euler(
+                "xy", fisheye_rotation[:, [1, 0]] * np.array([[1, -1]]), degrees=True
+            )
             .as_matrix()
             .astype(np.float32)
         )
@@ -448,10 +506,16 @@ class Kitti360Dataset(Dataset):
     @staticmethod
     def _get_resamplers(calibs, K_target, target_image_size):
         resampler_02 = FisheyeToPinholeSampler(
-            K_target, target_image_size, calibs["fisheye"]["calib_02"], calibs["fisheye"]["R_02"]
+            K_target,
+            target_image_size,
+            calibs["fisheye"]["calib_02"],
+            calibs["fisheye"]["R_02"],
         )
         resampler_03 = FisheyeToPinholeSampler(
-            K_target, target_image_size, calibs["fisheye"]["calib_03"], calibs["fisheye"]["R_03"]
+            K_target,
+            target_image_size,
+            calibs["fisheye"]["calib_03"],
+            calibs["fisheye"]["R_03"],
         )
 
         return resampler_02, resampler_03
@@ -471,7 +535,9 @@ class Kitti360Dataset(Dataset):
 
             ids_seq = pose_data[:, 0].astype(int)
             poses_seq = pose_data[:, 1:].astype(np.float32).reshape((-1, 3, 4))
-            poses_seq = np.concatenate((poses_seq, np.zeros_like(poses_seq[:, :1, :])), axis=1)
+            poses_seq = np.concatenate(
+                (poses_seq, np.zeros_like(poses_seq[:, :1, :])), axis=1
+            )
             poses_seq[:, 3, 3] = 1
 
             ids[seq] = ids_seq
@@ -573,7 +639,12 @@ class Kitti360Dataset(Dataset):
                     cv2.cvtColor(
                         cv2.imread(
                             os.path.join(
-                                self.data_path, "data_2d_raw", seq, "image_02", self._fisheye_folder, f"{id:010d}.png"
+                                self.data_path,
+                                "data_2d_raw",
+                                seq,
+                                "image_02",
+                                self._fisheye_folder,
+                                f"{id:010d}.png",
                             )
                         ),
                         cv2.COLOR_BGR2RGB,
@@ -586,7 +657,12 @@ class Kitti360Dataset(Dataset):
                     cv2.cvtColor(
                         cv2.imread(
                             os.path.join(
-                                self.data_path, "data_2d_raw", seq, "image_03", self._fisheye_folder, f"{id:010d}.png"
+                                self.data_path,
+                                "data_2d_raw",
+                                seq,
+                                "image_03",
+                                self._fisheye_folder,
+                                f"{id:010d}.png",
                             )
                         ),
                         cv2.COLOR_BGR2RGB,
@@ -597,14 +673,21 @@ class Kitti360Dataset(Dataset):
 
         return imgs_p_left, imgs_f_left, imgs_p_right, imgs_f_right
 
-    def process_img(self, img: np.array, color_aug_fn=None, resampler: FisheyeToPinholeSampler = None):
+    def process_img(
+        self,
+        img: np.array,
+        color_aug_fn=None,
+        resampler: FisheyeToPinholeSampler = None,
+    ):
         if resampler is not None and not self.is_preprocessed:
             img = torch.tensor(img).permute(2, 0, 1)
             img = resampler.resample(img)
         else:
             if self.target_image_size:
                 img = cv2.resize(
-                    img, (self.target_image_size[1], self.target_image_size[0]), interpolation=cv2.INTER_LINEAR
+                    img,
+                    (self.target_image_size[1], self.target_image_size[0]),
+                    interpolation=cv2.INTER_LINEAR,
                 )
             img = np.transpose(img, (2, 0, 1))
             img = torch.tensor(img)
@@ -650,16 +733,33 @@ class Kitti360Dataset(Dataset):
     def load_segmentation(self, seq, img_id):
         seg = cv2.imread(
             os.path.join(
-                self.data_path, "data_2d_semantics", "train", seq, "image_00", "semantic", f"{img_id:010d}.png"
+                self.data_path,
+                "data_2d_semantics",
+                "train",
+                seq,
+                "image_00",
+                "semantic",
+                f"{img_id:010d}.png",
             ),
             cv2.IMREAD_UNCHANGED,
         )
-        seg = cv2.resize(seg, (self.target_image_size[1], self.target_image_size[0]), interpolation=cv2.INTER_NEAREST)
+        seg = cv2.resize(
+            seg,
+            (self.target_image_size[1], self.target_image_size[0]),
+            interpolation=cv2.INTER_NEAREST,
+        )
         return seg
 
     def load_depth(self, seq, img_id, is_right):
         points = np.fromfile(
-            os.path.join(self.data_path, "data_3d_raw", seq, "velodyne_points", "data", f"{img_id:010d}.bin"),
+            os.path.join(
+                self.data_path,
+                "data_3d_raw",
+                seq,
+                "velodyne_points",
+                "data",
+                f"{img_id:010d}.bin",
+            ),
             dtype=np.float32,
         ).reshape(-1, 4)
         points[:, 3] = 1.0
@@ -672,22 +772,32 @@ class Kitti360Dataset(Dataset):
         velo_pts_im[:, :2] = velo_pts_im[:, :2] / velo_pts_im[:, 2][..., None]
 
         # the projection is normalized to [-1, 1] -> transform to [0, height-1] x [0, width-1]
-        velo_pts_im[:, 0] = np.round((velo_pts_im[:, 0] * 0.5 + 0.5) * self.target_image_size[1])
-        velo_pts_im[:, 1] = np.round((velo_pts_im[:, 1] * 0.5 + 0.5) * self.target_image_size[0])
+        velo_pts_im[:, 0] = np.round(
+            (velo_pts_im[:, 0] * 0.5 + 0.5) * self.target_image_size[1]
+        )
+        velo_pts_im[:, 1] = np.round(
+            (velo_pts_im[:, 1] * 0.5 + 0.5) * self.target_image_size[0]
+        )
 
         # check if in bounds
         val_inds = (velo_pts_im[:, 0] >= 0) & (velo_pts_im[:, 1] >= 0)
         val_inds = (
-            val_inds & (velo_pts_im[:, 0] < self.target_image_size[1]) & (velo_pts_im[:, 1] < self.target_image_size[0])
+            val_inds
+            & (velo_pts_im[:, 0] < self.target_image_size[1])
+            & (velo_pts_im[:, 1] < self.target_image_size[0])
         )
         velo_pts_im = velo_pts_im[val_inds, :]
 
         # project to image
         depth = np.zeros(self.target_image_size)
-        depth[velo_pts_im[:, 1].astype(np.int32), velo_pts_im[:, 0].astype(np.int32)] = velo_pts_im[:, 2]
+        depth[
+            velo_pts_im[:, 1].astype(np.int32), velo_pts_im[:, 0].astype(np.int32)
+        ] = velo_pts_im[:, 2]
 
         # find the duplicate points and choose the closest depth
-        inds = velo_pts_im[:, 1] * (self.target_image_size[1] - 1) + velo_pts_im[:, 0] - 1
+        inds = (
+            velo_pts_im[:, 1] * (self.target_image_size[1] - 1) + velo_pts_im[:, 0] - 1
+        )
         dupe_inds = [item for item, count in Counter(inds).items() if count > 1]
         for dd in dupe_inds:
             pts = np.where(inds == dd)[0]
@@ -710,7 +820,9 @@ class Kitti360Dataset(Dataset):
         sequence, id, is_right = self._datapoints[index]
         seq_len = self._img_ids[sequence].shape[0]
 
-        load_left, load_right = (not is_right) or self.return_stereo, is_right or self.return_stereo
+        load_left, load_right = (
+            not is_right
+        ) or self.return_stereo, is_right or self.return_stereo
 
         ## randomly sample fisheye in the time steps where it can see the occlusion with the stereo
         if self.random_fisheye_offset:
@@ -721,9 +833,11 @@ class Kitti360Dataset(Dataset):
             fisheye_offset = self.fisheye_offset[-1]
 
         if self.random_stereo_offset:
-            stereo_offset = self.stereo_offset[torch.randint(0, len(self.stereo_offset), (1,)).item()]
+            stereo_offset = self.stereo_offset[
+                torch.randint(0, len(self.stereo_offset), (1,)).item()
+            ]
         else:
-            stereo_offset = self.stereo_offset[-1]
+            stereo_offset = self.stereo_offset[0]
 
         # ids = [id] + [max(min(i, seq_len-1), 0) for i in range(id - self._left_offset, id - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id]
         # ids_fish = [max(min(id + self.fisheye_offset, seq_len-1), 0)] + [max(min(i, seq_len-1), 0) for i in range(id + self.fisheye_offset - self._left_offset, id + self.fisheye_offset - self._left_offset + self.frame_count * self.dilation, self.dilation) if i != id + self.fisheye_offset]
@@ -736,7 +850,9 @@ class Kitti360Dataset(Dataset):
         ids = [id] + [
             max(min(i, seq_len - 1), 0)
             for i in range(
-                id_st - self._left_offset, id_st - self._left_offset + self.frame_count * self.dilation, self.dilation
+                id_st - self._left_offset,
+                id_st - self._left_offset + self.frame_count * self.dilation,
+                self.dilation,
             )
             if i != id_st
         ]
@@ -744,7 +860,10 @@ class Kitti360Dataset(Dataset):
             max(min(i, seq_len - 1), 0)
             for i in range(
                 id + fisheye_offset - self._left_offset,
-                id + fisheye_offset - self._left_offset + self.frame_count * self.dilation,
+                id
+                + fisheye_offset
+                - self._left_offset
+                + self.frame_count * self.dilation,
                 self.dilation,
             )
             if i != id + fisheye_offset
@@ -759,7 +878,10 @@ class Kitti360Dataset(Dataset):
         if self.color_aug:
             color_aug_fn = get_color_aug_fn(
                 ColorJitter.get_params(
-                    brightness=(0.8, 1.2), contrast=(0.8, 1.2), saturation=(0.8, 1.2), hue=(-0.1, 0.1)
+                    brightness=(0.8, 1.2),
+                    contrast=(0.8, 1.2),
+                    saturation=(0.8, 1.2),
+                    hue=(-0.1, 0.1),
                 )
             )
         else:
@@ -772,38 +894,70 @@ class Kitti360Dataset(Dataset):
         _loading_time = np.array(time.time() - _start_time_loading)
 
         _start_time_processing = time.time()
-        imgs_p_left = [self.process_img(img, color_aug_fn=color_aug_fn) for img in imgs_p_left]
-        imgs_f_left = [
-            self.process_img(img, color_aug_fn=color_aug_fn, resampler=self._resampler_02) for img in imgs_f_left
+        imgs_p_left = [
+            self.process_img(img, color_aug_fn=color_aug_fn) for img in imgs_p_left
         ]
-        imgs_p_right = [self.process_img(img, color_aug_fn=color_aug_fn) for img in imgs_p_right]
+        imgs_f_left = [
+            self.process_img(
+                img, color_aug_fn=color_aug_fn, resampler=self._resampler_02
+            )
+            for img in imgs_f_left
+        ]
+        imgs_p_right = [
+            self.process_img(img, color_aug_fn=color_aug_fn) for img in imgs_p_right
+        ]
         imgs_f_right = [
-            self.process_img(img, color_aug_fn=color_aug_fn, resampler=self._resampler_03) for img in imgs_f_right
+            self.process_img(
+                img, color_aug_fn=color_aug_fn, resampler=self._resampler_03
+            )
+            for img in imgs_f_right
         ]
         _processing_time = np.array(time.time() - _start_time_processing)
 
         # These poses are camera to world !!
         poses_p_left = (
-            [self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["00"] for i in ids] if load_left else []
+            [
+                self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["00"]
+                for i in ids
+            ]
+            if load_left
+            else []
         )
         poses_f_left = (
-            [self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["02"] for i in ids_fish]
+            [
+                self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["02"]
+                for i in ids_fish
+            ]
             if load_left
             else []
         )
         poses_p_right = (
-            [self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["01"] for i in ids] if load_right else []
+            [
+                self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["01"]
+                for i in ids
+            ]
+            if load_right
+            else []
         )
         poses_f_right = (
-            [self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["03"] for i in ids_fish]
+            [
+                self._poses[sequence][i, :, :] @ self._calibs["T_cam_to_pose"]["03"]
+                for i in ids_fish
+            ]
             if load_right
             else []
         )
 
         projs_p_left = [self._calibs["K_perspective"] for _ in ids] if load_left else []
-        projs_f_left = [self._calibs["K_fisheye"] for _ in ids_fish] if load_left else []
-        projs_p_right = [self._calibs["K_perspective"] for _ in ids] if load_right else []
-        projs_f_right = [self._calibs["K_fisheye"] for _ in ids_fish] if load_right else []
+        projs_f_left = (
+            [self._calibs["K_fisheye"] for _ in ids_fish] if load_left else []
+        )
+        projs_p_right = (
+            [self._calibs["K_perspective"] for _ in ids] if load_right else []
+        )
+        projs_f_right = (
+            [self._calibs["K_fisheye"] for _ in ids_fish] if load_right else []
+        )
 
         imgs = (
             imgs_p_left + imgs_p_right + imgs_f_left + imgs_f_right
@@ -856,5 +1010,5 @@ class Kitti360Dataset(Dataset):
         return data
 
     def __len__(self) -> int:
-        # return 10
+        # return 10         ## for overfitting
         return self.length

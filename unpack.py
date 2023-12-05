@@ -25,14 +25,16 @@ def pack(uncompressed):
 
 
 def main():
-    voxel_grid = np.random.randint(0, 2, (32, 32, 4)).astype(np.float32)
+    voxel_grid = np.random.randint(0, 2, (160, 80, 3)).astype(np.float32)
     voxel_grid[...] = 0
     voxel_grid[..., :2] = 1
+    # voxel_grid[..., -2:] = 1
     input = voxel_grid.reshape(-1)
     compressed = pack(input).astype(np.uint8)
-    np.save("voxel_grid.npy", compressed)
-    loaded_compressed = np.load("voxel_grid.npy")
-    # loaded_compressed = np.fromfile("voxel_grid.npy", dtype=np.uint8)
+    # np.save("voxel_grid.npy", compressed)
+    # loaded_compressed = np.load("voxel_grid.npy")
+    compressed.tofile("000000.bin")
+    loaded_compressed = np.fromfile("000000.bin", dtype=np.uint8)
     uncompressed = unpack(loaded_compressed)
     output = uncompressed.reshape(voxel_grid.shape).astype(np.float32)
     pass

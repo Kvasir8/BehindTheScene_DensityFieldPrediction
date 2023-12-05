@@ -497,9 +497,7 @@ def create_trainer(model, optimizer, criterion, lr_scheduler, train_sampler, con
 
         _start_time = time.time()
         optimizer.zero_grad()
-        scaler.scale(
-            loss
-        ).backward()  ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
+        scaler.scale(loss).backward()  ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         # scaler.scale(loss).backward(retain_graph=True)       ## make same scale for gradients. Note: it's not ignite built-in func. (c.f. https://wandb.ai/wandb_fc/tips/reports/How-To-Use-GradScaler-in-PyTorch--VmlldzoyMTY5MDA5)
         scaler.step(optimizer)
         # bwd_hook_debug_init_state = {param.clone() for param in model.renderer.net.heads.multiviewhead.attn_layers.layers[0].linear1.parameters()}

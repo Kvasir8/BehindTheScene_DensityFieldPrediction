@@ -24,167 +24,187 @@ from utils.plotting import color_tensor
 
 def main():
     parser = ArgumentParser("Generate density field from single image.")
-    parser.add_argument("--img", "-i", required=True, help="Path to the image.")
+    # parser.add_argument("--img", "-i", required=True, help="Path to the image.")
     parser.add_argument("--plot", "-p", action="store_true", help="Plot rather than save images.")
-    parser.add_argument("--model", "-m", help="Which pretrained model to use. (KITTI-360 (default), KITTI-Raw, RealEstate10K, DFT_of", default="KITTI-360")
+    parser.add_argument("--model", "-m", help="Which pretrained model to use. (KITTI-360 (default), KITTI-Raw, RealEstate10K, DFT_of", default="KITTI-360_DFT")
+    parser.add_argument("--load_depth_path", "-l", help="specify depth image path for viz purpose for baselines.", default="")
+    parser.add_argument("--desired_files", "-d", help="load depth image file without file format.", default=[])
 
     args = parser.parse_args()
 
-    s_img = True
+    s_img = False
     s_depth = True
-    s_profile = True
+    s_profile = False
     dry_run = args.plot
 
-    model = args.model
-    assert model in ["KITTI-360", "KITTI-Raw", "RealEstate10K", "DFT_of"]
+    # model = args.model
+    # assert model in ["KITTI-360", "KITTI-Raw", "RealEstate10K", "DFT_of"]
 
-    if model == "KITTI-360":
-        resolution = (192, 640)
+    load_depth_path = args.load_depth_path    ##
+    assert load_depth_path != ""
+    if load_depth_path != "":   load_depth = True
+    else: load_depth = False
 
-        config_path = "exp_kitti_360"
+    desired_files = args.desired_files      ##
+    d_files = desired_files.split(",")
+    out_path = Path("media/img_custom/kitti-360_depth")
 
-        cp_path = Path(f"out/kitti_360/pretrained")
-        cp_name = cp_path.name
-        cp_path = next(cp_path.glob("training*.pt"))
+    # if model == "KITTI-360":
+    #     resolution = (192, 640)
 
-        out_path = Path(f"media/img_custom/kitti-360_{cp_name}")
+    #     config_path = "exp_kitti_360"
 
-        cam_incl_adjust = torch.tensor(
-            [[1.0000000, 0.0000000, 0.0000000, 0],
-             [0.0000000, 0.9961947, -0.0871557, 0],
-             [0.0000000, 0.0871557, 0.9961947, 0],
-             [0.0000000, 000000000, 0.0000000, 1]
-             ],
-            dtype=torch.float32).view(1, 4, 4)
+    #     cp_path = Path(f"out/kitti_360/pretrained")
+    #     cp_name = cp_path.name
+    #     cp_path = next(cp_path.glob("training*.pt"))
 
-        proj = torch.tensor([
-            [ 0.7849,  0.0000, -0.0312, 0],
-            [ 0.0000,  2.9391,  0.2701, 0],
-            [ 0.0000,  0.0000,  1.0000, 0],
-            [ 0.0000,  0.0000,  0.0000, 1],
-        ], dtype=torch.float32).view(1, 4, 4)
-    elif model == "KITTI-Raw":
-        resolution = (192, 640)
-        config_path = "exp_kitti_raw"
+    #     out_path = Path(f"media/img_custom/kitti-360_{cp_name}")
 
-        cp_path = Path(f"out/kitti_raw/pretrained")
-        cp_name = cp_path.name
-        cp_path = next(cp_path.glob("training*.pt"))
+    #     cam_incl_adjust = torch.tensor(
+    #         [[1.0000000, 0.0000000, 0.0000000, 0],
+    #          [0.0000000, 0.9961947, -0.0871557, 0],
+    #          [0.0000000, 0.0871557, 0.9961947, 0],
+    #          [0.0000000, 000000000, 0.0000000, 1]
+    #          ],
+    #         dtype=torch.float32).view(1, 4, 4)
 
-        out_path = Path(f"media/img_custom/kitti-raw_{cp_name}")
+    #     proj = torch.tensor([
+    #         [ 0.7849,  0.0000, -0.0312, 0],
+    #         [ 0.0000,  2.9391,  0.2701, 0],
+    #         [ 0.0000,  0.0000,  1.0000, 0],
+    #         [ 0.0000,  0.0000,  0.0000, 1],
+    #     ], dtype=torch.float32).view(1, 4, 4)
+    # elif model == "KITTI-Raw":
+    #     resolution = (192, 640)
+    #     config_path = "exp_kitti_raw"
 
-        cam_incl_adjust = None
+    #     cp_path = Path(f"out/kitti_raw/pretrained")
+    #     cp_name = cp_path.name
+    #     cp_path = next(cp_path.glob("training*.pt"))
 
-        proj = torch.tensor([
-            [ 1.1619,  0.0000, -0.0184, 0],
-            [ 0.0000,  3.8482, -0.0781, 0],
-            [ 0.0000,  0.0000,  1.0000, 0],
-            [ 0.0000,  0.0000,  0.0000, 1]
-        ], dtype=torch.float32).view(1, 4, 4)
-    elif model == "RealEstate10K":
-        resolution = (256, 384)
+    #     out_path = Path(f"media/img_custom/kitti-raw_{cp_name}")
 
-        config_path = "exp_re10k"
+    #     cam_incl_adjust = None
 
-        cp_path = Path(f"out/re10k/pretrained")
-        cp_name = cp_path.name
-        cp_path = next(cp_path.glob("training*.pt"))
+    #     proj = torch.tensor([
+    #         [ 1.1619,  0.0000, -0.0184, 0],
+    #         [ 0.0000,  3.8482, -0.0781, 0],
+    #         [ 0.0000,  0.0000,  1.0000, 0],
+    #         [ 0.0000,  0.0000,  0.0000, 1]
+    #     ], dtype=torch.float32).view(1, 4, 4)
+    # elif model == "RealEstate10K":
+    #     resolution = (256, 384)
 
-        out_path = Path(f"media/img_custom/re10k_{cp_name}")
+    #     config_path = "exp_re10k"
 
-        cam_incl_adjust = None
-        proj = torch.tensor([
-            [1.0056, 0.0000, 0.0000, 0],
-            [0.0000, 1.7877, 0.0000, 0],
-            [0.0000, 0.0000, 1.0000, 0],
-            [0.0000, 0.0000, 0.0000, 1],
-        ], dtype=torch.float32).view(1, 4, 4)
-    elif model == "DFT_of":
-        resolution = (192, 640)
+    #     cp_path = Path(f"out/re10k/pretrained")
+    #     cp_name = cp_path.name
+    #     cp_path = next(cp_path.glob("training*.pt"))
 
-        config_path = "exp_kitti_360_DFT"
+    #     out_path = Path(f"media/img_custom/re10k_{cp_name}")
 
-        cp_path = Path(f"out/kitti_360_DFT_of/pretrained")
-        cp_name = cp_path.name
-        cp_path = next(cp_path.glob("training*.pt"))
+    #     cam_incl_adjust = None
+    #     proj = torch.tensor([
+    #         [1.0056, 0.0000, 0.0000, 0],
+    #         [0.0000, 1.7877, 0.0000, 0],
+    #         [0.0000, 0.0000, 1.0000, 0],
+    #         [0.0000, 0.0000, 0.0000, 1],
+    #     ], dtype=torch.float32).view(1, 4, 4)
+    # elif model == "DFT_of":
+    #     resolution = (192, 640)
 
-        out_path = Path(f"media/img_custom/kitti-360_{cp_name}")
+    #     config_path = "exp_kitti_360_DFT"
 
-        cam_incl_adjust = torch.tensor(
-            [[1.0000000, 0.0000000, 0.0000000, 0],
-             [0.0000000, 0.9961947, -0.0871557, 0],
-             [0.0000000, 0.0871557, 0.9961947, 0],
-             [0.0000000, 000000000, 0.0000000, 1]
-             ],
-            dtype=torch.float32).view(1, 4, 4)
+    #     cp_path = Path(f"out/kitti_360_DFT_of/pretrained")
+    #     cp_name = cp_path.name
+    #     cp_path = next(cp_path.glob("training*.pt"))
 
-        proj = torch.tensor([
-            [ 0.7849,  0.0000, -0.0312, 0],
-            [ 0.0000,  2.9391,  0.2701, 0],
-            [ 0.0000,  0.0000,  1.0000, 0],
-            [ 0.0000,  0.0000,  0.0000, 1],
-        ], dtype=torch.float32).view(1, 4, 4)
-    else:
-        raise ValueError(f"Invalid model: {model}")
+    #     out_path = Path(f"media/img_custom/kitti-360_{cp_name}")
 
-    initialize(version_base=None, config_path="../../configs", job_name="gen_imgs")
-    config = compose(config_name=config_path, overrides=[])
+    #     cam_incl_adjust = torch.tensor(
+    #         [[1.0000000, 0.0000000, 0.0000000, 0],
+    #          [0.0000000, 0.9961947, -0.0871557, 0],
+    #          [0.0000000, 0.0871557, 0.9961947, 0],
+    #          [0.0000000, 000000000, 0.0000000, 1]
+    #          ],
+    #         dtype=torch.float32).view(1, 4, 4)
 
-    print("Setup folders")
-    out_path.mkdir(exist_ok=True, parents=True)
+    #     proj = torch.tensor([
+    #         [ 0.7849,  0.0000, -0.0312, 0],
+    #         [ 0.0000,  2.9391,  0.2701, 0],
+    #         [ 0.0000,  0.0000,  1.0000, 0],
+    #         [ 0.0000,  0.0000,  0.0000, 1],
+    #     ], dtype=torch.float32).view(1, 4, 4)
+    # else:
+    #     raise ValueError(f"Invalid model: {model}")
 
-    print('Loading checkpoint')
-    cp = torch.load(cp_path, map_location=device)
+    # initialize(version_base=None, config_path="../../configs", job_name="gen_imgs")
+    # config = compose(config_name=config_path, overrides=[])
 
-    net = MVBTSNet(config["model_conf"])
-    renderer = NeRFRenderer.from_conf(config["renderer"])
-    renderer = renderer.bind_parallel(net, gpus=None).eval()
-    renderer.renderer.n_coarse = 64
-    renderer.renderer.lindisp = True
+    # print("Setup folders")
+    # out_path.mkdir(exist_ok=True, parents=True)
 
-    class _Wrapper(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.renderer = renderer
+    # print('Loading checkpoint')
+    # cp = torch.load(cp_path, map_location=device)
 
-    _wrapper = _Wrapper()
+    # net = MVBTSNet(config["model_conf"])
+    # renderer = NeRFRenderer.from_conf(config["renderer"])
+    # renderer = renderer.bind_parallel(net, gpus=None).eval()
+    # renderer.renderer.n_coarse = 64
+    # renderer.renderer.lindisp = True
 
-    _wrapper.load_state_dict(cp["model"], strict=False)
-    renderer.to(device)
-    renderer.eval()
+    # class _Wrapper(nn.Module):
+    #     def __init__(self):
+    #         super().__init__()
+    #         self.renderer = renderer
 
-    ray_sampler = ImageRaySampler(config["model_conf"]["z_near"], config["model_conf"]["z_far"], *resolution, norm_dir=False)
+    # _wrapper = _Wrapper()
 
-    print("Load input image")
-    assert os.path.exists(args.img)
-    img = cv2.cvtColor(cv2.imread(args.img), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
-    img = cv2.resize(img, (resolution[1], resolution[0]))
-    img = torch.tensor(img).permute(2, 0, 1).unsqueeze(0).unsqueeze(0).to(device) * 2 - 1
-    img_name = os.path.basename(args.img).split(".")[0]
+    # _wrapper.load_state_dict(cp["model"], strict=False)
+    # renderer.to(device)
+    # renderer.eval()
+
+    # ray_sampler = ImageRaySampler(config["model_conf"]["z_near"], config["model_conf"]["z_far"], *resolution, norm_dir=False)
+
+    # print("Load input image")
+    # assert os.path.exists(args.img)
+    # img = cv2.cvtColor(cv2.imread(args.img), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.
+    # img = cv2.resize(img, (resolution[1], resolution[0]))
+    # img = torch.tensor(img).permute(2, 0, 1).unsqueeze(0).unsqueeze(0).to(device) * 2 - 1
+    # img_name = os.path.basename(args.img).split(".")[0]
 
     with torch.no_grad():
-        poses = torch.eye(4).view(1, 1, 4, 4).to(device)
-        projs = proj.view(1, 1, 4, 4).to(device)[:, :, :3, :3]
+        # poses = torch.eye(4).view(1, 1, 4, 4).to(device)
+        # projs = proj.view(1, 1, 4, 4).to(device)[:, :, :3, :3]
 
-        net.encode(img, projs, poses, ids_encoder=[0], ids_render=[0])
-        net.set_scale(0)
+        # net.encode(img, projs, poses, ids_encoder=[0], ids_render=[0])
+        # net.set_scale(0)
 
-        img_save = img[0, 0].permute(1, 2, 0).cpu() * .5 + .5
-        _, depth = render_poses(renderer, ray_sampler, poses[:, :1], projs[:, :1])
+        # img_save = img[0, 0].permute(1, 2, 0).cpu() * .5 + .5
+        # _, depth = render_poses(renderer, ray_sampler, poses[:, :1], projs[:, :1])
 
-        if s_profile:
-            profile = render_profile(net, cam_incl_adjust)
-        else:
-            profile = None
+        # if s_profile:
+        #     profile = render_profile(net, cam_incl_adjust)
+        # else:
+        #     profile = None
+        
+        depth_lst = []
+        if load_depth:  
+            for i_ in d_files:
+                depth = torch.load(f'{load_depth_path}/{i_}.pt')
+                depth_lst.append(depth)
+        else:        
+            depth = ((1 / depth - 1 / config["model_conf"]["z_far"]) / (1 / config["model_conf"]["z_near"] - 1 / config["model_conf"]["z_far"])).clamp(0, 1)
 
-        depth = ((1 / depth - 1 / config["model_conf"]["z_far"]) / (1 / config["model_conf"]["z_near"] - 1 / config["model_conf"]["z_far"])).clamp(0, 1)
-
-        print(f"Generated " + str(out_path / f"{img_name}"))
+        # print(f"Generated " + str(out_path / f"{img_name}"))
 
         if s_img:
             save_plot(img_save.numpy(), str(out_path / f"{img_name}_in.png"), dry_run=dry_run)
         if s_depth:
-            save_plot(color_tensor(depth, "magma", norm=True).numpy(), str(out_path / f"{img_name}_depth.png"), dry_run=dry_run)
+            # save_plot(color_tensor(depth, "magma", norm=True).numpy(), str(out_path / f"{img_name}_depth.png"), dry_run=dry_run)
+            for idx, depth in enumerate(depth_lst):
+                save_plot(color_tensor(depth, "magma", norm=True).numpy(), str(out_path / f"{d_files[idx]}_depth.png"), dry_run=dry_run, grey= True)
+            print("__finished saved depth files")
         if s_profile:
             save_plot(color_tensor(profile.cpu(), "magma", norm=True).numpy(), str(out_path / f"{img_name}_profile.png"), dry_run=dry_run)
 

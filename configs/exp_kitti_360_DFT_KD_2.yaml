@@ -31,7 +31,7 @@ defaults:                       ### This code is for concept of proof and transf
 # DFTunfrozen_do05_DFTfixed_ff_encly3_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # fixed_nry_WOtkposemb_longrun_DFTunfr_postemb_do01_DFTfixed_fixedToken_ff_encstyle_default_enly4_nv8_att16_nh4_feOffset_pgt_lr1e4_rbs2048
 # posemb_longrun_DFTunfr_do01_DFTfixed_fixedToken_ff_encstyle_random_enly4_nv8_att16_nh4_feOffset_pgt0_rbs2048_B1
-name: "__KD_OnlyFe_tempOffset_emb16"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "__KD_OnlyFe_tempOffset"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"                    # model: "bts"/ "bts_overfit"    # TODO: bts_~~ for debug ## need to modify for debugging for different bts model ## replace en-decoder for trained one
 output_path: "out/mvbts/kitti_360/"
 
@@ -55,7 +55,7 @@ save_best:
 ## knowlege distillation (Note: make same configuration from checkpoint)
 # resume_from: "/usr/stud/hank/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
 # resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326500.pt"
-resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ab_NoFe_PWF_do05_slurm_backend-None-1_20231020-203936/training_checkpoint_200000.pt"
+resume_from: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/__Ab_NoFe_PWF_do05_slurm_backend-None-1_20231020-203936/training_checkpoint_200000.pt"
 # resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training_random_offset/training_checkpoint_303500.pt"
 
 data:
@@ -178,9 +178,9 @@ scheduler:
 #backend = "nccl"  # Or "gloo"
 #nproc_per_node: 2
 
-IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
-    sv_: 58
-    port_: 58023
+# IDE_debug:                              ## set true for remote IDE debug for pydevd_pycharm
+#     sv_: 58
+#     port_: 58023
 
 #This YAML configuration file specifies settings for training a BTSNet neural network model on the KITTI 360 dataset. It outlines parameters for various aspects of the training, including data processing, model configuration, loss functions, and the training schedule. Here are some key details:
 #General Settings: The model to be used is BTSNet. The output from this training run will be stored in the directory "out/kitti_360". The training will run for 25 epochs with a batch size of 16.

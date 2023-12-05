@@ -9,13 +9,17 @@ model: "bts_depth"
 # checkpoint: "out/kitti_raw/pretrained"
 
 ## pretrained KDBTS (knowlege distillation) (Note: make same configuration from checkpoint)
-# resume_from: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
+# checkpoint: "/usr/stud/hank/storage/user/BehindTheScenes/out/mvbts/kitti_360/__Ablation_embdim16_slurm_backend-None-1_20231019-175322/training_checkpoint_326000.pt"
 
 ## pretrained DFT
-# resume_from: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+# checkpoint: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training/training_checkpoint_310000.pt"
+# checkpoint: "/storage/user/muhled/outputs/mvbts/kitti_360/long_training_random_offset/training_checkpoint_303500.pt"
 
 ## pretrained KD-DFT
-resume_from: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/__KD_tempOffsetFeStereo_backend-None-1_20231109-170053/training_checkpoint_400000.pt"
+# checkpoint: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/__KD_tempOffsetFeStereo_backend-None-1_20231109-170053/training_checkpoint_400000.pt"
+checkpoint: "/storage/user/hank/BehindTheScenes/out/mvbts/kitti_360/__KD_tempOffsetFeStereo_backend-None-1_20231112-203616/training_checkpoint_320000.pt"
+
+# checkpoint: "/storage/user/hank/BehindTheScenes/out/mvbts/pretrained/KDDFT/training_checkpoint_400000.pt"
 
 log_every: 10
 batch_size: 1

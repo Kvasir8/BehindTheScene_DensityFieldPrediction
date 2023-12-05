@@ -9,12 +9,13 @@ model: "bts"
 output_path: "/storage/user/muhled/outputs/mvbts/kitti-raw"
 
 num_epochs: 50
-validate_every: 50000
+validate_every: 200000
 visualize_every: 10000          # default: 10       ## bigger is good for computational reduction
 batch_size: 8                  # default: 16       ## Note: size 1 is working properly with NueRay integration. The complete integration needs to be done with super-batch size in training loop. ## each batch contains 8 views 16*8 too much
 # stop_iteration: 150020
 
-# resume_from: "/storage/user/muhled/outputs/mvbts/kitti-raw/BaseExperimentRaw_backend-None-1_stop-on-150020/training_checkpoint_120000.pt"
+resume_from: "/storage/user/muhled/outputs/mvbts/kitti-raw/BaseExperimentRaw_backend-None-1_20231111-130822/training_checkpoint_50000.pt"
+new_model_architecture: true
 
 save_best:
     metric: abs_rel             # The model that has the smallest absolute relative error will be saved.
@@ -50,7 +51,7 @@ model_conf:
 
     encoder:
         type: "monodepth2"
-        freeze: false            # freezing encoder to train the transformer
+        freeze: true            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -64,7 +65,7 @@ model_conf:
     decoder_heads:
         - type: "MultiViewHead3"
           name: "multiviewhead3"
-          freeze: false
+          freeze: true
           args:
             mlp:
                 type: "resnet"
@@ -111,8 +112,8 @@ loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    lambda_pseudo_ground_truth: 0.0
-    pseudo_ground_truth_teacher: "multiviewhead"
+    lambda_pseudo_ground_truth: 1.0e-2
+    pseudo_ground_truth_teacher: "multiviewhead3"
     pseudo_ground_truth_students:
         - "singleviewhead"
 

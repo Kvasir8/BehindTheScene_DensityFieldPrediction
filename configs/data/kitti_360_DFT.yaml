@@ -8,6 +8,6 @@ image_size: [ 192, 640 ]
 data_stereo: true
 # data_fc: 2
 fisheye_offset: [10] ## default: fisheye_offset: [10]
-stereo_offset: [1] #  [1,2,3,4,5,6,7,8]  ## defaut: [1] time stamps
+stereo_offset: [1, 2, 3, 4, 5, 6, 7, 8] #  [1,2,3,4,5,6,7,8]  ## defaut: [1] time stamps
 is_preprocessed: false
 data_fisheye: true

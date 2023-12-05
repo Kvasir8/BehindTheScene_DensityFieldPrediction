@@ -15,10 +15,11 @@
                 // "dominik_kitti_360_knowledge_distillation_from_pretrained",
                 // "exp_kitti_360_simple_multi_view_head2",
                 // "dominik_kitti_360_alt_mvbts2",
-                "exp_kitti_360_DFT_slurm_knowdist",
+                // "exp_kitti_360_DFT_slurm_knowdist",
+                "dominik_kitti_360_no_fisheye_feature_fusion_knowdist_resume",
                 // "++name=debugging",
                 // "++resume_from=null",
-                "++stop_iteration=20",
+                // "++stop_iteration=20",
                 "++validate_every=20",
                 "++visualize_every=20",
                 "++batch_size=1",
@@ -45,21 +46,38 @@
             "justMyCode": false
         },
         {
-            "name": "Evaluation",
+            "name": "Evaluation_occ",
             "type": "python",
             "request": "launch",
             "program": "./eval.py",
             "args": [
                 "-cn",
-                // "eval_lidar_occ_dominik_ibrnet",
-                "dominik_eval_lidar_occ_feature_fusion",
+                "eval_lidar_occ_dominik_ibrnet",
+                // "dominik_eval_lidar_occ_feature_fusion",
+                // "dominik_eval_lidar_occ_knowledge_distillation_from_pretrained",
                 // "++batch_size=1",
                 // "++stop_iteration=210002",
-                // "++model_conf.encoder_ids=[0]", // mono
+                "++model_conf.encoder_ids=[0]", // mono
                 // "++model_conf.encoder_ids=[0, 1]", // temporal
                 // "++model_conf.encoder_ids=[0, 2]", // stereo
-                "++model_conf.encoder_ids=[0, 1, 2, 3]", // stereo-temporal
+                // "++model_conf.encoder_ids=[0, 1, 2, 3]", // stereo-temporal
                 // "++model_conf.encoder_ids=[0, 1, 2, 3, 4, 5, 6, 7]", // full
+                // "++checkpoint=/storage/user/muhled/outputs/mvbts/kitti-360/BaseExperimentNoFisheyeFeatureFusionLargeKnowDistResume_backend-None-1_20231111-131526/training_checkpoint_250000.pt",
+                // "++new_model_architecture=true"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Evaluation_occ2",
+            "type": "python",
+            "request": "launch",
+            "program": "./eval.py",
+            "args": [
+                "-cn",
+                "dominik_eval_lidar_occ_feature_fusion",
+                "++model_conf.encoder_ids=[0]", // mono
+                // "++model_conf.encoder_ids=[0, 1, 2, 3]", // stereo-temporal
                 "++checkpoint=/storage/user/muhled/outputs/mvbts/kitti-360/BaseExperimentNoFisheyeFeatureFusionLarge_backend-None-1_20231107-105543/training_checkpoint_200000.pt",
                 "++new_model_architecture=true"
             ],
@@ -67,34 +85,18 @@
             "justMyCode": false
         },
         {
-            "name": "Evaluation Depth",
+            "name": "Evaluation_Depth",
             "type": "python",
             "request": "launch",
             "program": "./eval.py",
             "args": [
                 "-cn",
-                "dominik_eval_depth_ibrnet",
+                // "dominik_eval_depth_ibrnet",
                 // "dominik_eval_depth_base",
+                "dominik_eval_depth_final_model",
             ],
             "console": "integratedTerminal",
             "justMyCode": false
-        },
-        {
-            "name": "launch: eval.py (occ)",
-            "type": "python",
-            "request": "launch",
-            "program": "eval.py",
-            "args": [
-                "-cn",
-                "eval_lidar_occ"
-            ],
-            "cwd": "${workspaceFolder}",
-            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
-            },
-            "stopOnEntry": false,
-            "justMyCode": true
         },
         {
             "name": "TrRaw_debug",
@@ -131,6 +133,74 @@
             "justMyCode": true
         },
         {
+            "name": "eval_occ_DFT",
+            "type": "python",
+            "request": "launch",
+            "program": "eval.py",
+            "args": [
+                "-cn",
+                "eval_lidar_occ"
+            ],
+            // "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
+            "name": "voxel_test",
+            "type": "python",
+            "request": "launch",
+            "program": "utils/viz2voxel.py",
+            // "args": [
+            // ],
+            // "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
+            "name": "gen_depth_imgs_DevNet",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/images/gen_img_custom_DFT.py",
+            "args": [
+                "--load_depth_path",
+                "/storage/user/hank/methods_test/DevNet/test_imgs",
+                "--desired_files""Tensor10_kitti_raw,Tensor11_kitti_raw,Tensor12_kitti_raw"
+            ],
+            // "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
+            "name": "gen_imgs",
+            "type": "python",
+            "request": "launch",
+            "program": "scripts/images/gen_imgs.py",
+            "args": [
+                // "-cn",
+                // "dominik_eval_depth_ibrnet"
+            ],
+            // "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            // "env": {
+            //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            // },
+            // "env": {"CUDA_VISIBLE_DEVICES",:0},
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
             "name": "Tr360_scratch",
             "type": "python",
             "request": "launch",
@@ -145,6 +215,23 @@
             // "env": {
             //     "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
             // },
+            "stopOnEntry": false,
+            "justMyCode": true
+        },
+        {
+            "name": "DFT:debug",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "-cn",
+                "exp_kitti_360_DFT_KD_1"
+            ],
+            "cwd": "${workspaceFolder}",
+            // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}../../miniconda3/envs/bts_m/lib/python3.10/site-packages/"
+            },
             "stopOnEntry": false,
             "justMyCode": true
         },

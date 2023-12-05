@@ -15,7 +15,9 @@ def compute_errors_l1ssim(img0, img1, mask=None):  ## (img0 == pred, img1 == GT)
         w,
         nv,
         c,
-    ) = img0.shape  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
+    ) = (
+        img0.shape
+    )  ##  n:= batch size, pc:= #_patches per img, nv:=#_views, c:=#_color channels (RGB:c=3)
     img1 = img1.expand(
         img0.shape
     )  ## ensuring that img1 has the same shape as img0. The expand function in PyTorch repeats the tensor along the specified dimensions.
@@ -24,7 +26,8 @@ def compute_errors_l1ssim(img0, img1, mask=None):  ## (img0 == pred, img1 == GT)
         -1, c, h, w
     )  ## reshaping and reordering the dimensions of img0 and img1 so that they have the shape (n*pc*nv, c, h, w).
     errors = 0.85 * torch.mean(
-        ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True), dim=1
+        ssim(img0, img1, pad_reflection=False, gaussian_average=True, comp_mode=True),
+        dim=1,
     ) + 0.15 * torch.mean(
         torch.abs(img0 - img1), dim=1
     )  ## calculating the error between img0 and img1 as a weighted combination of SSIM and L1 loss. SSIM is a measure of image quality that considers changes in structural information, and L1 loss is the mean absolute difference between the two images. The weights 0.85 and 0.15 are used to give more importance to SSIM.
@@ -51,13 +54,19 @@ def edge_aware_smoothness(gt_img, depth, mask=None):  ## L_{eas}
     d_dx = torch.abs(depth[:, :, :, :-1] - depth[:, :, :, 1:])
     d_dy = torch.abs(depth[:, :, :-1, :] - depth[:, :, 1:, :])
 
-    i_dx = torch.mean(torch.abs(gt_img[:, :, :, :-1] - gt_img[:, :, :, 1:]), 1, keepdim=True)
-    i_dy = torch.mean(torch.abs(gt_img[:, :, :-1, :] - gt_img[:, :, 1:, :]), 1, keepdim=True)
+    i_dx = torch.mean(
+        torch.abs(gt_img[:, :, :, :-1] - gt_img[:, :, :, 1:]), 1, keepdim=True
+    )
+    i_dy = torch.mean(
+        torch.abs(gt_img[:, :, :-1, :] - gt_img[:, :, 1:, :]), 1, keepdim=True
+    )
 
     d_dx *= torch.exp(-i_dx)
     d_dy *= torch.exp(-i_dy)
 
-    errors = F.pad(d_dx, pad=(0, 1), mode="constant", value=0) + F.pad(d_dy, pad=(0, 0, 0, 1), mode="constant", value=0)
+    errors = F.pad(d_dx, pad=(0, 1), mode="constant", value=0) + F.pad(
+        d_dy, pad=(0, 0, 0, 1), mode="constant", value=0
+    )
     errors = errors.view(n, pc, h, w)
     return errors
 
@@ -80,8 +89,16 @@ class ReconstructionLoss:  ## L_{ph}
             #     self.rgb_fine_crit = compute_errors_l1ssim
             self.lambda_pgt = config.get("lambda_pseudo_ground_truth", 1e-1)
         self.invalid_policy = config.get("invalid_policy", "strict")
-        assert self.invalid_policy in ["strict", "weight_guided", "weight_guided_diverse", None, "none"]
-        self.ignore_invalid = self.invalid_policy is not None and self.invalid_policy != "none"
+        assert self.invalid_policy in [
+            "strict",
+            "weight_guided",
+            "weight_guided_diverse",
+            None,
+            "none",
+        ]
+        self.ignore_invalid = (
+            self.invalid_policy is not None and self.invalid_policy != "none"
+        )
         self.lambda_coarse = config.get("lambda_coarse", 1)
         self.lambda_fine = config.get("lambda_fine", 1)
 
@@ -91,16 +108,30 @@ class ReconstructionLoss:  ## L_{ph}
         self.lambda_depth_reg = config.get("lambda_depth_reg", 0)
         self.lambda_alpha_reg = config.get("lambda_alpha_reg", 0)
         self.lambda_surfaceness_reg = config.get("lambda_surfaceness_reg", 0)
-        self.lambda_edge_aware_smoothness = config.get("lambda_edge_aware_smoothness", 0)
+        self.lambda_edge_aware_smoothness = config.get(
+            "lambda_edge_aware_smoothness", 0
+        )
         self.lambda_depth_smoothness = config.get("lambda_depth_smoothness", 0)
 
         self.lambda_pseudo_ground_truth = config.get("lambda_pseudo_ground_truth", 0)
-        self.lambda_pseudo_ground_truth_alt = config.get("lambda_pseudo_ground_truth_alt", 0)
-        self.lambda_pseudo_ground_truth_alt2 = config.get("lambda_pseudo_ground_truth_alt2", 0)
-        self.pseudo_ground_truth_teacher = config.get("pseudo_ground_truth_teacher", None)
-        self.pseudo_ground_truth_students = config.get("pseudo_ground_truth_students", None)
-        self.pseudo_ground_truth_density = config.get("pseudo_ground_truth_density", True)
-        self.pseudo_ground_truth_masking = config.get("pseudo_ground_truth_masking", True)
+        self.lambda_pseudo_ground_truth_alt = config.get(
+            "lambda_pseudo_ground_truth_alt", 0
+        )
+        self.lambda_pseudo_ground_truth_alt2 = config.get(
+            "lambda_pseudo_ground_truth_alt2", 0
+        )
+        self.pseudo_ground_truth_teacher = config.get(
+            "pseudo_ground_truth_teacher", None
+        )
+        self.pseudo_ground_truth_students = config.get(
+            "pseudo_ground_truth_students", None
+        )
+        self.pseudo_ground_truth_density = config.get(
+            "pseudo_ground_truth_density", True
+        )
+        self.pseudo_ground_truth_masking = config.get(
+            "pseudo_ground_truth_masking", True
+        )
 
         self.median_thresholding = config.get("median_thresholding", False)
 
@@ -108,11 +139,19 @@ class ReconstructionLoss:  ## L_{ph}
         self.alpha_reg_fraction = config.get("alpha_reg_fraction", 1 / 8)
 
         if self.alpha_reg_reduction not in ("ray", "slice"):
-            raise ValueError(f"Unknown reduction for alpha regularization: {self.alpha_reg_reduction}")
+            raise ValueError(
+                f"Unknown reduction for alpha regularization: {self.alpha_reg_reduction}"
+            )
 
     @staticmethod
     def get_loss_metric_names():
-        return ["loss", "loss_rgb_coarse", "loss_rgb_fine", "loss_ray_entropy", "loss_depth_reg"]
+        return [
+            "loss",
+            "loss_rgb_coarse",
+            "loss_rgb_fine",
+            "loss_ray_entropy",
+            "loss_depth_reg",
+        ]
 
     def __call__(self, data):
         with profiler.record_function("loss_computation"):
@@ -134,17 +173,29 @@ class ReconstructionLoss:  ## L_{ph}
 
             if self.invalid_policy == "strict":
                 # Consider all rays invalid where there is at least one invalidly sampled color
-                invalid_coarse = torch.all(torch.any(invalid_coarse > 0.5, dim=-2), dim=-1).unsqueeze(-1)
-                invalid_fine = torch.all(torch.any(invalid_fine > 0.5, dim=-2), dim=-1).unsqueeze(-1)
+                invalid_coarse = torch.all(
+                    torch.any(invalid_coarse > 0.5, dim=-2), dim=-1
+                ).unsqueeze(-1)
+                invalid_fine = torch.all(
+                    torch.any(invalid_fine > 0.5, dim=-2), dim=-1
+                ).unsqueeze(-1)
             elif self.invalid_policy == "weight_guided":
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
                 invalid_coarse = torch.all(
-                    (invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > 0.9,
+                    (
+                        invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)
+                    ).sum(-2)
+                    > 0.9,
                     dim=-1,
                     keepdim=True,
                 )
                 invalid_fine = torch.all(
-                    (invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > 0.9, dim=-1, keepdim=True
+                    (invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(
+                        -2
+                    )
+                    > 0.9,
+                    dim=-1,
+                    keepdim=True,
                 )
             elif self.invalid_policy == "weight_guided_diverse":
                 # We now also consider, whether there is enough variance in the ray colors to give a meaningful supervision signal.
@@ -155,22 +206,40 @@ class ReconstructionLoss:  ## L_{ph}
 
                 # Integrate invalid indicator function over the weights. It is invalid if > 90% of the mass is invalid. (Arbitrary threshold)
                 invalid_coarse = torch.all(
-                    ((invalid_coarse.to(torch.float32) * weights_coarse.unsqueeze(-1)).sum(-2) > 0.9)
+                    (
+                        (
+                            invalid_coarse.to(torch.float32)
+                            * weights_coarse.unsqueeze(-1)
+                        ).sum(-2)
+                        > 0.9
+                    )
                     | (ray_std_c < 0.01),
                     dim=-1,
                     keepdim=True,
                 )
                 invalid_fine = torch.all(
-                    ((invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)).sum(-2) > 0.9) | (ray_std_f < 0.01),
+                    (
+                        (
+                            invalid_fine.to(torch.float32) * weights_fine.unsqueeze(-1)
+                        ).sum(-2)
+                        > 0.9
+                    )
+                    | (ray_std_f < 0.01),
                     dim=-1,
                     keepdim=True,
                 )
             elif self.invalid_policy == "none":
                 invalid_coarse = torch.zeros_like(
-                    torch.all(torch.any(invalid_coarse > 0.5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool
+                    torch.all(
+                        torch.any(invalid_coarse > 0.5, dim=-2), dim=-1
+                    ).unsqueeze(-1),
+                    dtype=torch.bool,
                 )
                 invalid_fine = torch.zeros_like(
-                    torch.all(torch.any(invalid_fine > 0.5, dim=-2), dim=-1).unsqueeze(-1), dtype=torch.bool
+                    torch.all(torch.any(invalid_fine > 0.5, dim=-2), dim=-1).unsqueeze(
+                        -1
+                    ),
+                    dtype=torch.bool,
                 )
             else:
                 raise NotImplementedError
@@ -182,7 +251,9 @@ class ReconstructionLoss:  ## L_{ph}
             loss_depth_smoothness = torch.tensor(0.0, device=invalid_fine.device)
             loss_pseudo_ground_truth = torch.tensor(0.0, device=invalid_fine.device)
             loss_pseudo_ground_truth_alt = torch.tensor(0.0, device=invalid_fine.device)
-            loss_pseudo_ground_truth_alt2 = torch.tensor(0.0, device=invalid_fine.device)
+            loss_pseudo_ground_truth_alt2 = torch.tensor(
+                0.0, device=invalid_fine.device
+            )
 
             for scale in range(n_scales):
                 coarse = data["coarse"][scale]
@@ -207,7 +278,9 @@ class ReconstructionLoss:  ## L_{ph}
                 b, pc, h, w, nv, c = rgb_coarse.shape
 
                 # Take minimum across all reconstructed views
-                rgb_loss = self.rgb_coarse_crit(rgb_coarse, rgb_gt)  ### (n, pc, h, w, nv+1, 1)
+                rgb_loss = self.rgb_coarse_crit(
+                    rgb_coarse, rgb_gt
+                )  ### (n, pc, h, w, nv+1, 1)
                 rgb_loss = rgb_loss.amin(-2)
 
                 if self.use_automasking:
@@ -217,7 +290,9 @@ class ReconstructionLoss:  ## L_{ph}
                     rgb_loss = rgb_loss * (1 - invalid_coarse.to(torch.float32))
 
                 if self.median_thresholding:
-                    threshold = torch.median(rgb_loss.view(b, -1), dim=-1)[0].view(-1, 1, 1, 1, 1)
+                    threshold = torch.median(rgb_loss.view(b, -1), dim=-1)[0].view(
+                        -1, 1, 1, 1, 1
+                    )
                     rgb_loss = rgb_loss[rgb_loss <= threshold]
 
                 rgb_loss = rgb_loss.mean()
@@ -234,11 +309,15 @@ class ReconstructionLoss:  ## L_{ph}
                         fine_loss = fine_loss * (1 - invalid_fine.to(torch.float32))
 
                     if self.median_thresholding:
-                        threshold = torch.median(fine_loss.view(b, -1), dim=-1)[0].view(-1, 1, 1, 1, 1)
+                        threshold = torch.median(fine_loss.view(b, -1), dim=-1)[0].view(
+                            -1, 1, 1, 1, 1
+                        )
                         fine_loss = fine_loss[fine_loss <= threshold]
 
                     fine_loss = fine_loss.mean()
-                    rgb_loss = rgb_loss * self.lambda_coarse + fine_loss * self.lambda_fine
+                    rgb_loss = (
+                        rgb_loss * self.lambda_coarse + fine_loss * self.lambda_fine
+                    )
                     loss_fine_all += fine_loss.item() * self.lambda_fine
                 else:
                     loss_dict["loss_rgb_fine"] = 0
@@ -264,18 +343,24 @@ class ReconstructionLoss:  ## L_{ph}
                     #     loss_alpha_reg_s = loss_alpha_reg_s * (1 - invalid_coarse.squeeze(-1).to(torch.float32))
 
                     alpha_sum = alphas[..., :-1].sum(-1)
-                    min_cap = torch.ones_like(alpha_sum) * (n_smps * self.alpha_reg_fraction)
+                    min_cap = torch.ones_like(alpha_sum) * (
+                        n_smps * self.alpha_reg_fraction
+                    )
 
                     if self.ignore_invalid:
-                        alpha_sum = alpha_sum * (1 - invalid_coarse.squeeze(-1).to(torch.float32))
-                        min_cap = min_cap * (1 - invalid_coarse.squeeze(-1).to(torch.float32))
+                        alpha_sum = alpha_sum * (
+                            1 - invalid_coarse.squeeze(-1).to(torch.float32)
+                        )
+                        min_cap = min_cap * (
+                            1 - invalid_coarse.squeeze(-1).to(torch.float32)
+                        )
 
                     if self.alpha_reg_reduction == "ray":
                         loss_alpha_reg_s = (alpha_sum - min_cap).clamp_min(0)
                     elif self.alpha_reg_reduction == "slice":
-                        loss_alpha_reg_s = (alpha_sum.sum(dim=-1) - min_cap.sum(dim=-1)).clamp_min(0) / alpha_sum.shape[
-                            -1
-                        ]
+                        loss_alpha_reg_s = (
+                            alpha_sum.sum(dim=-1) - min_cap.sum(dim=-1)
+                        ).clamp_min(0) / alpha_sum.shape[-1]
 
                     # alphas = alphas[..., :-n_smps//16]
                     # alpha_deltas = alphas[..., 1:] - alphas[..., :-1]
@@ -292,7 +377,9 @@ class ReconstructionLoss:  ## L_{ph}
                     alphas = coarse["alphas"]
                     n_smps = alphas.shape[-1]
 
-                    p = -torch.log(torch.exp(-alphas.abs()) + torch.exp(-(1 - alphas).abs()))
+                    p = -torch.log(
+                        torch.exp(-alphas.abs()) + torch.exp(-(1 - alphas).abs())
+                    )
                     p = p.mean(-1)
 
                     if self.ignore_invalid:
@@ -310,20 +397,25 @@ class ReconstructionLoss:  ## L_{ph}
 
                     if self.ignore_invalid:
                         invalid_scale = torch.ceil(
-                            F.interpolate(invalid_coarse.squeeze(-1).to(torch.float32), size=(depths.shape[-2:]))
+                            F.interpolate(
+                                invalid_coarse.squeeze(-1).to(torch.float32),
+                                size=(depths.shape[-2:]),
+                            )
                         )
                         loss_eas_s = loss_eas_s * (1 - invalid_scale)
 
                     loss_eas_s = loss_eas_s.mean()
 
                     loss_eas += loss_eas_s
-                    loss += loss_eas_s * self.lambda_edge_aware_smoothness / (2**scale)
+                    loss += (
+                        loss_eas_s * self.lambda_edge_aware_smoothness / (2**scale)
+                    )
 
                 if self.lambda_depth_smoothness > 0:
                     depths = coarse["depth"]
-                    loss_depth_smoothness_s = ((depths[..., :-1, :] - depths[..., 1:, :]) ** 2).mean() + (
-                        (depths[..., :, :-1] - depths[..., :, 1:]) ** 2
-                    ).mean()
+                    loss_depth_smoothness_s = (
+                        (depths[..., :-1, :] - depths[..., 1:, :]) ** 2
+                    ).mean() + ((depths[..., :, :-1] - depths[..., :, 1:]) ** 2).mean()
 
                     loss_depth_smoothness += loss_depth_smoothness_s
                     loss += loss_depth_smoothness_s * self.lambda_depth_smoothness
@@ -334,7 +426,9 @@ class ReconstructionLoss:  ## L_{ph}
                     and self.pseudo_ground_truth_teacher is not None
                 ):
                     teacher_density = (
-                        data["head_outputs"][self.pseudo_ground_truth_teacher].clone().detach()
+                        data["head_outputs"][self.pseudo_ground_truth_teacher]
+                        .clone()
+                        .detach()
                     )  ## if only detach(), it is in-place computaitonal graph frozen. This makes whole DFT model frozen, and not learnable during training. Thus, it needs to be frozen-cloned that is separately trained from pgt_loss computation. c.f. https://discuss.pytorch.org/t/difference-between-detach-clone-and-clone-detach/34173/3
                     # teacher_density = data["head_outputs"][self.pseudo_ground_truth_teacher].detach()
                     # teacher_density.requires_grad = False
@@ -350,24 +444,25 @@ class ReconstructionLoss:  ## L_{ph}
                         #     mask = torch.ones_like(data["invalid_features"][:, 0]).bool()
                         if self.pseudo_ground_truth_density:
                             loss_pseudo_ground_truth += (
-                                torch.nn.MSELoss(reduction="mean")(
+                                torch.nn.L1Loss(reduction="mean")(
                                     F.softplus(
                                         data["head_outputs"][student_name].view(
                                             -1,
                                         )
-                                    )[mask],
+                                    )[mask].clip(0.0, 2.0),
                                     F.softplus(
                                         teacher_density.view(
                                             -1,
                                         )
-                                    )[mask],
+                                    )[
+                                        mask
+                                    ].clip(0.0, 2.0),
                                 )
                                 # / int((teacher_density.size()[0]))
-
                             )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
                         else:
                             loss_pseudo_ground_truth += (
-                                torch.nn.MSELoss(reduction="mean")(
+                                torch.nn.L1Loss(reduction="mean")(
                                     data["head_outputs"][student_name].view(
                                         -1,
                                     )[mask],
@@ -386,34 +481,55 @@ class ReconstructionLoss:  ## L_{ph}
                     # print("pgt_sv_req_grad", {data["head_outputs"]["singleviewhead"].requires_grad})
                     # print("pgt_teacher_req_grad", {teacher_density.requires_grad})
 
-                if self.lambda_pseudo_ground_truth_alt > 0 and data["state_dict"] is not None:
+                if (
+                    self.lambda_pseudo_ground_truth_alt > 0
+                    and data["state_dict"] is not None
+                ):
                     teacher_density = data["state_dict"]["final_sigma"].clone().detach()
                     for i in range(data["state_dict"]["sigmas"].shape[2]):
-                        mask = ~data["state_dict"]["invalid_features"][:, :, i] & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0) & (teacher_density[..., 0] < 1.0)
+                        mask = (
+                            ~data["state_dict"]["invalid_features"][:, :, i]
+                            & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0)
+                            & (teacher_density[..., 0] < 1.0)
+                        )
                         loss_pseudo_ground_truth_alt += (
-                                torch.nn.MSELoss(reduction="mean")(
-                                    data["state_dict"]["sigmas"][:, :, i][mask],
-                                    teacher_density[mask],
-                                )
-                                # / int((teacher_density[mask].size()[0]))
-                            )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
-                    loss += loss_pseudo_ground_truth_alt * self.lambda_pseudo_ground_truth_alt
-                if self.lambda_pseudo_ground_truth_alt2 > 0 and data["state_dict"] is not None:
+                            torch.nn.MSELoss(reduction="mean")(
+                                data["state_dict"]["sigmas"][:, :, i][mask],
+                                teacher_density[mask],
+                            )
+                            # / int((teacher_density[mask].size()[0]))
+                        )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
+                    loss += (
+                        loss_pseudo_ground_truth_alt
+                        * self.lambda_pseudo_ground_truth_alt
+                    )
+                if (
+                    self.lambda_pseudo_ground_truth_alt2 > 0
+                    and data["state_dict"] is not None
+                ):
                     for i in range(data["state_dict"]["sigmas"].shape[2]):
                         for j in range(data["state_dict"]["sigmas"].shape[2]):
                             if i == j:
                                 continue
-                            mask = ~torch.logical_or(data["state_dict"]["invalid_features"][:, :, i], data["state_dict"]["invalid_features"][:, :, j]) & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0) & (data["state_dict"]["sigmas"][:, :, j, 0] < 1.0)
+                            mask = (
+                                ~torch.logical_or(
+                                    data["state_dict"]["invalid_features"][:, :, i],
+                                    data["state_dict"]["invalid_features"][:, :, j],
+                                )
+                                & (data["state_dict"]["sigmas"][:, :, i, 0] < 1.0)
+                                & (data["state_dict"]["sigmas"][:, :, j, 0] < 1.0)
+                            )
                             loss_pseudo_ground_truth_alt2 += (
-                                        torch.nn.MSELoss(reduction="mean")(
-                                            data["state_dict"]["sigmas"][:, :, i][mask],
-                                            data["state_dict"]["sigmas"][:, :, j][mask],
-                                        )
-                                        # / int((data["state_dict"]["sigmas"][:, :, j][mask].size()[0]))
-
-                                    )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
-                    loss += loss_pseudo_ground_truth_alt2 * self.lambda_pseudo_ground_truth_alt2
-                    
+                                torch.nn.MSELoss(reduction="mean")(
+                                    data["state_dict"]["sigmas"][:, :, i][mask],
+                                    data["state_dict"]["sigmas"][:, :, j][mask],
+                                )
+                                # / int((data["state_dict"]["sigmas"][:, :, j][mask].size()[0]))
+                            )  ## Normalized: reason: its magnitude in updating computational graph during backpropagation
+                    loss += (
+                        loss_pseudo_ground_truth_alt2
+                        * self.lambda_pseudo_ground_truth_alt2
+                    )
 
             loss = loss / n_scales
 
@@ -423,15 +539,21 @@ class ReconstructionLoss:  ## L_{ph}
                 alphas = alphas + 1e-5
 
                 ray_density = alphas / alphas.sum(dim=-1, keepdim=True)
-                ray_entropy = -(ray_density * torch.log(ray_density)).sum(-1) / (math.log2(alphas.shape[-1]))
-                ray_entropy = ray_entropy * (1 - invalid_coarse.squeeze(-1).to(torch.float32))
+                ray_entropy = -(ray_density * torch.log(ray_density)).sum(-1) / (
+                    math.log2(alphas.shape[-1])
+                )
+                ray_entropy = ray_entropy * (
+                    1 - invalid_coarse.squeeze(-1).to(torch.float32)
+                )
                 loss_ray_entropy = ray_entropy.mean()
 
             loss = loss + loss_ray_entropy * self.lambda_entropy
 
         loss_dict["loss_pseudo_ground_truth"] = loss_pseudo_ground_truth.item()
         loss_dict["loss_pseudo_ground_truth_alt"] = loss_pseudo_ground_truth_alt.item()
-        loss_dict["loss_pseudo_ground_truth_alt2"] = loss_pseudo_ground_truth_alt2.item()
+        loss_dict[
+            "loss_pseudo_ground_truth_alt2"
+        ] = loss_pseudo_ground_truth_alt2.item()
         loss_dict["loss_rgb_coarse"] = loss_coarse_all
         loss_dict["loss_rgb_fine"] = loss_fine_all
         loss_dict["loss_ray_entropy"] = loss_ray_entropy.item()

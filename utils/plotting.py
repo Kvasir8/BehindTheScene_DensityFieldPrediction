@@ -42,5 +42,6 @@ def color_tensor(tensor: torch.Tensor, cmap, norm=False):
     if norm:
         tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())
     map = plt.cm.get_cmap(cmap)
-    tensor = torch.tensor(map(tensor.cpu().numpy()), device=tensor.device)[..., :3]
+    # tensor = torch.tensor(map(tensor.cpu().numpy()), device=tensor.device)[..., :3]       ## default
+    tensor = torch.tensor(map(tensor))[..., :3] ## This is when the input tensor is numpy array already
     return tensor

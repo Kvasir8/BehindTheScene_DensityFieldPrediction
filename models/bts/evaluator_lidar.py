@@ -9,6 +9,7 @@ from ignite.engine import Engine
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
+import torchvision
 import matplotlib.pyplot as plt
 
 from datasets.data_util import make_test_dataset
@@ -64,7 +65,7 @@ cam_incl_adjust = torch.tensor(
 ).view(1, 1, 4, 4)
 
 
-def get_pts(x_range, y_range, z_range, ppm, ppm_y, y_res=None):
+def get_pts(x_range, y_range, z_range, ppm, ppm_y, y_res=None):  ## ppm:=pts_per_meter
     x_res = abs(int((x_range[1] - x_range[0]) * ppm))
     if y_res is None:
         y_res = abs(int((y_range[1] - y_range[0]) * ppm_y))
@@ -295,30 +296,61 @@ class BTSWrapper(nn.Module):
 
         self.renderer = renderer
         self.encoder_ids = config.get("encoder_ids", [0])
+        self.save_bin_path = config.get("save_bin_path", None)
 
         self.z_near = config["z_near"]
         self.z_far = config["z_far"]
         self.query_batch_size = config.get("query_batch_size", 50000)
         self.occ_threshold = 0.5
 
-        self.x_range = (-4, 4)
-        self.y_range = (0, 0.75)
-        self.z_range = (20, 4)
-        self.ppm = 10
-        self.ppm_y = 4
+        ## c.f. BTS paper Tab 1.
+        occ_pred = True
+        if occ_pred:
+            old = True
+            if old:
+                self.x_range = (-4, 4)
+                self.y_range = (0, 0.75)
+                self.z_range = (20, 4)
+                self.ppm = 10
+                self.ppm_y = 4
+                self.y_res = 1
+            else:
+                self.x_range = (-4, 4)
+                self.y_range = (1.0 / 3.0, 1.0)
+                self.z_range = (20, 4)
+                self.ppm = 10
+                self.ppm_y = 2
+                self.y_res = 3
+        else:
+            self.x_range = (-12, 12)
+            self.y_range = (-1, 2)
+            self.z_range = (20, 4)
+            self.ppm = 10
+            self.ppm_y = self.ppm
 
-        self.y_res = 1
+            self.y_res = None
+        print(
+            self.x_range, self.y_range, self.z_range, self.ppm, self.ppm_y, self.y_res
+        )
 
         self.sampler = ImageRaySampler(self.z_near, self.z_far, channels=3)
 
         self.dataset = dataset
         self.aggregate_timesteps = 20
+        self.counter = 0
 
     @staticmethod
     def get_loss_metric_names():
         return ["loss", "loss_l2", "loss_mask", "loss_temporal"]
 
     def forward(self, data):
+        if isinstance(self.renderer.net, IBRNetRenderingWrapper):
+            n_samples = 64
+            self.renderer.net.model.net_coarse.pos_encoding = (
+                self.renderer.net.model.net_coarse.posenc(d_hid=16, n_samples=n_samples)
+            )
+            self.renderer.net.model.args.N_samples = n_samples
+            self.renderer.net.regular_grid = False
         data = dict(data)
         images = torch.stack(data["imgs"], dim=1)  # n, v, c, h, w
         poses = torch.stack(data["poses"], dim=1)  # n, v, 4, 4 w2c
@@ -341,12 +373,10 @@ class BTSWrapper(nn.Module):
         world_transform = cam_incl_adjust.to(device) @ world_transform
         poses = world_transform @ poses
 
-        self.sampler.height = h
-        self.sampler.width = w
+        self.sampler.height, self.sampler.width = h, w
 
         # Load lidar pointclouds
-        points_all = []
-        velo_poses = []
+        points_all, velo_poses = [], []
         for id in range(id, min(id + self.aggregate_timesteps, seq_len)):
             points = np.fromfile(
                 os.path.join(
@@ -377,8 +407,8 @@ class BTSWrapper(nn.Module):
         # enc2eval = [i for i in self.encoder_ids]
         # enc2eval = {
         #     mono: [0]                        ## monocular fixed case
-        #     # mono_tmp: [0, 2]                     ## temporal mono case
-        #     stereo: [0, 1]                     ## stereo fixed case
+        #     # mono_tmp: [0, 1]                     ## temporal mono case
+        #     stereo: [0, 2]                     ## stereo fixed case
         #     # stereo_tmp: [0, 1, 2, 3]               ## stereo temporal case
         #     encoder_ids: [0, 1, 2, 3, 4, 5, 6, 7]   ## full case
         # }
@@ -406,7 +436,17 @@ class BTSWrapper(nn.Module):
         q_pts, (xd, yd, zd) = get_pts(
             self.x_range, self.y_range, self.z_range, self.ppm, self.ppm_y, self.y_res
         )
+        # q_pts = q_pts.permute(0, 2, 1, 3).contiguous()
+        q_pts_shape = q_pts.shape[:3]
         q_pts = q_pts.to(images.device).view(-1, 3)
+
+        # if isinstance(self.renderer.net, IBRNetRenderingWrapper):
+        #     n_samples = 160
+        #     self.renderer.net.model.net_coarse.pos_encoding = (
+        #         self.renderer.net.model.net_coarse.posenc(d_hid=16, n_samples=n_samples)
+        #     )
+        #     self.renderer.net.model.args.N_samples = n_samples
+        #     self.renderer.net.regular_grid = True
 
         # is visible? Check whether point is closer than the computed pseudo depth
         cam_pts, dists = project_into_cam(q_pts, projs[0, 0], poses[0, 0])
@@ -438,6 +478,57 @@ class BTSWrapper(nn.Module):
             densities = torch.cat(densities, dim=0).squeeze()
             is_occupied_pred = densities > self.occ_threshold
 
+        def pack(uncompressed):
+            """convert a boolean array into a bitwise array."""
+            uncompressed_r = uncompressed.reshape(-1, 8)
+            compressed = uncompressed_r.dot(
+                1 << np.arange(uncompressed_r.shape[-1] - 1, -1, -1)
+            )
+            return compressed
+
+        if self.save_bin_path:
+            # base_file = "/storage/user/hank/methods_test/semantic-kitti-api/bts_test/sequences/00/voxels"
+            outside_frustum = (
+                (
+                    (cam_pts[:, 0] < -1.0)
+                    | (cam_pts[:, 0] > 1.0)
+                    | (cam_pts[:, 1] < -1.0)
+                    | (cam_pts[:, 0] > 1.0)
+                )
+                .reshape(q_pts_shape)
+                .permute(1, 2, 0)
+                .detach()
+                .cpu()
+                .numpy()
+            )
+            is_occupied_numpy = (
+                is_occupied_pred.reshape(q_pts_shape)
+                .permute(1, 2, 0)
+                .detach()
+                .cpu()
+                .numpy()
+                .astype(np.float32)
+            )
+            is_occupied_numpy[outside_frustum] = 0.0
+            ## carving out the invisible regions out of view-frustum
+            # for i_ in range(
+            #     (is_occupied_numpy.shape[0]) // 2
+            # ):  ## left | right half of the space
+            #     for j_ in range(i_ + 1):
+            #         is_occupied_numpy[i_, j_] = 0
+
+            pack(np.flip(is_occupied_numpy, (0, 1, 2)).reshape(-1)).astype(
+                np.uint8
+            ).tofile(
+                # f"{base_file}/{self.counter:0>6}.bin"
+                f"{self.save_bin_path}/{self.counter:0>6}.bin"
+            )
+            # for idx_i, image in enumerate(images[0]):
+            #     torchvision.utils.save_image(
+            #         image, f"{self.save_bin_path}/{self.counter:0>6}_{idx_i}.png"
+            #     )
+            self.counter += 1
+
         # is occupied?
         slices = get_lidar_slices(
             points_all,
@@ -453,6 +544,45 @@ class BTSWrapper(nn.Module):
         # Only not visible points can be occupied
         is_occupied &= ~is_visible
 
+        # is_occupied_acc = (
+        #     (is_occupied_pred == is_occupied).float().mean().nan_to_num_(0.0).item()
+        # )
+        # is_occupied_prec = (
+        #     is_occupied[is_occupied_pred].float().mean().nan_to_num_(0.0).item()
+        # )
+        # is_occupied_rec = (
+        #     is_occupied_pred[is_occupied].float().mean().nan_to_num_(0.0).item()
+        # )
+
+        # not_occupied_not_visible_ratio = (
+        #     ((~is_occupied) & (~is_visible)).float().mean().nan_to_num_(0.0).item()
+        # )
+
+        # total_ie = (
+        #     ((~is_occupied) & (~is_visible)).float().sum().nan_to_num_(0.0).item()
+        # )
+
+        # ie_acc = (
+        #     (is_occupied_pred == is_occupied)[(~is_visible)]
+        #     .float()
+        #     .mean()
+        #     .nan_to_num_(0.0)
+        #     .item()
+        # )
+        # ie_prec = (
+        #     (~is_occupied)[(~is_occupied_pred) & (~is_visible)]
+        #     .float()
+        #     .mean()
+        #     .nan_to_num_(0.0)
+        #     .item()
+        # )  ## ? why without .item()?
+        # ie_rec = (
+        #     (~is_occupied_pred)[(~is_occupied) & (~is_visible)]
+        #     .float()
+        #     .mean()
+        #     .nan_to_num_(0.0)
+        #     .item()
+        # )
         is_occupied_acc = (is_occupied_pred == is_occupied).float().mean().item()
         is_occupied_prec = is_occupied[is_occupied_pred].float().mean().item()
         is_occupied_rec = is_occupied_pred[is_occupied].float().mean().item()
@@ -582,6 +712,12 @@ def initialize(config: dict, logger=None):
         parser = config_parser()
         args = parser.parse_known_args(parser._default_config_files)[0]
         args.ckpt_path = "/storage/user/hank/methods_test/IBRNet/out/pretraining/finished_kitti360_FeTrue_NoOffset_2023-11-06_11-15-43/model_250000.pth"
+        args.N_samples = 64
+        if config["data"].type == "KITTI_360" or "KITTI_360_DFT":
+            args.num_source_views = 7
+        else:
+            args.num_source_views = 3
+        # elif config['data'].type == "KITTI_"
         model = IBRNetModel(args, load_opt=False, load_scheduler=False)
         projector = Projector(device="cuda")
         net = IBRNetRenderingWrapper(model=model, projector=projector)

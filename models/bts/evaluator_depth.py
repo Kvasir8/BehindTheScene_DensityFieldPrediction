@@ -105,7 +105,7 @@ class BTSWrapper(nn.Module):
                 projs,
                 poses,
                 ids_encoder=ids_encoder,
-                ids_render=ids_encoder,
+                ids_render=ids_renderer,
             )
 
             all_rays, all_rgb_gt = self.sampler.sample(images * 0.5 + 0.5, poses, projs)

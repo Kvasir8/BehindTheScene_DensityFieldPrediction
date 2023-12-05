@@ -16,7 +16,7 @@
 import torch
 import torch.nn.functional as F
 
-
+## From ibrnet repo
 class Projector:
     def __init__(self, device):
         self.device = device

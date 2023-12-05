@@ -14,7 +14,15 @@ from utils.array_operations import to
 from ignite.contrib.handlers.tensorboard_logger import *
 
 
-def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, logger=None, visualize=None):
+def base_evaluation(
+    local_rank,
+    config,
+    get_dataflow,
+    initialize,
+    get_metrics,
+    logger=None,
+    visualize=None,
+):
     rank = idist.get_rank()
     manual_seed(config["seed"] + rank)
     device = idist.device()
@@ -70,7 +78,9 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
             now = f"stop-on-{config['stop_iteration']}"
 
         # folder_name = f"{config['name']}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
-        folder_name = f"{model_name}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
+        folder_name = (
+            f"{model_name}_backend-{idist.backend()}-{idist.get_world_size()}_{now}"
+        )
 
         output_path = Path(output_path) / folder_name
         if not output_path.exists():
@@ -92,17 +102,19 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
     model = initialize(config, logger)
 
     cp_path = config.get("checkpoint", None)
+
     if cp_path is not None:
         if not cp_path.endswith(".pt"):
             cp_path = Path(cp_path)
             cp_path = next(cp_path.glob("training*.pt"))
         checkpoint = torch.load(cp_path, map_location=device)
+        print(f"__check point loaded in path: {cp_path}")
         if "model" in checkpoint:
             model.load_state_dict(checkpoint["model"], strict=False)
         else:
             model.load_state_dict(checkpoint, strict=False)
     else:
-        print("Be careful, no model is loaded")
+        print("__Be careful, no model is loaded")
     model.to(device)
 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
@@ -118,7 +130,8 @@ def base_evaluation(local_rank, config, get_dataflow, initialize, get_metrics, l
     # tb_logger = TensorboardLogger(log_dir="/tmp/tb_logs")
 
     evaluator.add_event_handler(
-        Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics)
+        Events.ITERATION_COMPLETED(every=config["log_every"]),
+        log_metrics_current(logger, metrics),
     )
     # evaluator.add_event_handler(Events.ITERATION_COMPLETED(every=config["log_every"]), log_metrics_current(logger, metrics), tensorboard_metrics_logging(tb_logger, metrics, config["log_every"]))
 
@@ -140,7 +153,9 @@ def log_basic_info(logger, config):
         # torch.backends.cudnn can not be pickled with hvd spawning procs
         from torch.backends import cudnn
 
-        logger.info(f"- GPU Device: {torch.cuda.get_device_name(idist.get_local_rank())}")
+        logger.info(
+            f"- GPU Device: {torch.cuda.get_device_name(idist.get_local_rank())}"
+        )
         logger.info(f"- CUDA version: {torch.version.cuda}")
         logger.info(f"- CUDNN version: {cudnn.version()}")
 
@@ -166,7 +181,13 @@ def log_basic_info(logger, config):
 
 def log_metrics_current(logger, metrics):
     def f(engine):
-        out_str = "\n" + "\t".join([f"{v.compute():.3f}".ljust(8) for v in metrics.values()])
+        out_str = "\n" + "\t".join(
+            [
+                f"{v.compute():.3f}".ljust(8)
+                for v in metrics.values()
+                if v._num_examples != 0
+            ]
+        )
         out_str += "\n" + "\t".join([f"{k}".ljust(8) for k in metrics.keys()])
         logger.info(out_str)
 
@@ -175,7 +196,9 @@ def log_metrics_current(logger, metrics):
 
 def log_metrics(logger, elapsed, tag, metrics):
     metrics_output = "\n".join([f"\t{k}: {v}" for k, v in metrics.items()])
-    logger.info(f"\nEvaluation time (seconds): {elapsed:.2f} - {tag} metrics:\n {metrics_output}")
+    logger.info(
+        f"\nEvaluation time (seconds): {elapsed:.2f} - {tag} metrics:\n {metrics_output}"
+    )
 
 
 # def create_evaluator(model, metrics, config, tag="val"):
@@ -185,6 +208,7 @@ def create_evaluator(model, metrics, config, logger=None, tag="val"):
 
     @torch.no_grad()
     def evaluate_step(engine: Engine, data):
+        # if not engine.state_dict["iteration"] % 10 == 0:      ## to prevent iterating whole testset for viz purpose
         model.eval()
         if "t__get_item__" in data:
             timing = {"t__get_item__": torch.mean(data["t__get_item__"]).item()}
@@ -198,7 +222,12 @@ def create_evaluator(model, metrics, config, logger=None, tag="val"):
 
         loss_metrics = {}
 
-        return {"output": data, "loss_dict": loss_metrics, "timings_dict": timing, "metrics_dict": {}}
+        return {
+            "output": data,
+            "loss_dict": loss_metrics,
+            "timings_dict": timing,
+            "metrics_dict": {},
+        }
 
     evaluator = Engine(evaluate_step)
     evaluator.logger = logger  ##

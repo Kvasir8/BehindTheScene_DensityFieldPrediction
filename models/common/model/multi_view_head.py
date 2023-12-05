@@ -127,7 +127,7 @@ class MultiViewHead(nn.Module):
             dim=1,
         )
 
-        transformed_features = self.attn_layers(padded_features, src_key_padding_mask=padded_invalid)[
+        transformed_features = self.attn_layers(src=padded_features, src_key_padding_mask=padded_invalid)[
             :, 0, :
         ]  # [n_pts, C] ##Note: remember the tensor shape is batch-first mode, sequence length is determined by the size of the first dimension of the input tensor
         ## ## first token refers to the readout token where it stores the feature information accumulated from the layers

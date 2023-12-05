@@ -4,7 +4,7 @@ defaults:                       ### This code is to run for slurm config
     - _self_
 
 ## For training
-name: "BaseExperimentRaw"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
+name: "BaseExperimentRawKnowDist"     ## Please name it in case there are various hparam settings to distinguish the diff results easily.
 model: "bts"
 output_path: "/storage/user/muhled/outputs/mvbts/kitti-raw"
 
@@ -29,6 +29,8 @@ data:
     fisheye_rotation: [0, -15]
 
 #### below are the same for both eval and training
+resume_from: /storage/user/muhled/outputs/mvbts/kitti-raw/BaseExperimentRaw_backend-None-1_20231111-130418/training_checkpoint_200000.pt
+new_model_architecture: false
 
 renderer:
     n_coarse : 64                       # default: 64, num sampling on a ray
@@ -50,7 +52,7 @@ model_conf:
 
     encoder:
         type: "monodepth2"
-        freeze: false            # freezing encoder to train the transformer
+        freeze: true            # freezing encoder to train the transformer
         pretrained: true
         resnet_layers: 50
         num_ch_dec: [32,32,64,128,256]
@@ -64,7 +66,7 @@ model_conf:
     decoder_heads:
         - type: "MultiViewHead3"
           name: "multiviewhead3"
-          freeze: false
+          freeze: true
           args:
             mlp:
                 type: "resnet"
@@ -77,8 +79,8 @@ model_conf:
                 args:
                     n_blocks: 0
                     d_hidden: 16
-            dropout_views_rate: 0.5
-            dropout_multiviewhead: true
+            dropout_views_rate: 0.0
+            dropout_multiviewhead: false
 
         - type: "resnet"
           name: "singleviewhead"
@@ -111,8 +113,8 @@ loss:
     criterion: "l1+ssim"                # option: "l1+ssim+geo+cls"
     invalid_policy: weight_guided
     lambda_edge_aware_smoothness: 0.001 # default: 0.001
-    lambda_pseudo_ground_truth: 0.0
-    pseudo_ground_truth_teacher: "multiviewhead"
+    lambda_pseudo_ground_truth: 1e-2
+    pseudo_ground_truth_teacher: "multiviewhead3"
     pseudo_ground_truth_students:
         - "singleviewhead"
 

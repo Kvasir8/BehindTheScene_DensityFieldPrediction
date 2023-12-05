@@ -16,4 +16,5 @@ export CUDA_LAUNCH_BLOCKING=1
 pwd; hostname; date
 nvidia-smi
 
-python eval.py -cn dominik_eval_depth_base
+# python eval.py -cn dominik_eval_depth_base
+python eval.py -cn dominik_eval_depth_final_model
