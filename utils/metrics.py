@@ -81,30 +81,65 @@ class HistogramMetric(Metric):
                 "CustomAccuracy must have at least one example before it can be computed."
             )
         all_err = torch.cat(self._err)  # tensor of size N
+        torch.save(all_err, f"all_err_{self._name}.pt")
+        print(f"__{self._name} tensor saved in local file location.")
 
-        # create a histogram and visualize it, save it based on the name
-        if self._name == "abs_err":
-            hist_range = (0.0, 10.0)
-        elif self._name == "rel_err":
-            hist_range = (1.0, 2.0)
+        # # TASK
+        # # create a histogram and visualize it, save it based on the name
+        # if self._name == "abs_err":
+        #     hist_range = (0.0, 10.0)
+        # elif self._name == "rel_err":
+        #     hist_range = (1.0, 2.0)
 
-        histogram = torch.histogram(
-            all_err, self._num_bins, range=hist_range, density=True
-        )[0]
+        # histogram = torch.histogram(
+        #     all_err, self._num_bins, range=hist_range, density=True
+        # )[0]
 
-        x = torch.linspace(hist_range[0], hist_range[1], self._num_bins)
-        plt.bar(
-            x,
-            histogram,
-            align="center",
-            width=1.0 * (hist_range[1] - hist_range[0]) / self._num_bins,
-        )
-        plt.xlabel("Bins")
-        plt.savefig(f"histgram_test_{self._name}.png")
-        plt.close("all")
+        # x = torch.linspace(hist_range[0], hist_range[1], self._num_bins)
+        # plt.bar(
+        #     x,
+        #     histogram,
+        #     align="center",
+        #     width=1.0 * (hist_range[1] - hist_range[0]) / self._num_bins,
+        # )
+        # plt.xlabel("Bins")
+        # plt.savefig(f"histgram_test_{self._name}.png")
+        # plt.close("all")
         # print(f"__{self._name} histogram saved.")
 
         return 0.0
+
+    # @sync_all_reduce("_num_examples:SUM", "_sum:SUM")
+    # def compute(self):
+    #     if len(self._err) == 0:
+    #         raise NotComputableError(
+    #             "CustomAccuracy must have at least one example before it can be computed."
+    #         )
+    #     all_err = torch.cat(self._err)  # tensor of size N
+
+    #     # create a histogram and visualize it, save it based on the name
+    #     if self._name == "abs_err":
+    #         hist_range = (0.0, 10.0)
+    #     elif self._name == "rel_err":
+    #         hist_range = (1.0, 2.0)
+
+    #     histogram = torch.histogram(
+    #         all_err, self._num_bins, range=hist_range, density=True
+    #     )[0]
+
+    #     x = torch.linspace(hist_range[0], hist_range[1], self._num_bins)
+    #     plt.bar(
+    #         x,
+    #         histogram,
+    #         align="center",
+    #         width=1.0 * (hist_range[1] - hist_range[0]) / self._num_bins,
+    #     )
+    #     plt.xlabel("Bins")
+    #     plt.savefig(f"histgram_test_{self._name}.png")
+    #     plt.close("all")
+    #     # print(f"__{self._name} histogram saved.")
+
+    #     return 0.0
 
     @torch.no_grad()
     def iteration_completed(self, engine: Engine) -> None:
@@ -212,48 +247,13 @@ class FG_ARI(Metric):
                 ).squeeze()
                 self._num_examples += 1
 
-    @sync_all_reduce("_num_examples:SUM", "_sum:SUM")
+    @sync_all_reduce("_num_examples:SUM", "_sum_fg_aris:SUM")
     def compute(self):
-        if len(self._err) == 0:
+        if self._num_examples == 0:
             raise NotComputableError(
                 "CustomAccuracy must have at least one example before it can be computed."
             )
-        all_err = torch.cat(self._err)  # tensor of size N
-        torch.save(all_err, f"all_err_{self._name}.pt")
-        print(f"__{self._name} tensor saved in local file location.")
-
-        # # TASK
-        # # create a histogram and visualize it, save it based on the name
-        # if self._name == "abs_err":
-        #     hist_range = (0.0, 10.0)
-        # elif self._name == "rel_err":
-        #     hist_range = (1.0, 2.0)
-
-        # histogram = torch.histogram(
-        #     all_err, self._num_bins, range=hist_range, density=True
-        # )[0]
-
-        # x = torch.linspace(hist_range[0], hist_range[1], self._num_bins)
-        # plt.bar(
-        #     x,
-        #     histogram,
-        #     align="center",
-        #     width=1.0 * (hist_range[1] - hist_range[0]) / self._num_bins,
-        # )
-        # plt.xlabel("Bins")
-        # plt.savefig(f"histgram_test_{self._name}.png")
-        # plt.close("all")
-        # print(f"__{self._name} histogram saved.")
-
-        return 0.0
-
-    # @sync_all_reduce("_num_examples:SUM", "_sum_fg_aris:SUM")
-    # def compute(self):
-    #     if self._num_examples == 0:
-    #         raise NotComputableError(
-    #             "CustomAccuracy must have at least one example before it can be computed."
-    #         )
-    #     return self._sum_fg_aris.item() / self._num_examples
+        return self._sum_fg_aris.item() / self._num_examples
 
     @torch.no_grad()
     def iteration_completed(self, engine: Engine) -> None:
