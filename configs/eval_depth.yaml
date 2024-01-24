@@ -9,7 +9,7 @@ model: "bts"
 checkpoint: "out/kitti_raw/pretrained"
 
 
-log_every: 10
+log_every: 1       ## set 1 for each of test frame to be evaluated
 batch_size: 1
 
 data:

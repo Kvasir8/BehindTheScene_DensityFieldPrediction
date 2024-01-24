@@ -76,6 +76,7 @@ class ResnetFC(nn.Module):
         combine_layer=1000,
         combine_type="average",
         use_spade=False,
+        **kwargs,  ##
     ):
         """
         :param d_in input size
@@ -106,17 +107,23 @@ class ResnetFC(nn.Module):
         self.combine_type = combine_type
         self.use_spade = use_spade
 
-        self.blocks = nn.ModuleList([ResnetBlockFC(d_hidden, beta=beta) for i in range(n_blocks)])
+        self.blocks = nn.ModuleList(
+            [ResnetBlockFC(d_hidden, beta=beta) for i in range(n_blocks)]
+        )
 
         if d_latent != 0:
             n_lin_z = min(combine_layer, n_blocks)
-            self.lin_z = nn.ModuleList([nn.Linear(d_latent, d_hidden) for i in range(n_lin_z)])
+            self.lin_z = nn.ModuleList(
+                [nn.Linear(d_latent, d_hidden) for i in range(n_lin_z)]
+            )
             for i in range(n_lin_z):
                 nn.init.constant_(self.lin_z[i].bias, 0.0)
                 nn.init.kaiming_normal_(self.lin_z[i].weight, a=0, mode="fan_in")
 
             if self.use_spade:
-                self.scale_z = nn.ModuleList([nn.Linear(d_latent, d_hidden) for _ in range(n_lin_z)])
+                self.scale_z = nn.ModuleList(
+                    [nn.Linear(d_latent, d_hidden) for _ in range(n_lin_z)]
+                )
                 for i in range(n_lin_z):
                     nn.init.constant_(self.scale_z[i].bias, 0.0)
                     nn.init.kaiming_normal_(self.scale_z[i].weight, a=0, mode="fan_in")
@@ -126,7 +133,14 @@ class ResnetFC(nn.Module):
         else:
             self.activation = nn.ReLU()
 
-    def forward(self, sampled_features, combine_inner_dims=(1,), combine_index=None, dim_size=None, **kwargs):
+    def forward(
+        self,
+        sampled_features,
+        combine_inner_dims=(1,),
+        combine_index=None,
+        dim_size=None,
+        **kwargs,
+    ):
         """
         :param zx (..., d_latent + d_in)
         :param combine_inner_dims Combining dimensions for use with multiview inputs.
@@ -134,8 +148,10 @@ class ResnetFC(nn.Module):
         on dim 1, at combine_layer
         """
         with profiler.record_function("resnetfc_infer"):
-            if self.view_number is not None:    zx = sampled_features[..., self.view_number, :]
-            else:                               zx = sampled_features
+            if self.view_number is not None:
+                zx = sampled_features[..., self.view_number, :]
+            else:
+                zx = sampled_features
 
             assert zx.size(-1) == self.d_latent + self.d_in
 
@@ -168,7 +184,9 @@ class ResnetFC(nn.Module):
                     #          reduce=combine_type,
                     #      )
                     #  else:
-                    x = util.combine_interleaved(x, combine_inner_dims, self.combine_type)
+                    x = util.combine_interleaved(
+                        x, combine_inner_dims, self.combine_type
+                    )
 
                 if self.d_latent > 0 and blkid < self.combine_layer:
                     tz = self.lin_z[blkid](z)
@@ -185,12 +203,12 @@ class ResnetFC(nn.Module):
             #     return out[:,0,:]   ## Take 1st feature map as viz frame as evluation purpose mono camera
             return out
 
-    @classmethod        ## For foward_hook arguments matching: For multi view BTS model
-    # def from_conf(cls, conf, d_in, d_out):    ## default
+    @classmethod  ## For foward_hook arguments matching: For multi view BTS model
+    # def from_conf(cls, conf, d_in, d_out):  ## default
     def from_conf(cls, conf, d_in, d_out, d_latent=0):
         return cls(d_in=d_in, d_out=d_out, **conf)
 
-    @classmethod          ## default for original resnetfc.py
+    @classmethod  ## default for original resnetfc.py
     def from_conf2(cls, conf, d_in, **kwargs):
         # PyHocon construction
         return cls(
@@ -200,9 +218,10 @@ class ResnetFC(nn.Module):
             beta=conf.get("beta", 0.0),
             combine_layer=conf.get("combine_layer", 1000),
             combine_type=conf.get("combine_type", "average"),  # average | max
-            use_spade=conf.get("use_spade", False), **kwargs
+            use_spade=conf.get("use_spade", False),
+            **kwargs,
         )
-        
+
     # @classmethod        ## For both multi and single view BTS model (integrated from both classmethod)
     # def from_conf(cls, conf, d_in, d_out, **kwargs):
     #     # PyHocon construction

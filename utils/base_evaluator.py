@@ -184,8 +184,9 @@ def log_metrics_current(logger, metrics):
         out_str = "\n" + "\t".join(
             [
                 f"{v.compute():.3f}".ljust(8)
-                for v in metrics.values()
+                for k, v in metrics.items()
                 if v._num_examples != 0
+                and (k not in ["abs_errH", "rel_errH", "thresholdH"])
             ]
         )
         out_str += "\n" + "\t".join([f"{k}".ljust(8) for k in metrics.keys()])

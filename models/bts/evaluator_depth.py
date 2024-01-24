@@ -25,7 +25,7 @@ from models.ibrnet.ibrwrapper import IBRNetRenderingWrapper
 from models.ibrnet.model import IBRNetModel
 from models.ibrnet.projection import Projector
 from utils.base_evaluator import base_evaluation
-from utils.metrics import MeanMetric
+from utils.metrics import HistogramMetric, MeanMetric
 from utils.projection_operations import distance_to_z
 
 from models.common.backbones.backbone_util import make_backbone
@@ -139,7 +139,17 @@ class BTSWrapper(nn.Module):
             data["z_near"] = torch.tensor(self.z_near, device=images.device)
             data["z_far"] = torch.tensor(self.z_far, device=images.device)
 
-        data.update(self.compute_depth_metrics(data))
+        depth_metrics = self.compute_depth_metrics(data)
+        rel_err = depth_metrics.pop("rel_err")
+        abs_err = depth_metrics.pop("abs_err")
+        threshold = depth_metrics.pop("threshold")
+
+        # data.update(self.compute_depth_metrics(data))
+        data.update(depth_metrics)
+
+        data["abs_err"] = abs_err
+        data["rel_err"] = rel_err
+        data["threshold"] = threshold
         # data.update(self.compute_nvs_metrics(data))
 
         globals()["IDX"] += 1
@@ -204,6 +214,9 @@ class BTSWrapper(nn.Module):
             "a1": a1,
             "a2": a2,
             "a3": a3,
+            "threshold": thresh.to("cpu"),
+            "abs_err": torch.abs(depth_gt - depth_pred).to("cpu"),
+            "rel_err": (torch.abs(depth_gt - depth_pred) / depth_gt).to("cpu"),
         }
         return metrics_dict
 
@@ -227,10 +240,21 @@ def get_dataflow(config):
 
 def get_metrics(config, device):
     names = ["abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
+    num_bins = config.get("num_bins", sum(config.get("data")["image_size"]) // 2)
     metrics = {
         name: MeanMetric((lambda n: lambda x: x["output"][n])(name), device)
         for name in names
     }
+    if config.get("hist_viz", False):  ## Error histogram
+        metrics["abs_errH"] = HistogramMetric(
+            "abs_err", num_bins, (lambda n: lambda x: x["output"][n])("abs_err")
+        )
+        metrics["rel_errH"] = HistogramMetric(
+            "rel_err", num_bins, (lambda n: lambda x: x["output"][n])("rel_err")
+        )
+        metrics["thresholdH"] = HistogramMetric(
+            "threshold", num_bins, (lambda n: lambda x: x["output"][n])("threshold")
+        )
     return metrics
 
 

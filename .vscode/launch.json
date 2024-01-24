@@ -20,9 +20,10 @@
                 // "++name=debugging",
                 // "++resume_from=null",
                 // "++stop_iteration=20",
-                "++validate_every=20",
-                "++visualize_every=20",
-                "++batch_size=1",
+                
+                // "++validate_every=20",
+                // "++visualize_every=20",
+                // "++batch_size=1",
             ],
             "console": "integratedTerminal",
             "justMyCode": false
@@ -122,7 +123,9 @@
             "program": "eval.py",
             "args": [
                 "-cn",
-                "eval_depth_MVBTS"
+                // "eval_depth_MVBTS",
+                // "eval_depth"     ## for original BTS with kitti-raw
+                "eval_depth_histo_KDBTS"    ## for KDBTS kitti-raw
             ],
             // "cwd": "${workspaceFolder}",
             // "python": "${workspaceFolder}../../miniconda3/envs/bts_m/bin/python",
