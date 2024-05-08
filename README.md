@@ -1,6 +1,9 @@
-# Density-Field-Transformer-Density-Field-Accumulation-from-multiple-Single-View-Predictions-DFT-
-# Behind the Scenes: Density Fields for Single View Reconstruction
+# DFT: Density-Field-Transformer-Density-Field-Accumulation-from-multiple-Single-View-Predictions
 
+This is the master thesis project worked along with [KDBTS](https://github.com/keonhee-han/KDBTS). Please refer to the KDBTS codebase for further detail of the project.
+
+
+<!--
 [**Paper**](https://arxiv.org/abs/2301.07668) |  [**Video**](https://youtu.be/0VGKPmomrR8) | [**Project Page**](https://fwmb.github.io/bts)
 
 This is the official implementation for the CVPR 2023 paper:
@@ -36,6 +39,8 @@ By not storing color in the implicit volume, but directly sampling color from th
 Thus, we can apply volume rendering to perform both depth prediction and novel view synthesis. 
 In our experiments, we show that our method is able to predict meaningful geometry for regions that are occluded in the input image. 
 Additionally, we demonstrate the potential of our approach on three datasets for depth prediction and novel-view synthesis.
+
+-->
 
 # 🪧 Overview
 
